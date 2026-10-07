@@ -6,7 +6,7 @@
 # Git version detection (can be overridden via environment or command line)
 # VERSIONOVERRIDE takes precedence over git describe
 VERSIONOVERRIDE ?=
-GIT_DESCRIBE ?= $(if $(VERSIONOVERRIDE),$(VERSIONOVERRIDE),$(shell git describe --dirty --abbrev=5 2>/dev/null | sed -e 's/-/./g'))
+GIT_DESCRIBE ?= $(if $(VERSIONOVERRIDE),$(VERSIONOVERRIDE),$(shell git describe --tags --dirty --abbrev=5 2>/dev/null | sed -e 's/-/./g'))
 ifeq ($(GIT_DESCRIBE),)
 GIT_DESCRIBE := 0.0.0
 endif
