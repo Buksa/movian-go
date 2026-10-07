@@ -13,7 +13,7 @@ func GetTotalMemory() uint64 {
 	if err != nil {
 		return 0
 	}
-	return info.Totalram
+	return uint64(info.Totalram) //nolint:unconvert // Sysinfo_t fields are uint32 on 32-bit archs
 }
 
 // GetFreeMemory returns the free system memory
@@ -23,7 +23,7 @@ func GetFreeMemory() uint64 {
 	if err != nil {
 		return 0
 	}
-	return info.Freeram
+	return uint64(info.Freeram) //nolint:unconvert // Sysinfo_t fields are uint32 on 32-bit archs
 }
 
 // GetUptime returns the system uptime in seconds

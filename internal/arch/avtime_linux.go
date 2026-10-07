@@ -12,5 +12,5 @@ func GetAvtime() int64 {
 	if err := unix.ClockGettime(unix.CLOCK_MONOTONIC, &ts); err != nil {
 		return GetTS()
 	}
-	return ts.Sec*1000000 + ts.Nsec/1000
+	return int64(ts.Sec)*1000000 + int64(ts.Nsec)/1000 //nolint:unconvert // Timespec fields are int32 on 32-bit archs
 }
