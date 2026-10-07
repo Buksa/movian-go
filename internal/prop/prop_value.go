@@ -239,7 +239,8 @@ func setPropValue(prop *Prop, opaque any, value any) int {
 			return 0
 		}
 		// For PropTypeDir: check canonical subs (needs lock, already held)
-		if prop.propType == PropTypeDir {
+		switch prop.propType {
+		case PropTypeDir:
 			if hasCanonicalSubsDescendingLocked(prop) {
 				prop.mu.Unlock()
 				return 0
@@ -291,7 +292,7 @@ func setPropValue(prop *Prop, opaque any, value any) int {
 				prop.mu.Unlock()
 				return -1
 			}
-		} else if prop.propType == PropTypeProp {
+		case PropTypeProp:
 			// Release prop reference (no unlock needed — no external calls)
 			if prop.propRefSub != nil {
 				prop.propRefSub.active.Store(false)

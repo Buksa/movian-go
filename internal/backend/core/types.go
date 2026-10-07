@@ -61,6 +61,14 @@ type ImageMeta struct {
 // It is distinct from nil (which means "no image" / error).
 var NotModifiedImage = errors.New("not modified")
 
+// IsNotModifiedImage reports whether v is the NotModifiedImage
+// sentinel. Loaders return it inside an `any` slot, so identity
+// comparison (not errors.Is) is the right check.
+func IsNotModifiedImage(v any) bool {
+	e, ok := v.(error)
+	return ok && errors.Is(e, NotModifiedImage)
+}
+
 // Wired by cmd/movian-go init; nil-safe methods make unwired calls no-ops.
 
 // SetPlaybackInfoFn — C: the vpi_handlers LIST_HEAD global.

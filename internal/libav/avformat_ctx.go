@@ -172,7 +172,7 @@ func (fc *AVFormatContext) StreamCodecCtx(idx int) *AVCodecContext {
 	if p == nil {
 		return nil
 	}
-	return &AVCodecContext{cPtr: unsafe.Pointer(p)}
+	return &AVCodecContext{cPtr: p}
 }
 
 // AvReadFrameCode — C: r = av_read_frame(fctx, &pkt). Returns the raw

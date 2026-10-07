@@ -20,10 +20,10 @@ func fsSetXattr(path, name string, data []byte) int {
 		return 0
 	}
 	if err := unix.Setxattr(path, name, data, 0); err != nil {
-		switch err {
-		case syscall.EROFS:
+		switch {
+		case errors.Is(err, syscall.EROFS):
 			return FAP_PERMISSION_DENIED
-		case syscall.ENOTSUP:
+		case errors.Is(err, syscall.ENOTSUP):
 			return FAP_NOT_SUPPORTED
 		default:
 			return FAP_ERROR

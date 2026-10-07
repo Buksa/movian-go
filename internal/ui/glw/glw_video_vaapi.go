@@ -649,7 +649,7 @@ func vaapiImportSurface(gv *GlwVideo, gvs *glwVideoSurface) {
 			}
 			return
 		}
-		gvs.gvsVaapiImages[j] = unsafe.Pointer(img)
+		gvs.gvsVaapiImages[j] = img
 		gvs.gvsTexture.Textures[j] = uint32(tex)
 	}
 	gvs.vaapiImportFails = 0

@@ -11,6 +11,8 @@ import (
 	"errors"
 	"strings"
 
+	"golang.org/x/sys/unix"
+
 	backendcore "github.com/czz/movian-go/internal/backend/core"
 	"github.com/czz/movian-go/internal/backend/dvd/dvdlib"
 	"github.com/czz/movian-go/internal/callout"
@@ -21,7 +23,6 @@ import (
 	"github.com/czz/movian-go/internal/service"
 	"github.com/czz/movian-go/internal/trace"
 	"github.com/czz/movian-go/internal/usage"
-	"golang.org/x/sys/unix"
 )
 
 // C: <linux/cdrom.h>

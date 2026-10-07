@@ -223,10 +223,7 @@ func httpReadContent(hf *httpFile) *misc.Buf {
 		var buf []byte
 		var chunkheader [100]byte
 
-		for {
-			if hc.tc.TCPReadLine(chunkheader[:]) < 0 {
-				break
-			}
+		for hc.tc.TCPReadLine(chunkheader[:]) >= 0 {
 			csize := strtolHex(misc.CStr(chunkheader[:]))
 
 			if csize > 0 {
@@ -1209,10 +1206,10 @@ func httpLoad(fap *FAProtocol, url string,
 		HTTPTagLocation, location,
 		HTTPTagResponseCode, protocolCode)
 
-	switch {
-	case code == -1:
+	switch code {
+	case -1:
 		b = nil
-	case code == 304:
+	case 304:
 		b = nil
 	default:
 		if b != nil {

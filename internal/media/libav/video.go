@@ -294,8 +294,8 @@ func LibAVDeliverFrame(vd *VideoDecoder, mp *mediacore.MediaPipe, mq *mediacore.
 			darNum *= sarNum
 			darDen *= sarDen
 		} else if mc != nil && mc.SARNum != 0 {
-			darNum *= int(mc.SARNum)
-			darDen *= int(mc.SARDen)
+			darNum *= mc.SARNum
+			darDen *= mc.SARDen
 		}
 	case 1:
 		darNum = 4
@@ -382,10 +382,10 @@ func LibAVDeliverFrame(vd *VideoDecoder, mp *mediacore.MediaPipe, mq *mediacore.
 		DARNum:     darNum,
 		DARDen:     darDen,
 		PTS:        pts,
-		Duration:   int64(duration),
+		Duration:   duration,
 		Epoch:      mbm.Epoch,
 		UserTime:   mbm.UserTime,
-		DriveClock: int(mbm.DriveClock),
+		DriveClock: mbm.DriveClock,
 		Interlaced: vd.Interlaced,
 		TFF:        avFrameTopFieldFirst(frame) != 0,
 		Prescaled:  false,
@@ -739,7 +739,7 @@ func LibAVDecodeVideo(mc *mediacore.MediaCodec, vd *VideoDecoder, mq *mediacore.
 		// Set packet fields from MediaBuf
 		avPacketSetPTS(pkt, mb.PTS)
 		avPacketSetDTS(pkt, mb.DTS)
-		avPacketSetDuration(pkt, int64(mb.Duration))
+		avPacketSetDuration(pkt, mb.Duration)
 		// Convert MediaBufFlags struct to int flags
 		flags := 0
 		if mb.Flags.Keyframe {

@@ -1,8 +1,6 @@
 package buffer
 
 import (
-	"unsafe"
-
 	mediacore "github.com/czz/movian-go/internal/media/core"
 )
 
@@ -49,7 +47,7 @@ func Free(pool *mediacore.MediaBufPool, mb *mediacore.MediaBuf) {
 func CopyMetaFromMB(mbm *mediacore.MediaBufMeta, mb *mediacore.MediaBuf) {
 	mbm.PTS = mb.PTS
 	mbm.DTS = mb.DTS
-	mbm.Duration = int64(mb.Duration)
+	mbm.Duration = mb.Duration
 	mbm.UserTime = mb.UserTime
 	mbm.Epoch = mb.Epoch
 	mbm.Sequence = mb.Sequence
@@ -92,7 +90,7 @@ func MediaBufAllocUnlocker(mp *mediacore.MediaPipe, payloadSize int) *mediacore.
 func MediaBufDtorFrameInfo(mb *mediacore.MediaBuf) {
 	if mb.FrameInfo != nil {
 		if mb.FrameInfo.RefRelease != nil {
-			mb.FrameInfo.RefRelease(unsafe.Pointer(mb.FrameInfo.RefAux))
+			mb.FrameInfo.RefRelease(mb.FrameInfo.RefAux)
 		}
 		mb.FrameInfo = nil
 	}

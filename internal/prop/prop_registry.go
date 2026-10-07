@@ -88,7 +88,7 @@ func (pm *PropManager) Findv(p *Prop, names []string) *Prop {
 	}
 	// C: while(p->hp_originator != NULL) p = p->hp_originator;
 	p = pm.followNoRef(p)
-	var c *Prop = p
+	var c = p
 	for _, n := range names {
 		p.mu.RLock()
 		if p.propType != PropTypeDir {

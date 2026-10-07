@@ -96,9 +96,10 @@ func bootstrapPhase(ctx *appContext, gc *gconf.T) {
 	// when nothing was set (windows/android don't seed HOME paths).
 	persistentPath := ctx.gconf.PersistentPath
 	if persistentPath == "" {
-		if runtime.GOOS == "android" {
+		switch runtime.GOOS {
+		case "android":
 			persistentPath = "persistent://"
-		} else if runtime.GOOS == "windows" {
+		case "windows":
 			// No upstream C counterpart; %APPDATA%\MovianGo is the
 			// Windows equivalent of $HOME/.movian-go.
 			if appdata := os.Getenv("APPDATA"); appdata != "" {
@@ -114,7 +115,7 @@ func bootstrapPhase(ctx *appContext, gc *gconf.T) {
 					ctx.gconf.CachePath = filepath.Join(local, "MovianGo", "cache")
 				}
 			}
-		} else {
+		default:
 			// Defensive: no HOME, no flag (dev mode)
 			persistentPath = filepath.Join(projectRoot, "persistent")
 		}

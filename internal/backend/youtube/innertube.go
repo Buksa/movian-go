@@ -659,7 +659,7 @@ func walkShelves(v any, shelves *[]shelf, loose *[]videoItem) {
 		}
 		sh := shelf{Title: title}
 		var items []videoItem
-		walkRenderers(map[string]any(sr), &items)
+		walkRenderers(sr, &items)
 		sh.Items = items
 		*shelves = append(*shelves, sh)
 		return // shelf content consumed — don't descend again

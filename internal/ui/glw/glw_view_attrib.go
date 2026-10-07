@@ -73,15 +73,16 @@ func setTransitionEffect(ec *glwViewEvalContext, a *tokenAttrib, t *Token) int {
 // const token_attrib_t *a, struct token *t) (glw_view_attrib.c:1081-1107)
 func modFlag(ec *glwViewEvalContext, a *tokenAttrib, t *Token) int {
 	v := 0
-	if t.typ == tokenInt {
+	switch t.typ {
+	case tokenInt:
 		v = t.tInt
-	} else if t.typ == tokenFloat {
+	case tokenFloat:
 		if t.tFloat > 0.5 {
 			v = 1
 		}
-	} else if t.typ == tokenVoid {
+	case tokenVoid:
 		v = 0
-	} else {
+	default:
 		return glwViewSeterr(ec.ei, t, "Invalid assignment for attribute %s",
 			a.name)
 	}
@@ -99,15 +100,16 @@ func modFlag(ec *glwViewEvalContext, a *tokenAttrib, t *Token) int {
 // const token_attrib_t *a, struct token *t) (glw_view_attrib.c:1110-1131)
 func modHidden(ec *glwViewEvalContext, a *tokenAttrib, t *Token) int {
 	v := 0
-	if t.typ == tokenInt {
+	switch t.typ {
+	case tokenInt:
 		v = t.tInt
-	} else if t.typ == tokenFloat {
+	case tokenFloat:
 		if t.tFloat > 0.5 {
 			v = 1
 		}
-	} else if t.typ == tokenVoid {
+	case tokenVoid:
 		v = 0
-	} else {
+	default:
 		return glwViewSeterr(ec.ei, t, "Invalid assignment for attribute %s",
 			a.name)
 	}

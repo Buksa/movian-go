@@ -265,9 +265,9 @@ func rasterizeBgr32(yy int, spans []ftSpan) {
 	pm := curRP.pm
 	rgba := uint32(curRP.color)
 	a0 := int(uint8(curRP.color >> 24))
-	b0 := int((curRP.color >> 16) & 0xff)
-	g0 := int((curRP.color >> 8) & 0xff)
-	r0 := int(curRP.color & 0xff)
+	b0 := (curRP.color >> 16) & 0xff
+	g0 := (curRP.color >> 8) & 0xff
+	r0 := curRP.color & 0xff
 
 	y := yy
 	if y < 0 || y >= pm.Height {
@@ -346,7 +346,7 @@ func rasterizeBgr32(yy int, spans []ftSpan) {
 func rasterizeIa(yy int, spans []ftSpan) {
 	pm := curRP.pm
 	a0 := int(uint8(curRP.color >> 24))
-	i0 := int(curRP.color & 0xff)
+	i0 := curRP.color & 0xff
 	col := uint8(curRP.color) // C: uint8_t col = rp->color (LE)
 
 	y := yy

@@ -696,11 +696,12 @@ func deviceGetIcon(dev *htsmsg.HTSMsg) string {
 		}
 
 		var score int
-		if mimetype == "image/png" {
+		switch mimetype {
+		case "image/png":
 			score = 2
-		} else if mimetype == "image/jpeg" {
+		case "image/jpeg":
 			score = 1
-		} else {
+		default:
 			continue
 		}
 

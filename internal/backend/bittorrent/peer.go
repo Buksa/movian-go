@@ -988,10 +988,8 @@ func (btg *BtGlobal) peerReadCb(opaque any, q *misc.HtsbufQueue) {
 		fallthrough
 
 	case PeerStateRunning:
-		for {
-			if btg.recvMessage(p, q) != 0 {
-				break
-			}
+		for btg.recvMessage(p, q) == 0 {
+
 		}
 
 		if p.connection != nil {

@@ -283,7 +283,7 @@ func token2name(t *Token) string {
 		var buf strings.Builder
 		buf.WriteString("<property> ")
 		for i := range t.tElements {
-			buf.WriteString(fmt.Sprintf("%s ", miscpkg.RstrGet(t.tPnvec[i])))
+			fmt.Fprintf(&buf, "%s ", miscpkg.RstrGet(t.tPnvec[i]))
 		}
 		return buf.String()
 	case tokenResolvedAttribute:
@@ -306,7 +306,7 @@ func token2name(t *Token) string {
 		var buf strings.Builder
 		buf.WriteString("[")
 		for i := range t.tElements {
-			buf.WriteString(fmt.Sprintf("%f ", t.tFloatVector[i]))
+			fmt.Fprintf(&buf, "%f ", t.tFloatVector[i])
 		}
 		return buf.String() + "]"
 	case tokenLeftBracket:

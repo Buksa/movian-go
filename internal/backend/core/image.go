@@ -127,7 +127,7 @@ func (bs *BackendSystem) Imageloader(url string, imageMeta any,
 		if isCancelled(cancellable) {
 			err = errors.New("Cancelled")
 			// C: if(img != NOT_MODIFIED) image_release(img);
-			if img != nil && img != NotModifiedImage {
+			if img != nil && !IsNotModifiedImage(img) {
 				// Decrement refcount on the image returned by be_imageloader.
 				releaseImage(img)
 			}
@@ -153,7 +153,7 @@ func (bs *BackendSystem) Imageloader(url string, imageMeta any,
 	if isCancelled(cancellable) {
 		err = errors.New("Cancelled")
 		// C: if(img != NOT_MODIFIED) image_release(img);
-		if img != nil && img != NotModifiedImage {
+		if img != nil && !IsNotModifiedImage(img) {
 			// Decrement refcount on the image returned by be_imageloader.
 			releaseImage(img)
 		}
@@ -162,7 +162,7 @@ func (bs *BackendSystem) Imageloader(url string, imageMeta any,
 
 	// C: if(img != NULL && img != NOT_MODIFIED) { ... } (backend.c:413-422)
 	// image_retain for caching + image_decode post-processing
-	if img != nil && img != NotModifiedImage {
+	if img != nil && !IsNotModifiedImage(img) {
 		// C: if(!(img->im_flags & IMAGE_ADAPTED) && li->li_image == NULL)
 		//     li->li_image = image_retain(img); (backend.c:415-416)
 		// Cache the raw (pre-decode) image for future waiters.
@@ -196,7 +196,7 @@ done:
 	// Do NOT overwrite li.image with the post-decode img — the cache
 	// holds the pre-decode image so future waiters can decode it.
 	// Only set li.image if it wasn't set (e.g. error path or NOT_MODIFIED).
-	if li.image == nil && img != nil && img != NotModifiedImage {
+	if li.image == nil && img != nil && !IsNotModifiedImage(img) {
 		li.image = img
 	}
 
@@ -348,7 +348,7 @@ func selectBestFromImageSet(jsonStr string, imageMeta any) string {
 		}
 	}
 
-	var reqW, reqH int = -1, -1
+	var reqW, reqH = -1, -1
 	if im, ok := imageMeta.(*ImageMeta); ok {
 		reqW = im.ReqWidth
 		reqH = im.ReqHeight

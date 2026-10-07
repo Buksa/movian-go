@@ -537,7 +537,7 @@ func OpenFormat(url string) (*AVFormatCtx, error) {
 		return nil, fmt.Errorf("avformat_find_stream_info failed: %d", ret)
 	}
 
-	return &AVFormatCtx{ctx: libav.WrapAVFormatContext(unsafe.Pointer(fmtCtx))}, nil
+	return &AVFormatCtx{ctx: libav.WrapAVFormatContext(fmtCtx)}, nil
 }
 
 // WrapFormatCtx wraps a raw AVFormatContext (e.g. from
@@ -564,12 +564,12 @@ func (f *AVFormatCtx) ReadPacketRaw() (*libav.AVPacket, error) {
 	for {
 		ret := C.ml_av_read_frame(f.ctx.CPtr(), unsafe.Pointer(pkt))
 		if ret < 0 {
-			if C.ml_is_eagain(C.int(ret)) == 1 {
+			if C.ml_is_eagain(ret) == 1 {
 				time.Sleep(10 * time.Millisecond)
 				continue
 			}
 			C.av_packet_free(&pkt)
-			if C.ml_is_eof_or_eio(C.int(ret)) == 1 {
+			if C.ml_is_eof_or_eio(ret) == 1 {
 				return nil, nil // EOF
 			}
 			return nil, fmt.Errorf("av_read_frame error: %d", int(ret))
@@ -759,14 +759,14 @@ func (f *AVFormatCtx) ReadPacket() (*AVPacketInfo, error) {
 		ret := C.ml_av_read_frame(f.ctx.CPtr(), unsafe.Pointer(pkt))
 		if ret < 0 {
 			// EAGAIN — temporary, retry (mirrors C's continue on EAGAIN)
-			if C.ml_is_eagain(C.int(ret)) == 1 {
+			if C.ml_is_eagain(ret) == 1 {
 				// Brief sleep before retry to avoid busy-loop
 				time.Sleep(10 * time.Millisecond)
 				continue
 			}
 			// EOF or EIO — treat as EOF (mirrors C's fa_audio.c:245
 			// which treats both AVERROR_EOF and AVERROR(EIO) as EOF)
-			if C.ml_is_eof_or_eio(C.int(ret)) == 1 {
+			if C.ml_is_eof_or_eio(ret) == 1 {
 				return nil, nil // EOF
 			}
 			// Other error — return as error, NOT EOF

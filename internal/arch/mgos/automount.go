@@ -11,16 +11,18 @@ package mgos
 
 import (
 	"errors"
-	"github.com/czz/movian-go/internal/misc"
 	"os"
 	"path/filepath"
 	"slices"
 	"strings"
 	"syscall"
 
+	"github.com/czz/movian-go/internal/misc"
+
+	"golang.org/x/sys/unix"
+
 	"github.com/czz/movian-go/internal/service"
 	"github.com/czz/movian-go/internal/trace"
-	"golang.org/x/sys/unix"
 )
 
 // C: typedef struct fsinfo { LIST_ENTRY ... } fsinfo_t (stos_automount.c:41)

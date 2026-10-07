@@ -93,10 +93,7 @@ func (sys *System) timerThread() {
 	destroy := 0
 	var et *esTimer
 	sys.timer.mu.Lock()
-	for {
-		if len(sys.timer.list) == 0 {
-			break
-		}
+	for len(sys.timer.list) != 0 {
 		et = sys.timer.list[0]
 
 		now := archGetTS()

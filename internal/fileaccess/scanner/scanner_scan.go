@@ -194,7 +194,7 @@ func (s *Scanner) rescan() int {
 
 // doscan performs the initial scan
 func (s *Scanner) doscan() int {
-	var pendingRescan int = 0
+	var pendingRescan = 0
 
 	s.fd = s.metadb_metadata_scandir(s.url, nil)
 
@@ -393,13 +393,14 @@ func (s *Scanner) addSortOptionType(model *propcore.Prop) {
 	// C: rstr_t *cur = kv_url_opt_get_rstr(s->s_url, KVSTORE_DOMAIN_SYS, "sortorder")
 	cur := s.kvstore.UrlOptGetString(s.url, kvstore.DomainSys, "sortorder")
 
-	if cur == "date" {
+	switch cur {
+	case "date":
 		propcore.ProxySelect(onDate)
 		propcore.PropNFSort(s.pnf.PropNF, "node.metadata.timestamp", true, 3, nil, false)
-	} else if cur == "dateold" {
+	case "dateold":
 		propcore.ProxySelect(onDate) // C selects on_date here (fa_scanner.c:785)
 		propcore.PropNFSort(s.pnf.PropNF, "node.metadata.timestamp", false, 3, nil, false)
-	} else {
+	default:
 		propcore.ProxySelect(onTitle)
 		propcore.PropNFSort(s.pnf.PropNF, "node.metadata.title", false, 3, nil, true)
 	}
@@ -721,10 +722,11 @@ func FAScannerPage(url string, urlMtime time.Time, model *propcore.Prop, playme 
 	if s.nodes != nil {
 		ScannerRetain(s) // refcount: 2 → 3 (scannerThread + nodes sub + sort sub already retained)
 		s.pm.SubscribeWithCourier(s.nodes, s.pc, func(opaque any, event propcore.EventType, args ...any) {
-			if event == propcore.EventDestroyed {
+			switch event {
+			case propcore.EventDestroyed:
 				s.running.Store(0)
 				ScannerRelease(s)
-			} else if event == propcore.EventReqDeleteVector {
+			case propcore.EventReqDeleteVector:
 				if len(args) > 0 {
 					s.deleteItems(args[0])
 				}

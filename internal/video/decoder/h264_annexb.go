@@ -368,7 +368,7 @@ func hataDecode(mc *mediacore.MediaCodec, vd any,
 
 	i := 0
 	for l-i > 3 {
-		if !(d[i] == 0 && d[i+1] == 0 && d[i+2] == 1) {
+		if d[i] != 0 || d[i+1] != 0 || d[i+2] != 1 {
 			i++
 			continue
 		}

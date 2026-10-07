@@ -236,7 +236,7 @@ func glwVideoOverlayRender(gv *GlwVideo, frc, vrc *glwRctx) {
 	vd := gv.gvVd
 	if gv.gvWidth > 0 &&
 		(glwIsFocused(&gv.w) ||
-			!(len(vd.PCI) > 0 && dvdlib.PCIFromBytes(vd.PCI).HliSS() != 0)) {
+			(len(vd.PCI) <= 0 || dvdlib.PCIFromBytes(vd.PCI).HliSS() == 0)) {
 		showDvdOverlays = 1
 	}
 	_ = vd

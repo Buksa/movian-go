@@ -46,9 +46,10 @@ func hlsSegmentOpen(hs *hlsSegment) hlsError {
 			return hlsErrorSegmentNotFound
 		}
 		time.Sleep(500 * time.Millisecond)
-		if foe.ProtocolError == 404 {
+		switch foe.ProtocolError {
+		case 404:
 			return hlsErrorSegmentNotFound
-		} else if foe.ProtocolError == 403 {
+		case 403:
 			hs.PermanentError = true
 			return hlsErrorSegmentAccessDenied
 		}

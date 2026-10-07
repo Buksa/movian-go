@@ -300,7 +300,8 @@ func dvdPes(dp *dvdPlayer, sc uint32, buf []byte, length int) *mediacore.MediaEv
 		return nil
 	}
 
-	if (flags & 0xc0) == 0xc0 {
+	switch flags & 0xc0 {
+	case 0xc0:
 		if hlen < 10 {
 			return nil
 		}
@@ -309,7 +310,7 @@ func dvdPes(dp *dvdPlayer, sc uint32, buf []byte, length int) *mediacore.MediaEv
 		dts = getpts(&buf, &length)
 
 		hlen -= 10
-	} else if (flags & 0xc0) == 0x80 {
+	case 0x80:
 		if hlen < 5 {
 			return nil
 		}
@@ -518,11 +519,12 @@ func dvdSetupStreams(dp *dvdPlayer, mp *mediacore.MediaPipe) {
 
 // dvdSetAudioStream — C: dvd_set_audio_stream
 func dvdSetAudioStream(dp *dvdPlayer, id string, user int) {
-	if id == "off" {
+	switch id {
+	case "off":
 		dp.audioTrack = dpAudioDisable
-	} else if id == "auto" {
+	case "auto":
 		dp.audioTrack = dpAudioFollowVM
-	} else {
+	default:
 		dp.audioTrack = misc.Atoi(id)
 	}
 
@@ -533,11 +535,12 @@ func dvdSetAudioStream(dp *dvdPlayer, id string, user int) {
 
 // dvdSetSpuStream — C: dvd_set_spu_stream
 func dvdSetSpuStream(dp *dvdPlayer, id string, manual int) {
-	if id == "off" {
+	switch id {
+	case "off":
 		dp.spuTrack = dpSpuDisable
-	} else if id == "auto" {
+	case "auto":
 		dp.spuTrack = dpSpuFollowVM
-	} else {
+	default:
 		dp.spuTrack = misc.Atoi(id)
 	}
 	dp.pm.SetStringEx(dp.mp.PropSubtitleTrackCurrent, nil,

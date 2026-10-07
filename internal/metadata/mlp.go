@@ -150,10 +150,7 @@ func (mm *MetadataManager) metadataThread() {
 
 	mm.mlpMutex.Lock()
 
-	for {
-		if len(mm.mlpQueue) == 0 {
-			break
-		}
+	for len(mm.mlpQueue) != 0 {
 		mlp := mm.mlpQueue[0]
 
 		if dbc == nil {

@@ -29,7 +29,7 @@ type SwrContext struct {
 // SwrAlloc allocates a new SwrContext
 func SwrAlloc() *SwrContext {
 	return &SwrContext{
-		cPtr: unsafe.Pointer(C.swr_alloc_helper()),
+		cPtr: C.swr_alloc_helper(),
 	}
 }
 
@@ -43,7 +43,7 @@ func SwrAllocSetOpts(outChLayout int64, outSampleFmt int, outSampleRate int, inC
 		C.int(inSampleFmt),
 		C.int(inSampleRate),
 	)
-	return &SwrContext{cPtr: unsafe.Pointer(ctx)}
+	return &SwrContext{cPtr: ctx}
 }
 
 // SwrInit initializes the SwrContext

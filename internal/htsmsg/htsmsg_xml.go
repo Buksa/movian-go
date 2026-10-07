@@ -651,10 +651,7 @@ func (p *xmlParser) parseCD(msg *HTSMsg, field *HTSMsgField, pos int) (int, bool
 func (p *xmlParser) parseProlog(pos int) (int, bool) {
 	pis := NewMap()
 
-	for {
-		if p.eof(pos) {
-			break
-		}
+	for !p.eof(pos) {
 		for p.byteAt(pos) != 0 && isXMLWS(p.src[pos]) {
 			pos++
 		}
@@ -717,10 +714,11 @@ func getLineCol(src []byte, pos int) (int, int) {
 	column := 0
 	for i := range src {
 		column++
-		if src[i] == '\n' {
+		switch src[i] {
+		case '\n':
 			column = 0
 			line++
-		} else if src[i] == '\r' {
+		case '\r':
 			column = 0
 		}
 		if i == pos {

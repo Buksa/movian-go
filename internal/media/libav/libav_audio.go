@@ -1067,7 +1067,7 @@ func AudioCodecOpen(codecID int, stereoDownmix bool) *libav.AVCodecContext {
 	if stereoDownmix {
 		sd = 1
 	}
-	return libav.WrapAVCodecContext(unsafe.Pointer(C.ml_audio_codec_open(C.int(codecID), sd)))
+	return libav.WrapAVCodecContext(C.ml_audio_codec_open(C.int(codecID), sd))
 }
 
 // AudioCodecCtxSampleRate — C: ctx->sample_rate fallback (audio.c:480).

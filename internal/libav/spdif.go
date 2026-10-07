@@ -28,7 +28,7 @@ func SPDIFMuxerCreate(codecID, sampleRate int) *SPDIFMuxerContext {
 	if ctx == nil {
 		return nil
 	}
-	return &SPDIFMuxerContext{cPtr: unsafe.Pointer(ctx)}
+	return &SPDIFMuxerContext{cPtr: ctx}
 }
 
 // MuxPacket muxes a packet through SPDIF
@@ -60,7 +60,7 @@ func (sm *SPDIFMuxerContext) GetData() []byte {
 	}
 
 	// Convert C data to Go slice
-	data := C.GoBytes(unsafe.Pointer(cData), C.int(size))
+	data := C.GoBytes(unsafe.Pointer(cData), size)
 	return data
 }
 

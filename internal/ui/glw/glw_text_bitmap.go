@@ -134,8 +134,8 @@ func glwTextBitmapLayout(w *Glw, rc *glwRctx) {
 
 	// Check if we need to repaint
 
-	if gtb.gtbSavedWidth != int16(rc.rcWidth) ||
-		gtb.gtbSavedHeight != int16(rc.rcHeight) {
+	if gtb.gtbSavedWidth != rc.rcWidth ||
+		gtb.gtbSavedHeight != rc.rcHeight {
 		if ti != nil && gtb.gtbState == gtbValid {
 			if ti.Flags&imagepkg.TextWrapped != 0 {
 				gtb.gtbState = gtbNeedRender
@@ -163,8 +163,8 @@ func glwTextBitmapLayout(w *Glw, rc *glwRctx) {
 			}
 		}
 
-		gtb.gtbSavedWidth = int16(rc.rcWidth)
-		gtb.gtbSavedHeight = int16(rc.rcHeight)
+		gtb.gtbSavedWidth = rc.rcWidth
+		gtb.gtbSavedHeight = rc.rcHeight
 		gtb.gtbUpdateCursor = true
 		gtb.gtbNeedLayout = true
 	}

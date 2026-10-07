@@ -434,16 +434,17 @@ func glwfTargetedEvent(ec *glwViewEvalContext, self *Token, argv []*Token, argc 
 	if a.typ != tokenRstring {
 		return glwViewSeterr(ec.ei, a, "targetedEvent(): First argument is not a string")
 	}
-	if b.typ == tokenIdentifier {
+	switch b.typ {
+	case tokenIdentifier:
 		action = glwDeps.em.ActionStr2Code(miscpkg.RstrGet(b.tRstring))
 		if action < 0 {
 			return glwViewSeterr(ec.ei, b, "targetedEvent(): Invalid action")
 		}
-	} else if b.typ == tokenRstring {
+	case tokenRstring:
 		str := miscpkg.RstrGet(b.tRstring)
 		sb := []byte(str)
 		uc = miscpkg.Utf8Get(&sb)
-	} else {
+	default:
 		return glwViewSeterr(ec.ei, b, "targetedEvent(): Invalid second argument")
 	}
 	r := evalAlloc(self, ec, tokenGem)

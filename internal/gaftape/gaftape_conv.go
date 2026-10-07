@@ -108,7 +108,7 @@ func (c *Context) GetInt(idx int) int {
 
 func (c *Context) GetUint(idx int) uint32 {
 	v := c.at(idx).ToInteger()
-	return uint32(uint32(v) & 0xffffffff)
+	return uint32(v) & 0xffffffff
 }
 
 func (c *Context) GetNumber(idx int) float64 {
@@ -168,9 +168,9 @@ func (c *Context) ToUint(idx int) uint32 {
 	n := c.at(idx).ToInteger()
 	i := c.NormalizeIndex(idx)
 	if i >= 0 && i < len(c.stack) {
-		c.stack[i] = c.h.vm.ToValue(uint32(uint32(n)))
+		c.stack[i] = c.h.vm.ToValue(uint32(n))
 	}
-	return uint32(uint32(n))
+	return uint32(n)
 }
 
 func (c *Context) ToNumber(idx int) float64 {

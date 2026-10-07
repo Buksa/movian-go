@@ -243,7 +243,7 @@ func (c *TMDBClient) configure(ctx context.Context) error {
 	result = nil // C: buf_release(result)
 	if jerr != nil {
 		c.ts.Trace(trace.TRACE_ERROR, "TMDB", "Got bad JSON from config -- %s", jerr)
-		return fmt.Errorf("bad JSON: %s", jerr)
+		return fmt.Errorf("bad JSON: %w", jerr)
 	}
 
 	if err := c.parseConfig(doc); err != nil {
@@ -977,7 +977,7 @@ func tmdbBackendImageloader(client *TMDBClient, bs *backendcore.BackendSystem,
 	img, ierr := bs.Imageloader(rstr, imageMeta, cacheControl,
 		cancellable, be)
 	// C: if(img != NULL && img != NOT_MODIFIED) img->im_flags |= IMAGE_ADAPTED
-	if img != nil && img != backendcore.NotModifiedImage {
+	if img != nil && !backendcore.IsNotModifiedImage(img) {
 		if i, ok := img.(*imagepkg.Image); ok {
 			i.Flags |= imagepkg.FlagAdapted
 		}

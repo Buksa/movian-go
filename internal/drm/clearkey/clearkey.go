@@ -69,9 +69,7 @@ func (c *ClearKey) CreateSession(pssh *cenc.PSSHBox) (cdm.Session, error) {
 		}
 	} else {
 		// PSSH carries raw KIDs (v1 box or 16-byte data): pre-stage them.
-		for _, k := range pssh.KIDs {
-			s.kids = append(s.kids, k)
-		}
+		s.kids = append(s.kids, pssh.KIDs...)
 		if len(pssh.Data) == 16 {
 			var k [16]byte
 			copy(k[:], pssh.Data)

@@ -211,7 +211,7 @@ func httpRecv(hf *httpFile, hra *HTTPReqAux) int {
 		if hra.encodedData(hf, hra, hra.tmpbuf[:rsize]) != 0 {
 			return -1
 		}
-		hra.bytesCompleted += int64(rsize)
+		hra.bytesCompleted += rsize
 		remain -= rsize
 	}
 	hf.rsize = 0

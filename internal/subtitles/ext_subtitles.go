@@ -66,7 +66,7 @@ func voDeliver(es *ExtSubtitles, vo *mediacore.VideoOverlay,
 		mediacore.VideoOverlayEnqueue(mp, dup)
 
 		vo = esNext(es, vo)
-		if !(vo != nil && vo.Start == s && vo.Stop > userTime) {
+		if vo == nil || vo.Start != s || vo.Stop <= userTime {
 			break
 		}
 	}

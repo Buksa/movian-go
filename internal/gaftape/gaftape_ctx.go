@@ -269,10 +269,10 @@ loop:
 		qLast = len(out)
 		c := buf[p]
 		p++
-		switch {
-		case c == 0:
+		switch c {
+		case 0:
 			panic(h.vm.NewTypeError("resolve error: requested ID must end with a non-empty term"))
-		case c == '.':
+		case '.':
 			c = buf[p]
 			p++
 			if c == '/' {
@@ -293,7 +293,7 @@ loop:
 				continue
 			}
 			panic(h.vm.NewTypeError("resolve error: term begins with '.' but is not '.' or '..'"))
-		case c == '/':
+		case '/':
 			panic(h.vm.NewTypeError("resolve error: empty term"))
 		default:
 			for {

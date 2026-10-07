@@ -241,7 +241,7 @@ func glwListYRenderOne(l *glwList, c *Glw, width, height int,
 	rc0, rc1 *glwRctx, clipTop, clipBottom int) {
 	cd := listItemData(c)
 
-	var ct, cb int = -1, -1
+	var ct, cb = -1, -1
 	gr := l.w.glwRoot
 	y := cd.pos - l.gsc.roundedPos
 	var rc2 glwRctx

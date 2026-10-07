@@ -21,6 +21,8 @@ import (
 	"github.com/czz/movian-go/internal/metadata"
 	"github.com/czz/movian-go/internal/notifications"
 
+	"github.com/dop251/goja"
+
 	"github.com/czz/movian-go/internal/asyncio"
 	backendcore "github.com/czz/movian-go/internal/backend/core"
 	"github.com/czz/movian-go/internal/event"
@@ -36,7 +38,6 @@ import (
 	"github.com/czz/movian-go/internal/trace"
 	"github.com/czz/movian-go/internal/usage"
 	"github.com/czz/movian-go/internal/version"
-	"github.com/dop251/goja"
 )
 
 // C: ecmascript.h flags

@@ -229,11 +229,12 @@ func (c *TVDBClient) loadBanners(db *dbpkg.DB, seriesID string, seriesVID int64,
 				}
 
 				var imgType metadata.MetadataImageType
-				if bannerType2 == "season" {
+				switch bannerType2 {
+				case "season":
 					imgType = metadata.MetadataImagePoster
-				} else if bannerType2 == "seasonwide" {
+				case "seasonwide":
 					imgType = metadata.MetadataImageBannerWide
-				} else {
+				default:
 					continue
 				}
 
@@ -249,13 +250,14 @@ func (c *TVDBClient) loadBanners(db *dbpkg.DB, seriesID string, seriesVID int64,
 			}
 
 			var imgType metadata.MetadataImageType
-			if bannerType == "poster" {
+			switch bannerType {
+			case "poster":
 				imgType = metadata.MetadataImagePoster
-			} else if bannerType == "fanart" {
+			case "fanart":
 				imgType = metadata.MetadataImageBackdrop
-			} else if bannerType == "series" {
+			case "series":
 				imgType = metadata.MetadataImageBannerWide
-			} else {
+			default:
 				continue
 			}
 

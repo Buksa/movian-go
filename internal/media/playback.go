@@ -48,7 +48,7 @@ func (p *PlaybackPipeline) onSubtitleTrackSelected(trackID string) {
 		return
 	}
 	e := &event.EventSelectTrack{ID: trackID, Manual: true}
-	e.Event.SetConcrete(e)
+	e.SetConcrete(e)
 	e.Type = event.EVENT_SELECT_SUBTITLE_TRACK
 	mediacore.MpEnqueueEvent(mp, &mediacore.MediaEvent{
 		Type: int(e.Type), Data: e,

@@ -234,7 +234,7 @@ func glwViewLexer(gr *glwRoot, src string, ei *errorinfoT,
 		if c(i) == '/' && c(i+1) == '*' {
 			// A normal C-comment
 			i += 2
-			for i < n && !(c(i) == '/' && c(i-1) == '*') {
+			for i < n && (c(i) != '/' || c(i-1) != '*') {
 				if c(i) == '\n' {
 					line++
 				}
@@ -295,7 +295,7 @@ func glwViewLexer(gr *glwRoot, src string, ei *errorinfoT,
 			continue
 		}
 
-		if !(c(i) == '-' && lexIsdigit(c(i+1))) {
+		if c(i) != '-' || !lexIsdigit(c(i+1)) {
 			if t := lexerSingleChar(gr, prev, f, line, c(i)); t != nil {
 				i++
 				prev = t

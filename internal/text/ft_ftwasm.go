@@ -152,7 +152,7 @@ func ftGlyphSlotOblique(s ftGlyphSlot) {
 func ftMulFix(a, b ftPos) ftPos {
 	ftwasm.Mu.Lock()
 	defer ftwasm.Mu.Unlock()
-	return ftPos(ftwMod.Xftw_mulfix(a, b))
+	return ftwMod.Xftw_mulfix(a, b)
 }
 
 // C: slot->format / slot->advance.x / slot->face / face->units_per_EM /
@@ -165,7 +165,7 @@ func ftSlotFormat(s ftGlyphSlot) uint32 {
 func ftSlotAdvanceX(s ftGlyphSlot) ftPos {
 	ftwasm.Mu.Lock()
 	defer ftwasm.Mu.Unlock()
-	return ftPos(ftwMod.Xftw_slot_advance_x(int32(s)))
+	return ftwMod.Xftw_slot_advance_x(int32(s))
 }
 func ftSlotFace(s ftGlyphSlot) ftFace {
 	ftwasm.Mu.Lock()
@@ -180,7 +180,7 @@ func ftFaceUnitsPerEM(f ftFace) int {
 func ftFaceYScale(f ftFace) ftPos {
 	ftwasm.Mu.Lock()
 	defer ftwasm.Mu.Unlock()
-	return ftPos(int64(ftwMod.Xftw_face_yscale(int32(f))))
+	return int64(ftwMod.Xftw_face_yscale(int32(f)))
 }
 
 // C: FT_Outline_Embolden(&slot->outline, v) (freetype.c:622)

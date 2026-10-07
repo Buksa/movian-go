@@ -638,13 +638,14 @@ func (nav *Navigator) bookmarkQueryAdd(p *propcore.Prop) {
 			bq.keySub.Unsubscribe()
 		}
 		bq.keySub = kp.Subscribe(func(opaque any, event propcore.EventType, args ...any) {
-			if event == propcore.EventSetRString || event == propcore.EventSetCString {
+			switch event {
+			case propcore.EventSetRString, propcore.EventSetCString:
 				if len(args) > 0 {
 					if key, ok := args[0].(string); ok {
 						nav.bookmarkQuerySetKey(bq, key)
 					}
 				}
-			} else if event == propcore.EventSetVoid {
+			case propcore.EventSetVoid:
 				nav.bookmarkQuerySetKey(bq, "")
 			}
 		}, nil, propcore.SubMutex{Ptr: &nav.mutex})

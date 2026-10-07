@@ -1,8 +1,6 @@
 package media
 
 import (
-	"unsafe"
-
 	"math"
 	"sync"
 	"time"
@@ -67,7 +65,7 @@ func NewMediaClock(hasAudio bool) *MediaClock {
 // monotonicUs returns current wall time in microseconds from a monotonic source.
 // This mirrors C's arch_get_avtime().
 func monotonicUs() int64 {
-	return int64(time.Now().UnixNano() / 1000)
+	return time.Now().UnixNano() / 1000
 }
 
 // UpdateAudioPTS sets the current audio clock, anchoring it to wall time.
@@ -338,9 +336,9 @@ func (fp *FramePacer) ComputeOutputDuration(frameDurationUs int64, avdiffSmoothe
 
 	var delta int64
 	if avdiffSmoothed > 0 {
-		delta = min(int64(math.Pow(avdiffSmoothed*1000.0, 2)), maxDiff)
+		delta = min(int64(avdiffSmoothed*1000.0*avdiffSmoothed*1000.0), maxDiff)
 	} else if avdiffSmoothed < 0 {
-		delta = max(-int64(math.Pow(-avdiffSmoothed*1000.0, 2)), -maxDiff)
+		delta = max(-int64(-avdiffSmoothed*1000.0*-avdiffSmoothed*1000.0), -maxDiff)
 	}
 	return frameDurationUs + delta
 }
@@ -452,7 +450,7 @@ func (fp *FramePacer) DisplayFrame() *mediacore.FrameInfo {
 		if f.ptsUs < clockTime-fp.dropThreshold {
 			// Frame is too late, drop it
 			if f.frame != nil && f.frame.RefRelease != nil {
-				f.frame.RefRelease(unsafe.Pointer(f.frame.RefAux))
+				f.frame.RefRelease(f.frame.RefAux)
 			}
 			fp.frames = fp.frames[1:]
 			fp.droppedFrames++
@@ -489,7 +487,7 @@ func (fp *FramePacer) DisplayFrame() *mediacore.FrameInfo {
 		if f.ptsUs <= clockTime {
 			// Frame is due — display it
 			if fp.currentFrame != nil && fp.currentFrame.frame != nil && fp.currentFrame.frame.RefRelease != nil {
-				fp.currentFrame.frame.RefRelease(unsafe.Pointer(fp.currentFrame.frame.RefAux))
+				fp.currentFrame.frame.RefRelease(fp.currentFrame.frame.RefAux)
 			}
 			fp.currentFrame = f
 			fp.frames = fp.frames[1:]
@@ -548,12 +546,12 @@ func (fp *FramePacer) Clear() {
 	defer fp.mu.Unlock()
 	for _, f := range fp.frames {
 		if f.frame != nil && f.frame.RefRelease != nil {
-			f.frame.RefRelease(unsafe.Pointer(f.frame.RefAux))
+			f.frame.RefRelease(f.frame.RefAux)
 		}
 	}
 	fp.frames = nil
 	if fp.currentFrame != nil && fp.currentFrame.frame != nil && fp.currentFrame.frame.RefRelease != nil {
-		fp.currentFrame.frame.RefRelease(unsafe.Pointer(fp.currentFrame.frame.RefAux))
+		fp.currentFrame.frame.RefRelease(fp.currentFrame.frame.RefAux)
 	}
 	fp.currentFrame = nil
 	// Wake up any blocked SubmitFrame callers

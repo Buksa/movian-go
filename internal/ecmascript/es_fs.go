@@ -85,13 +85,14 @@ func esFileOpen(ctx *gaftape.Context) int {
 	flagsstr := ctx.ToString(1)
 
 	var flags int
-	if flagsstr == "r" {
+	switch flagsstr {
+	case "r":
 		flags = 0
-	} else if flagsstr == "w" {
+	case "w":
 		flags = facore.FaWrite
-	} else if flagsstr == "a" {
+	case "a":
 		flags = facore.FaWrite | facore.FaAppend
-	} else {
+	default:
 		ctx.Error(gaftape.GAF_ERR_ERROR, "Invalid flags '%s' to open", flagsstr)
 	}
 

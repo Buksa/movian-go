@@ -318,15 +318,13 @@ func fsUnlink(path string) error {
 // fa_err_code_t mapping.
 func fsMakedir(path string) int {
 	if err := os.Mkdir(path, 0770); err != nil {
-		if pe, ok := errors.AsType[*os.PathError](err); ok {
-			switch pe.Err {
-			case syscall.ENOENT:
-				return FAP_NOENT
-			case syscall.EPERM:
-				return FAP_PERMISSION_DENIED
-			case syscall.EEXIST:
-				return FAP_EXIST
-			}
+		switch {
+		case errors.Is(err, syscall.ENOENT):
+			return FAP_NOENT
+		case errors.Is(err, syscall.EPERM):
+			return FAP_PERMISSION_DENIED
+		case errors.Is(err, syscall.EEXIST):
+			return FAP_EXIST
 		}
 		return FAP_ERROR
 	}

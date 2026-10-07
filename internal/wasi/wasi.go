@@ -433,7 +433,7 @@ func (w *Ctx) Xfd_readdir(fd, buf, buflen int32, cookie int64, used int32) int32
 	mem := w.mem()
 	p := buf
 	end := buf + buflen
-	i := int64(cookie)
+	i := cookie
 	for i < int64(len(d.dirEnt)) {
 		e := d.dirEnt[i]
 		name := e.Name()

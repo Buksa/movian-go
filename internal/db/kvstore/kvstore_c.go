@@ -168,11 +168,12 @@ func getURL(dbc *db.DB, url string, id *int64, g *gconf.T) int {
 		stmt.Finalize()
 		return db.SQLITE_LOCKED
 	}
-	if rc == db.SQLITE_ROW {
+	switch rc {
+	case db.SQLITE_ROW:
 		*id = stmt.ColumnInt64(0)
 		stmt.Finalize()
 		return db.SQLITE_OK
-	} else if rc == db.SQLITE_DONE {
+	case db.SQLITE_DONE:
 		stmt.Finalize()
 
 		stmt, rc = db.DBPrepare(dbc,

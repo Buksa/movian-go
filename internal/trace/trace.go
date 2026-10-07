@@ -327,7 +327,7 @@ func (ts *TraceSystem) HexDump(pfx string, data []byte) {
 			if j == 8 {
 				hexPart.WriteString(" ")
 			}
-			hexPart.WriteString(fmt.Sprintf("%02x ", data[i+j]))
+			fmt.Fprintf(&hexPart, "%02x ", data[i+j])
 		}
 
 		// Pad hex part

@@ -321,8 +321,8 @@ func (af *AsyncIOFD) tcpReader(conn net.Conn) {
 					msg := "Connection reset"
 					if n > 0 || !errors.Is(err, io.EOF) {
 						msg = err.Error()
-						if nerr, ok := err.(net.Error); ok &&
-							nerr.Timeout() {
+						var nerr net.Error
+						if errors.As(err, &nerr) && nerr.Timeout() {
 							msg = "Connection timed out"
 						}
 					}
@@ -413,7 +413,8 @@ func (aio *AsyncIO) Connect(name string, addr *netcore.NetAddr,
 			af.timeout = 0 // C: cleared when connect completes
 			if err != nil {
 				msg := err.Error()
-				if nerr, ok := err.(net.Error); ok && nerr.Timeout() {
+				var nerr net.Error
+				if errors.As(err, &nerr) && nerr.Timeout() {
 					msg = "Connection timed out" // C: AsyncIOTimeout
 				}
 				af.errCb(af.opaque, msg)

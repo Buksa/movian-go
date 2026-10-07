@@ -665,7 +665,7 @@ func MpSetCurrentTime(mp *MediaPipe, pm *propcore.PropManager, ts int64, epoch i
 	defer mp.Mutex.Unlock()
 
 	// C: if(epoch == mp->mp_epoch)
-	if int(epoch) == int(mp.Epoch) {
+	if epoch == int(mp.Epoch) {
 		// C: prop_set_float_ex(mp->mp_prop_currenttime, mp->mp_sub_currenttime, ts / 1000000.0)
 		if pm != nil && mp.PropCurrentTime != nil {
 			pm.SetFloatEx(mp.PropCurrentTime, mp.SubCurrentTime, float32(ts)/1000000.0)
@@ -676,8 +676,8 @@ func MpSetCurrentTime(mp *MediaPipe, pm *propcore.PropManager, ts int64, epoch i
 		// C: mp->mp_seek_base = ts
 		// C: mp_enqueue_event_locked(mp, &ets->h)
 		mp.SeekBase = ts
-		ets := &event.EventTs{Ts: ts, Epoch: int(epoch)}
-		ets.Event.SetConcrete(ets)
+		ets := &event.EventTs{Ts: ts, Epoch: epoch}
+		ets.SetConcrete(ets)
 		ets.Type = event.EVENT_CURRENT_TIME
 		MpEnqueueEventLocked(mp, &MediaEvent{
 			Type: int(event.EVENT_CURRENT_TIME),

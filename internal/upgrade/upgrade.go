@@ -204,7 +204,7 @@ func (u *Upgrade) artifactUpdateProgress(a *ArtifactFull, p float32) {
 func patchedConfigFile(data []byte, newBegin, newEnd int, fname string) ([]byte, error) {
 	curData, err := os.ReadFile(fname)
 	if err != nil {
-		return data, nil
+		return data, nil //nolint:nilerr // unreadable installed file → keep passed data
 	}
 
 	beginIdx := strings.Index(string(curData), "# BEGIN SHOWTIME CONFIG\n")
@@ -436,7 +436,7 @@ func (u *Upgrade) checkUpgrade(setNews bool) error {
 	err := json.Unmarshal(data, &manifest)
 	if err != nil {
 		u.checkUpgradeErr("Malformed JSON in repository")
-		return nil
+		return nil //nolint:nilerr // error reported via checkUpgradeErr
 	}
 
 	// C: #if STOS (upgrade.c:689-720) — stos_upgrade_needed starts from

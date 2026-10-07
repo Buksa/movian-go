@@ -347,7 +347,7 @@ func loaderThread(aux any) any {
 			glwLock(gr)
 
 			if glt.gltState == gltStateLoadAbort {
-				if img != nil && img != backendcore.NotModifiedImage {
+				if img != nil && !backendcore.IsNotModifiedImage(img) {
 					if im2, ok := img.(*imagepkg.Image); ok {
 						im2.Release()
 					}
@@ -388,7 +388,7 @@ func loaderThread(aux any) any {
 						gltSetState(glt, gltStateValid)
 					}
 
-					if img != backendcore.NotModifiedImage {
+					if !backendcore.IsNotModifiedImage(img) {
 						// Actually upload the texture to the render backend
 						i := img.(*imagepkg.Image)
 						ic := i.FindComponent(imagepkg.ComponentPixmap)
@@ -422,7 +422,7 @@ func loaderThread(aux any) any {
 					}
 				}
 
-				if img != backendcore.NotModifiedImage {
+				if !backendcore.IsNotModifiedImage(img) {
 					if i, ok := img.(*imagepkg.Image); ok {
 						i.Release()
 					}

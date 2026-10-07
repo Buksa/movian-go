@@ -11,5 +11,5 @@ func diskAvailBytes(path string) (uint64, bool) {
 	if syscall.Statfs(path, &stat) != nil {
 		return 0, false
 	}
-	return uint64(stat.Bavail) * uint64(stat.Bsize), true
+	return stat.Bavail * uint64(stat.Bsize), true
 }

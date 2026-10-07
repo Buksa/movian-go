@@ -108,7 +108,7 @@ func NewRunControl(pm *propcore.PropManager, sm *settingscore.SettingsManager,
 	setInt("canExit", canExit)
 
 	// C: if(!(gconf.can_standby || ... || !gconf.can_not_exit)) return;
-	if !(canStandby || canPowerOff || canLogout || canOpenShell || canRestart || canExit) {
+	if !canStandby && !canPowerOff && !canLogout && !canOpenShell && !canRestart && !canExit {
 		return rc
 	}
 

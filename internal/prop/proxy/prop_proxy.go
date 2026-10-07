@@ -439,13 +439,14 @@ func wsParse(q *misc.HtsbufQueue, cb func(opaque any, opcode int, data []byte) i
 		opcode := int(hdr[0] & 0xf)
 		length := int64(hdr[1] & 0x7f)
 		hoff := 2
-		if length == 126 {
+		switch length {
+		case 126:
 			if p < 4 {
 				return 0
 			}
 			length = int64(hdr[2])<<8 | int64(hdr[3])
 			hoff = 4
-		} else if length == 127 {
+		case 127:
 			if p < 10 {
 				return 0
 			}

@@ -165,10 +165,7 @@ func bencodeParseInteger(src []byte, s, stop int, lp *int64) int {
 		s++
 	}
 
-	for {
-		if s == stop {
-			break
-		}
+	for s != stop {
 		c := src[s]
 		if c == 'e' {
 			s++

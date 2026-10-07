@@ -383,8 +383,7 @@ again:
 		sb := sa.gvsLinkNext
 
 		if !vd.Hold {
-			var outputDuration int
-			outputDuration = glwVideoComputeOutputDuration(gv, frameDuration)
+			var outputDuration int = glwVideoComputeOutputDuration(gv, frameDuration)
 
 			pts = glwVideoComputeBlend(gv, sa, sb, outputDuration, interpolation)
 			if pts != mediacore.PTSUnset {

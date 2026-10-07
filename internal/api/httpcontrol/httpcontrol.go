@@ -157,9 +157,10 @@ func (h *HTTPControlHandler) NotifyUser(hc *httpnet.HTTPConnection, remain strin
 
 	// Determine notification type
 	var notifyType int // NOTIFY_INFO
-	if levelStr == "error" {
+	switch levelStr {
+	case "error":
 		notifyType = 2 // NOTIFY_ERROR
-	} else if levelStr == "warning" {
+	case "warning":
 		notifyType = 1 // NOTIFY_WARNING
 	}
 
@@ -208,8 +209,8 @@ func (h *HTTPControlHandler) diagHTML() string {
 			continue
 		}
 
-		result.WriteString(fmt.Sprintf("%s-%d.log (Last modified %s ago): <a href=\"/api/logfile/%d\">View</a> | <a href=\"/api/logfile/%d?mode=download\">Download</a>| <a href=\"/api/logfile/%d?mode=pastebin\">Pastebin</a><br>",
-			html.EscapeString(h.appName), i, html.EscapeString(timeAgo), i, i, i))
+		fmt.Fprintf(&result, "%s-%d.log (Last modified %s ago): <a href=\"/api/logfile/%d\">View</a> | <a href=\"/api/logfile/%d?mode=download\">Download</a>| <a href=\"/api/logfile/%d?mode=pastebin\">Pastebin</a><br>",
+			html.EscapeString(h.appName), i, html.EscapeString(timeAgo), i, i, i)
 	}
 
 	return result.String()

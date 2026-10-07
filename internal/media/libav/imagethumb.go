@@ -339,7 +339,7 @@ func swsPtr(sws *libav.SwsContext) unsafe.Pointer {
 func SwsGet(srcW, srcH, srcFmt, dstW, dstH, dstFmt int) *libav.SwsContext {
 	p := C.ml_sws_get(C.int(srcW), C.int(srcH), C.int(srcFmt),
 		C.int(dstW), C.int(dstH), C.int(dstFmt))
-	return libav.WrapSwsContext(unsafe.Pointer(p))
+	return libav.WrapSwsContext(p)
 }
 
 // SwsScaleToBuf — C: sws_scale → single-plane dst buffer

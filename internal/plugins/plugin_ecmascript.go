@@ -12,13 +12,14 @@ import (
 	"fmt"
 	"sync"
 
+	"github.com/dop251/goja"
+
 	"github.com/czz/movian-go/internal/ecmascript"
 	fileaccesscore "github.com/czz/movian-go/internal/fileaccess"
 	"github.com/czz/movian-go/internal/gaftape"
 	propcore "github.com/czz/movian-go/internal/prop"
 	"github.com/czz/movian-go/internal/service"
 	"github.com/czz/movian-go/internal/usage"
-	"github.com/dop251/goja"
 )
 
 // ECMAScriptPlugin represents a loaded ECMAScript plugin

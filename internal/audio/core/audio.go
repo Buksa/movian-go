@@ -329,11 +329,11 @@ func NewAudioResampler(inRate, outRate int, inFmt, outFmt SampleFormat, inCh, ou
 
 		// Allocate and configure swresample context
 		ar.swrContext = libav.SwrAllocSetOpts(
-			int64(outLayout),
-			int(outFmtFF),
+			outLayout,
+			outFmtFF,
 			outRate,
-			int64(inLayout),
-			int(inFmtFF),
+			inLayout,
+			inFmtFF,
 			inRate,
 		)
 
@@ -1202,11 +1202,12 @@ func (ad *AudioDecoder) audioProcessAudio(mb *mediacore.MediaBuf) bool {
 				}
 			}
 
-			if ad.Mode == ModeSPDIF {
+			switch ad.Mode {
+			case ModeSPDIF:
 				// C: audio_setup_spdif_muxer + audio_set_passthru_metadata
 				ad.setupSPDIFMuxer(int(mc.CodecID))
 				ad.setPassthruMetadata(mp, mq, int(mc.CodecID))
-			} else if ad.Mode == ModeCoded {
+			case ModeCoded:
 				// C: hts_mutex_lock; audio_set_passthru_metadata;
 				//    ac_deliver_coded_locked; hts_mutex_unlock; return 0
 				mp.Mutex.Lock()

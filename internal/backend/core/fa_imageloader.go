@@ -174,10 +174,10 @@ func (il *imageLoader) faImageloader2(fam *fileaccesscore.FileAccessManager, url
 	buf, err := fileaccesscore.FALoad(fam, url, cacheControl, c,
 		fileaccesscore.FaNonInteractive|fileaccesscore.FaContentOnError)
 	if err != nil {
-		switch err {
-		case fileaccesscore.ErrLoadNotModified:
+		switch {
+		case errors.Is(err, fileaccesscore.ErrLoadNotModified):
 			return nil, ilNotModified, nil
-		case fileaccesscore.ErrLoadNoMethod:
+		case errors.Is(err, fileaccesscore.ErrLoadNoMethod):
 			return nil, ilNoLoadMethod, nil
 		default:
 			return nil, ilOK, err // NULL → return (image_t*)NULL

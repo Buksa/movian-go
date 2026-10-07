@@ -415,9 +415,10 @@ func (g *regexG) lexclass() int {
 			havesave, havedash = 0, 0
 		} else {
 			if quoted != 0 {
-				if g.yychar == 'b' {
+				switch g.yychar {
+				case 'b':
 					g.yychar = '\b'
-				} else if g.yychar == '0' {
+				case '0':
 					g.yychar = 0
 				}
 			}
@@ -644,7 +645,7 @@ func (g *regexG) parseatom() *renode {
 	}
 	if g.lookahead == lRef {
 		atom = g.newnode(pRef)
-		if g.yychar == 0 || g.yychar >= reRune(g.nsub) || g.sub[g.yychar] == nil {
+		if g.yychar == 0 || g.yychar >= g.nsub || g.sub[g.yychar] == nil {
 			die("invalid back-reference")
 		}
 		atom.n = uint8(g.yychar)

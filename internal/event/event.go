@@ -789,7 +789,7 @@ func (em *EventManager) CreatePlayTrack(track, source any, mode int) *EventPlayT
 		Source: source,
 		Mode:   mode,
 	}
-	e.Event.PlayTrack = &EventPlayTrackArgs{Track: track, Source: source, Mode: mode}
+	e.PlayTrack = &EventPlayTrackArgs{Track: track, Source: source, Mode: mode}
 	e.concrete = e // C: event_t* is the subtype allocation
 	return e
 }

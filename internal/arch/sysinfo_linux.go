@@ -13,7 +13,7 @@ func GetTotalMemory() uint64 {
 	if err != nil {
 		return 0
 	}
-	return uint64(info.Totalram)
+	return info.Totalram
 }
 
 // GetFreeMemory returns the free system memory
@@ -23,7 +23,7 @@ func GetFreeMemory() uint64 {
 	if err != nil {
 		return 0
 	}
-	return uint64(info.Freeram)
+	return info.Freeram
 }
 
 // GetUptime returns the system uptime in seconds

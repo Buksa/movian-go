@@ -178,7 +178,7 @@ func FALibavReopen(sys *LibAVSystem, reader FileAccessReader, noSeek bool) (*AVI
 		Opaque:     opaque,
 		Seekable:   seekableInt,
 		reader:     reader,
-		cPtr:       unsafe.Pointer(cAvio),
+		cPtr:       cAvio,
 		cBuffer:    nil, // Buffer is freed by c_free_avio_context
 		sys:        sys,
 	}

@@ -139,7 +139,7 @@ func Dial(wsURL string, timeout time.Duration) (*Conn, error) {
 		w:    wspkg.NewWebSocketWriter(conn, true), // clients must mask
 		next: 1,
 	}
-	return c, nil
+	return c, nil //nolint:nilerr // header-read error just ends header parsing
 }
 
 // Close terminates the ws session and the TCP connection.

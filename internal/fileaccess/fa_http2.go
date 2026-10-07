@@ -433,14 +433,16 @@ func h2Open(fap *FAProtocol, url string, flags int,
 
 	if err := hf.h2Issue(0); err != nil {
 		hf.Close()
-		if fe, ok := err.(fapError); ok && (fe.code == 401 || fe.code == 407) {
+		var fe fapError
+		if errors.As(err, &fe) && (fe.code == 401 || fe.code == 407) {
 			// Auth negotiation (digest/basic + keyring) lives in the
 			// canonical path — delegate the open; the resulting
 			// credentials land in httpAuthCaches for later h2 opens.
 			return httpOpen(fap, url, flags, foe)
 		}
 		if flags&FaNonInteractive != 0 {
-			if fe, ok := err.(fapError); ok && foe != nil {
+			var fe fapError
+			if errors.As(err, &fe) && foe != nil {
 				foe.ProtocolError = fe.code
 			}
 		}

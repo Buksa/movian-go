@@ -114,7 +114,7 @@ func faLibavOpenFormat(avio *AVIOContext, url string, mimetype string, strategy 
 	if mimetype != "" {
 		if name, ok := mimetype2fmt[strings.ToLower(mimetype)]; ok {
 			cn := C.CString(name)
-			fmtPtr = unsafe.Pointer(C.fa_find_input_format(cn))
+			fmtPtr = C.fa_find_input_format(cn)
 			C.free(unsafe.Pointer(cn))
 		}
 		// C: fmt==NULL → "Don't know mimetype, probing instead"
@@ -188,7 +188,7 @@ func faLibavOpenFormat(avio *AVIOContext, url string, mimetype string, strategy 
 		return nil, faLibavOpenError("Unable to handle file contents", int(ret))
 	}
 
-	return &AVFormatContext{Filename: url, avio: avio, cPtr: unsafe.Pointer(fctx)}, nil
+	return &AVFormatContext{Filename: url, avio: avio, cPtr: fctx}, nil
 }
 
 // FALibavOpenStrategyAudio — applies the strategy fields used inside

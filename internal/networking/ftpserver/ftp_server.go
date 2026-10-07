@@ -270,9 +270,10 @@ func (s *Server) constructPath(fc *ftpConnection, path string) (string, int) {
 	atRoot := fc.wd == "/"
 
 	var dst string
-	if path == "." {
+	switch path {
+	case ".":
 		dst = fc.wd
-	} else if path == ".." {
+	case "..":
 		if atRoot {
 			s.ftpWrite(fc, 550, "%s: Can't go further up", path)
 			return "", 1
@@ -288,7 +289,7 @@ func (s *Server) constructPath(fc *ftpConnection, path string) (string, int) {
 			// did chdir(..) to root, restore root path
 			dst = "/"
 		}
-	} else {
+	default:
 		r := strings.IndexAny(path, "\\:?*|<>")
 		if r >= 0 {
 			s.ftpWrite(fc, 550,
@@ -724,10 +725,7 @@ func (s *Server) ftpSession(fc *ftpConnection) {
 	s.ftpWrite(fc, 220, "%s FTP server (%s  Version %s) ready.",
 		host, s.gcfg().SystemName, version.AppVersion())
 
-	for {
-		if fc.tc.TCPReadLine(buf[:]) != 0 {
-			break
-		}
+	for fc.tc.TCPReadLine(buf[:]) == 0 {
 		line := misc.CStr(buf[:])
 
 		if s.gcfg().EnableFTPServerDebug.Load() {

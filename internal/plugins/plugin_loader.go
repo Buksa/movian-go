@@ -152,7 +152,7 @@ func (pm *PluginManager) UnloadPlugin(pl *Plugin) {
 // loadECMAScriptPlugin loads an ECMAScript plugin
 func (pm *PluginManager) loadECMAScriptPlugin(pl *Plugin, url string, ctrl *PluginControl, flags PluginLoadFlags) error {
 	if ctrl.File == "" {
-		return &LoadError{Message: fmt.Sprintf("Missing \"file\" element in control file")}
+		return &LoadError{Message: "Missing \"file\" element in control file"}
 	}
 
 	fullpath := url + "/" + ctrl.File
@@ -193,7 +193,7 @@ func (pm *PluginManager) loadECMAScriptPlugin(pl *Plugin, url string, ctrl *Plug
 // loadBitcodePlugin loads a bitcode (native) plugin
 func (pm *PluginManager) loadBitcodePlugin(pl *Plugin, url string, ctrl *PluginControl, flags PluginLoadFlags) error {
 	if ctrl.File == "" {
-		return &LoadError{Message: fmt.Sprintf("Missing \"file\" element in control file")}
+		return &LoadError{Message: "Missing \"file\" element in control file"}
 	}
 
 	fullpath := url + "/" + ctrl.File
@@ -360,11 +360,7 @@ func (pm *PluginManager) GetPluginsByCategory(category PluginType) []*Plugin {
 	defer pm.mu.RUnlock()
 
 	result := make([]*Plugin, 0)
-	for _, pl := range pm.plugins {
-		// In real implementation, this would check the plugin's category
-		// For now, return all plugins
-		result = append(result, pl)
-	}
+	result = append(result, pm.plugins...)
 	return result
 }
 

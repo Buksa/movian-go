@@ -156,11 +156,12 @@ func urlDeescape(s []byte) []byte {
 	i := 0
 	for i < len(s) {
 		c := s[i]
-		if c == '+' {
+		switch c {
+		case '+':
 			s[d] = ' '
 			d++
 			i++
-		} else if c == '%' {
+		case '%':
 			var v byte
 			i++
 			if i >= len(s) {
@@ -193,7 +194,7 @@ func urlDeescape(s []byte) []byte {
 			i++
 			s[d] = v
 			d++
-		} else {
+		default:
 			s[d] = c
 			d++
 			i++

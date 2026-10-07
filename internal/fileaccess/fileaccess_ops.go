@@ -358,7 +358,8 @@ func FAUnlinkRecursive(fam *FileAccessManager, url string,
 		return -1, serr
 	}
 
-	if st.Type == ContentFile {
+	switch st.Type {
+	case ContentFile:
 		if fap.Unlink == nil {
 			return fail("Deleting not supported for this file system")
 		}
@@ -377,12 +378,12 @@ func FAUnlinkRecursive(fam *FileAccessManager, url string,
 		} else {
 			delitemAdd(&diq, url, ContentFile)
 		}
-	} else if st.Type == ContentDir {
+	case ContentDir:
 		if fap.Unlink == nil || fap.Rmdir == nil {
 			return fail("Deleting not supported for this file system")
 		}
 		FARscan(fam, url, delitemAddFde, &diq)
-	} else {
+	default:
 		return fail("Can't delete this type")
 	}
 

@@ -6,22 +6,28 @@ run:
 
 # Ratchet config: enable only linters that currently pass clean.
 # The wider aspirational set (staticcheck, errcheck, gosec, revive,
-# gocritic, godot, exhaustive, goconst, gocyclo, unconvert, unparam,
-# unused, whitespace, dupl, misspell, nilnil, nilerr, errorlint,
-# prealloc, goimports...) reports ~9k findings on this codebase —
+# gocritic, godot, exhaustive, goconst, gocyclo, unparam,
+# unused, prealloc, godot...) reports ~9k findings on this codebase —
 # re-enable linter-by-linter as they're fixed.
+# nilnil is intentionally disabled: `return nil, nil` ("no result, no
+# error") is a deliberate convention throughout the loader/backend APIs,
+# mirroring the C NULL semantics — a sentinel error would diverge from
+# upstream behavior.
 linters:
   default: none
   enable:
     - bodyclose
     - copyloopvar
+    - errorlint
     - govet
     - gomodguard_v2
     - dupl
     - misspell
     - nakedret
+    - nilerr
     - nolintlint
     - tparallel
+    - unconvert
     - whitespace
 
   exclusions:
@@ -33,6 +39,7 @@ linters:
           - gocyclo
           - gosec
           - errcheck
+          - nilerr
       - path: cmd/movian-go/main\.go
         linters:
           - gocyclo

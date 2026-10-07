@@ -366,7 +366,7 @@ func mgppImageReqDo(req *MgppImageReq) {
 	req.Cancel = cancel
 
 	// Load image using backend imageloader
-	var cacheControl int = 0
+	var cacheControl = 0
 
 	if req.Mgpp.backendSystem == nil {
 		req.ErrStr = "backend system not configured"

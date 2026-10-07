@@ -199,11 +199,7 @@ func loadSrt(sys *subtitles.System, url string, buf []byte) *subtitles.ExtSubtit
 	buf = srtSkipPreamble(buf)
 
 	linereaderSetup(&lr, buf)
-	for {
-		if linereaderNext(&lr) < 0 {
-			break
-		}
-
+	for linereaderNext(&lr) >= 0 {
 		if getSrtTimestamp(&lr, &start, &stop) == 0 {
 			if txt != nil && pstart != -1 && pstop != -1 {
 				esInsertText(es, string(txt[:txtoff]), pstart, pstop, tagFlags)
@@ -603,11 +599,7 @@ func loadTxt(sys *subtitles.System, url string, buf []byte) *subtitles.ExtSubtit
 	var lr linereader
 
 	linereaderSetup(&lr, buf)
-	for {
-		if linereaderNext(&lr) < 0 {
-			break
-		}
-
+	for linereaderNext(&lr) >= 0 {
 		s, ok := scanTimestamp8(lr.line())
 		if !ok {
 			continue
@@ -683,11 +675,7 @@ func loadTmp(sys *subtitles.System, url string, buf []byte) *subtitles.ExtSubtit
 	var lr linereader
 
 	linereaderSetup(&lr, buf)
-	for {
-		if linereaderNext(&lr) < 0 {
-			break
-		}
-
+	for linereaderNext(&lr) >= 0 {
 		s, ok := scanTimestamp3(lr.line())
 		if !ok {
 			continue

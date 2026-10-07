@@ -89,7 +89,7 @@ func NewBSF(name string, codecCtx unsafe.Pointer) (*BSFContext, error) {
 		C.ml_av_bsf_free(&ctx)
 		return nil, fmt.Errorf("av_bsf_init failed: %d", ret)
 	}
-	return &BSFContext{ctx: unsafe.Pointer(ctx)}, nil
+	return &BSFContext{ctx: ctx}, nil
 }
 
 // SendPacket sends a packet to the BSF for filtering. A nil pkt drains

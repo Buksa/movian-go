@@ -187,5 +187,5 @@ func SetupLibAV() error {
 
 // AvMalloc — C: av_malloc(size).
 func AvMalloc(size int) unsafe.Pointer {
-	return unsafe.Pointer(C.av_malloc(C.size_t(size)))
+	return C.av_malloc(C.size_t(size))
 }

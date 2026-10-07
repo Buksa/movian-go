@@ -558,7 +558,7 @@ func parseNgram(n []int32, cmap []uint8, str []uint8, len_ int) float32 {
 		c := str[i]
 		mb := cmap[c]
 		if mb != 0 {
-			if !(mb == 0x20 && ignSpc) {
+			if mb != 0x20 || !ignSpc {
 				ngram = ((ngram << 8) + uint32(mb)) & nGramMask
 				ngramCount++
 				res := ngramSearch(n, int32(ngram))

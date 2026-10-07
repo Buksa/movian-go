@@ -45,8 +45,7 @@ type WebSocketState struct {
 
 // WebSocketAppendHdr appends a WebSocket frame header
 func WebSocketAppendHdr(buf *bytes.Buffer, opcode int, length int, mask []byte) {
-	var firstByte byte
-	firstByte = byte(opcode) | 0x80 // FIN bit set
+	var firstByte byte = byte(opcode) | 0x80 // FIN bit set
 
 	buf.WriteByte(firstByte)
 
@@ -131,13 +130,14 @@ func WebSocketParse(buf *bytes.Buffer, cb func(opaque any, opcode int, data []by
 	headerLen := 2
 
 	// Get extended payload length
-	if payloadLen == 126 {
+	switch payloadLen {
+	case 126:
 		if len(data) < 4 {
 			return 0
 		}
 		payloadLen = int(binary.BigEndian.Uint16(data[2:4]))
 		headerLen = 4
-	} else if payloadLen == 127 {
+	case 127:
 		if len(data) < 10 {
 			return 0
 		}
@@ -241,13 +241,14 @@ func ParseWebSocketFrame(data []byte) (*WebSocketFrame, error) {
 	headerLen := 2
 
 	// Get extended payload length
-	if payloadLen == 126 {
+	switch payloadLen {
+	case 126:
 		if len(data) < 4 {
 			return nil, errors.New("insufficient data for extended payload length")
 		}
 		payloadLen = int(binary.BigEndian.Uint16(data[2:4]))
 		headerLen = 4
-	} else if payloadLen == 127 {
+	case 127:
 		if len(data) < 10 {
 			return nil, errors.New("insufficient data for extended payload length")
 		}

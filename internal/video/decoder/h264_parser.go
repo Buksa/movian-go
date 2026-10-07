@@ -403,7 +403,8 @@ func calcPOC(hp *H264Parser, sps *H264SPS) int {
 		hp.FrameNumOffset += maxFrameNum
 	}
 
-	if sps.POCType == 0 {
+	switch sps.POCType {
+	case 0:
 		maxPOCCntLsb := uint32(1 << uint(sps.Log2MaxPOCLsb))
 
 		if hp.PicOrderCntLsb < hp.PrevPOCLsb &&
@@ -417,12 +418,12 @@ func calcPOC(hp *H264Parser, sps *H264SPS) int {
 		poc = hp.POCMsb + hp.PicOrderCntLsb
 
 		hp.PrevPOCLsb = hp.PicOrderCntLsb
-	} else if sps.POCType == 2 {
+	case 2:
 		poc = 2 * (hp.FrameNumOffset + hp.FrameNum)
 		if hp.NALRefIDC == 0 {
 			poc--
 		}
-	} else {
+	default:
 		// C: empty else branch — poc stays 0
 	}
 	return poc
@@ -556,7 +557,7 @@ func (hp *H264Parser) DecodeData(d []byte) {
 
 		i := 0
 		for len(d)-i > 3 {
-			if !(d[i] == 0 && d[i+1] == 0 && d[i+2] == 1) {
+			if d[i] != 0 || d[i+1] != 0 || d[i+2] != 1 {
 				i++
 				continue
 			}

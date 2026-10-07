@@ -50,7 +50,7 @@ func GzInflate(bin *Buf) (*Buf, error) {
 		// C: snprintf(errbuf, errlen, "inflate: %s", z.msg)
 		r.Close() // C: inflateEnd(&z)
 		bin.Release()
-		return nil, fmt.Errorf("inflate: %s", err)
+		return nil, fmt.Errorf("inflate: %w", err)
 	}
 	r.Close() // C: inflateEnd(&z)
 	bin.Release()

@@ -656,7 +656,7 @@ func smbTreeConnectAndX(cc *cifsConnection, share string) (*cifsTree, error) {
 					}
 					return sambaNeedAuthTree, nil
 				}
-				var pw string = krUnset
+				var pw = krUnset
 				r := 1
 				if cc.sys.kr != nil {
 					kf := 0x2 | 0x4 // SHOW_REMEMBER_ME | REMEMBER_ME_SET

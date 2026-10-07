@@ -402,9 +402,10 @@ func glwfChanged(ec *glwViewEvalContext, self *Token, argv []*Token, argc uint) 
 	}
 
 	if a.typ != e.typ {
-		if e.typ == tokenRstring {
+		switch e.typ {
+		case tokenRstring:
 			miscpkg.RstrRelease(e.rstr)
-		} else if e.typ == tokenPropertyRef {
+		case tokenPropertyRef:
 			glwDeps.pm.RefDec(e.prop)
 		}
 		e.typ = a.typ
@@ -480,9 +481,10 @@ func glwfChangedDtor(gr *glwRoot, self *Token) {
 	if e == nil {
 		return
 	}
-	if e.typ == tokenRstring {
+	switch e.typ {
+	case tokenRstring:
 		miscpkg.RstrRelease(e.rstr)
-	} else if e.typ == tokenPropertyRef {
+	case tokenPropertyRef:
 		glwDeps.pm.RefDec(e.prop)
 	}
 }
@@ -514,11 +516,12 @@ func glwfIir(ec *glwViewEvalContext, self *Token, argv []*Token, argc uint) int 
 	if a.typ != tokenFloat && a.typ != tokenInt && a.typ != tokenRstring && a.typ != tokenVoid {
 		return glwViewSeterr(ec.ei, self, "Invalid first operand to iir()")
 	}
-	if a.typ == tokenRstring || a.typ == tokenVoid {
+	switch a.typ {
+	case tokenRstring, tokenVoid:
 		f = 0
-	} else if a.typ == tokenInt {
+	case tokenInt:
 		f = float32(a.tInt)
-	} else {
+	default:
 		f = a.tFloat
 	}
 	if b.typ != tokenFloat {

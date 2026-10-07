@@ -63,7 +63,7 @@ func fcInit() unsafe.Pointer {
 func fcPatternCreate() fcPattern {
 	ftwasm.Mu.Lock()
 	defer ftwasm.Mu.Unlock()
-	return fcPattern(fcwPtr(uint32(fcwModule().Xfcw_pat_create())))
+	return fcwPtr(uint32(fcwModule().Xfcw_pat_create()))
 }
 func fcPatternDestroy(p fcPattern) {
 	ftwasm.Mu.Lock()
@@ -100,7 +100,7 @@ func fcPatternGetCharSet(p fcPattern, sel, n int) (fcCharSet, int) {
 	ftwasm.Mu.Lock()
 	defer ftwasm.Mu.Unlock()
 	r := fcwModule().Xfcw_pat_get_charset(fcwOff(p), int32(sel), int32(n))
-	return fcCharSet(fcwPtr(uint32(r))), int(int32(r >> 32))
+	return fcwPtr(uint32(r)), int(int32(r >> 32))
 }
 func fcPatternGetString(p fcPattern, sel, n int) (string, int) {
 	ftwasm.Mu.Lock()
@@ -138,7 +138,7 @@ func fcFontSort(conf unsafe.Pointer, p fcPattern, trim int) (fcFontSet, int) {
 	defer ftwasm.Mu.Unlock()
 	r := fcwModule().Xfcw_font_sort(fcwOff(conf), fcwOff(p),
 		int32(trim))
-	return fcFontSet(fcwPtr(uint32(r))), int(int32(r >> 32))
+	return fcwPtr(uint32(r)), int(int32(r >> 32))
 }
 func fcFontSetNFont(fs fcFontSet) int {
 	ftwasm.Mu.Lock()
@@ -148,7 +148,7 @@ func fcFontSetNFont(fs fcFontSet) int {
 func fcFontSetFont(fs fcFontSet, i int) fcPattern {
 	ftwasm.Mu.Lock()
 	defer ftwasm.Mu.Unlock()
-	return fcPattern(fcwPtr(uint32(fcwModule().Xfcw_fs_font(fcwOff(fs), int32(i)))))
+	return fcwPtr(uint32(fcwModule().Xfcw_fs_font(fcwOff(fs), int32(i))))
 }
 func fcFontSetDestroy(fs fcFontSet) {
 	ftwasm.Mu.Lock()

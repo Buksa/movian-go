@@ -250,12 +250,12 @@ func (hc *HTTPConnection) HTTPSendRaw(rc int, rctxt string, headers *HTTPHeaders
 		statusText = rctxt
 	}
 
-	hc.writer.WriteString(fmt.Sprintf("HTTP/1.1 %d %s\r\n", httpRC, statusText))
+	fmt.Fprintf(hc.writer, "HTTP/1.1 %d %s\r\n", httpRC, statusText)
 
 	// Write standard headers
 	// C: http_server.c:369 — "Server: "APPNAMEUSER" %s" with appversion
-	hc.writer.WriteString(fmt.Sprintf("Server: Movian Go %s\r\n", version.AppVersion()))
-	hc.writer.WriteString(fmt.Sprintf("Date: %s\r\n", time.Now().UTC().Format(http.TimeFormat)))
+	fmt.Fprintf(hc.writer, "Server: Movian Go %s\r\n", version.AppVersion())
+	fmt.Fprintf(hc.writer, "Date: %s\r\n", time.Now().UTC().Format(http.TimeFormat))
 	hc.writer.WriteString("Cache-Control: no-cache\r\n")
 	// C: http_send_header — "Connection: %s" per hc->hc_keep_alive
 	if hc.keepAlive {
@@ -267,19 +267,19 @@ func (hc *HTTPConnection) HTTPSendRaw(rc int, rctxt string, headers *HTTPHeaders
 	// Write headers
 	if headers != nil {
 		for _, header := range *headers {
-			hc.writer.WriteString(fmt.Sprintf("%s: %s\r\n", header.Key, header.Value))
+			fmt.Fprintf(hc.writer, "%s: %s\r\n", header.Key, header.Value)
 		}
 	}
 
 	// Write response headers
 	for _, header := range hc.responseHdrs {
-		hc.writer.WriteString(fmt.Sprintf("%s: %s\r\n", header.Key, header.Value))
+		fmt.Fprintf(hc.writer, "%s: %s\r\n", header.Key, header.Value)
 	}
 
 	// C: htsbuf_qprintf(&hdrs, "Content-Length: %d\r\n", contentlen) —
 	// always emitted, even for empty bodies; without it a keep-alive
 	// client cannot tell where the reply ends and hangs.
-	hc.writer.WriteString(fmt.Sprintf("Content-Length: %d\r\n", len(output)))
+	fmt.Fprintf(hc.writer, "Content-Length: %d\r\n", len(output))
 
 	hc.writer.WriteString("\r\n")
 
@@ -580,7 +580,7 @@ func (s *HTTPServer) handleConnection(conn net.Conn) {
 		if hc.version == httpVersion10 {
 			hc.keepAlive = connHdr != "" && strings.EqualFold(connHdr, "keep-alive")
 		} else {
-			hc.keepAlive = !(connHdr != "" && strings.EqualFold(connHdr, "close"))
+			hc.keepAlive = connHdr == "" || !strings.EqualFold(connHdr, "close")
 		}
 
 		// Read POST data if present
@@ -769,13 +769,14 @@ func (s *HTTPServer) handleWebSocketFrames(hc *HTTPConnection) {
 		payloadLen := int(header[1] & 0x7F)
 
 		// Read extended payload length
-		if payloadLen == 126 {
+		switch payloadLen {
+		case 126:
 			var ext [2]byte
 			if _, err := io.ReadFull(hc.reader, ext[:]); err != nil {
 				return
 			}
 			payloadLen = int(ext[0])<<8 | int(ext[1])
-		} else if payloadLen == 127 {
+		case 127:
 			var ext [8]byte
 			if _, err := io.ReadFull(hc.reader, ext[:]); err != nil {
 				return

@@ -64,9 +64,9 @@ func (btg *BtGlobal) torrentDump(to *Torrent, q *misc.HtsbufQueue, showRequests 
 		"Remote", "Status", "StTime", "Pieces", "Recv (kB)", "Sent (kB)")
 
 	for p := to.peers.lhFirst; p != nil; p = p.linkNext {
-		if !(p.state == PeerStateRunning ||
-			p.state == PeerStateWaitHandshake ||
-			p.state == PeerStateConnecting) {
+		if p.state != PeerStateRunning &&
+			p.state != PeerStateWaitHandshake &&
+			p.state != PeerStateConnecting {
 			continue
 		}
 

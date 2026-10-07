@@ -379,7 +379,7 @@ func (mtm *MediaTrackMgr) mtmSuggest() {
 
 	mtm.pm().SelectChildPropEx(mt.root, nil, mtm.nodeSub)
 	e := &event.EventSelectTrack{ID: mt.url}
-	e.Event.SetConcrete(e)
+	e.SetConcrete(e)
 	e.Type = mtm.mtmEventType()
 	MpEnqueueEventLocked(mtm.mp, &MediaEvent{Type: int(e.Type), Data: e})
 	if mtm.selector != nil {
@@ -398,7 +398,7 @@ func (mt *mediaTrack) mtSetURL(str string) {
 		mtm.userSet = true
 		mtm.pm().SelectChildPropEx(mt.root, nil, mtm.nodeSub)
 		e := &event.EventSelectTrack{ID: mt.url}
-		e.Event.SetConcrete(e)
+		e.SetConcrete(e)
 		e.Type = mtm.mtmEventType()
 		MpEnqueueEventLocked(mtm.mp, &MediaEvent{Type: int(e.Type), Data: e})
 		if mtm.selector != nil {
@@ -761,7 +761,7 @@ func MpTrackMgrNextTrack(mtm *MediaTrackMgr) {
 		if mt != nil && mt != mtm.current {
 			mtm.pm().SelectChildPropEx(mt.root, nil, mtm.nodeSub)
 			e := &event.EventSelectTrack{ID: mt.url, Manual: true}
-			e.Event.SetConcrete(e)
+			e.SetConcrete(e)
 			e.Type = mtm.mtmEventType()
 			MpEnqueueEventLocked(mtm.mp, &MediaEvent{Type: int(e.Type), Data: e})
 			mtm.current = mt
@@ -886,10 +886,7 @@ func (mtm *MediaTrackMgr) subtitleLoaderThread(mp *MediaPipe) {
 	time.Sleep(100 * time.Millisecond) // C: usleep(100000)
 
 	mp.Mutex.Lock()
-	for {
-		if mp.SubtitleLoaderURL == "" {
-			break
-		}
+	for mp.SubtitleLoaderURL != "" {
 		url := mp.SubtitleLoaderURL
 
 		mp.Mutex.Unlock()

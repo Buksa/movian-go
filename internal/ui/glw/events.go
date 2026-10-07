@@ -160,11 +160,7 @@ func glwEventToWidget(w *Glw, e *eventpkg.Event) int {
 		return 1
 	}
 
-	for {
-		if glwPathInFocus(w) == 0 {
-			break
-		}
-
+	for glwPathInFocus(w) != 0 {
 		if w.glwFlags2&glw2PositionalNavigation != 0 &&
 			glwNavigateMatrix(w, e) != 0 {
 			glwTrace("Event '%s' intercepted by matrix-nav at '%s' (descending)",
@@ -554,28 +550,9 @@ func glwDispatchEvent(gr *glwRoot, e *eventpkg.Event) {
 		return
 	}
 
-	if !(e.IsAction(eventpkg.ACTION_SEEK_BACKWARD) ||
-		e.IsAction(eventpkg.ACTION_SEEK_FORWARD) ||
-		e.IsAction(eventpkg.ACTION_PLAYPAUSE) ||
-		e.IsAction(eventpkg.ACTION_PLAY) ||
-		e.IsAction(eventpkg.ACTION_PAUSE) ||
-		e.IsAction(eventpkg.ACTION_STOP) ||
-		e.IsAction(eventpkg.ACTION_EJECT) ||
-		e.IsAction(eventpkg.ACTION_SKIP_BACKWARD) ||
-		e.IsAction(eventpkg.ACTION_SKIP_FORWARD) ||
-		e.IsAction(eventpkg.ACTION_SHOW_MEDIA_STATS) ||
-		e.IsAction(eventpkg.ACTION_SHUFFLE) ||
-		e.IsAction(eventpkg.ACTION_REPEAT) ||
-		e.IsAction(eventpkg.ACTION_NEXT_CHANNEL) ||
-		e.IsAction(eventpkg.ACTION_PREV_CHANNEL) ||
-		e.IsAction(eventpkg.ACTION_VOLUME_UP) ||
-		e.IsAction(eventpkg.ACTION_VOLUME_DOWN) ||
-		e.IsAction(eventpkg.ACTION_VOLUME_MUTE_TOGGLE) ||
-		e.IsAction(eventpkg.ACTION_POWER_OFF) ||
-		e.IsAction(eventpkg.ACTION_RESTART) ||
-		e.IsAction(eventpkg.ACTION_STANDBY) ||
-		e.Type == eventpkg.EVENT_SELECT_AUDIO_TRACK ||
-		e.Type == eventpkg.EVENT_SELECT_SUBTITLE_TRACK) {
+	if !e.IsAction(eventpkg.ACTION_SEEK_BACKWARD) && !e.IsAction(eventpkg.ACTION_SEEK_FORWARD) && !e.IsAction(eventpkg.ACTION_PLAYPAUSE) && !e.IsAction(eventpkg.ACTION_PLAY) && !e.IsAction(eventpkg.ACTION_PAUSE) && !e.IsAction(eventpkg.ACTION_STOP) && !e.IsAction(eventpkg.ACTION_EJECT) && !e.IsAction(eventpkg.ACTION_SKIP_BACKWARD) && !e.IsAction(eventpkg.ACTION_SKIP_FORWARD) && !e.IsAction(eventpkg.ACTION_SHOW_MEDIA_STATS) && !e.IsAction(eventpkg.ACTION_SHUFFLE) && !e.IsAction(eventpkg.ACTION_REPEAT) && !e.IsAction(eventpkg.ACTION_NEXT_CHANNEL) && !e.IsAction(eventpkg.ACTION_PREV_CHANNEL) && !e.IsAction(eventpkg.ACTION_VOLUME_UP) && !e.IsAction(eventpkg.ACTION_VOLUME_DOWN) && !e.IsAction(eventpkg.ACTION_VOLUME_MUTE_TOGGLE) && !e.IsAction(eventpkg.ACTION_POWER_OFF) && !e.IsAction(eventpkg.ACTION_RESTART) && !e.IsAction(eventpkg.ACTION_STANDBY) &&
+		e.Type != eventpkg.EVENT_SELECT_AUDIO_TRACK &&
+		e.Type != eventpkg.EVENT_SELECT_SUBTITLE_TRACK {
 		if e.Flags&eventpkg.EventKeypress != 0 {
 			if glwSetKeyboardMode(gr, 1) != 0 {
 				/*

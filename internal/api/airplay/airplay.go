@@ -33,7 +33,7 @@ func (h *AirplayHandler) Reverse(hc *httpnet.HTTPConnection, remain string, opaq
 // Scrub handles AirPlay scrub requests (playback position)
 // This is the Go equivalent of airplay_scrub in C
 func (h *AirplayHandler) Scrub(hc *httpnet.HTTPConnection, remain string, opaque any, method httpnet.HTTPCmd) int {
-	output := fmt.Sprintf("position: 0.123456\r\nduration: 50.123456")
+	output := "position: 0.123456\r\nduration: 50.123456"
 	return hc.HTTPSendReply(0, "", "", "", 0, []byte(output))
 }
 

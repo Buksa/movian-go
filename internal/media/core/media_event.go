@@ -164,7 +164,7 @@ func MpDirectSeek(mp *MediaPipe, ts int64) {
 	}
 
 	ets := &event.EventTs{Ts: ts, Epoch: int(mp.Epoch)}
-	ets.Event.SetConcrete(ets)
+	ets.SetConcrete(ets)
 	ets.Type = event.EVENT_SEEK
 	MpEventDispatch(mp, &MediaEvent{Type: int(event.EVENT_SEEK), Data: ets})
 }

@@ -14,10 +14,11 @@ import (
 	"syscall"
 	"unsafe"
 
+	"golang.org/x/sys/unix"
+
 	propcore "github.com/czz/movian-go/internal/prop"
 	"github.com/czz/movian-go/internal/service"
 	"github.com/czz/movian-go/internal/version"
-	"golang.org/x/sys/unix"
 )
 
 // Linux-specific architecture implementation

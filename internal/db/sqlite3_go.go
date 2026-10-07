@@ -24,9 +24,10 @@ import (
 	"sync"
 	"unsafe"
 
-	"github.com/czz/movian-go/internal/trace"
 	"modernc.org/libc"
 	lib "modernc.org/sqlite/lib"
+
+	"github.com/czz/movian-go/internal/trace"
 )
 
 // sqliteTransient — SQLITE_TRANSIENT destructor sentinel ((void*)-1).
@@ -43,7 +44,7 @@ var tlsPool = sync.Pool{New: func() any { return libc.NewTLS() }}
 func withTLS(f func(tls *libc.TLS) int) int {
 	tls := tlsPool.Get().(*libc.TLS)
 	defer tlsPool.Put(tls)
-	return int(f(tls))
+	return f(tls)
 }
 
 // cLoadUintptr reads a uintptr out-param from C-space memory.
@@ -271,7 +272,7 @@ func (db *DB) PrepareV2(sql string) (*Stmt, string, int) {
 func (db *DB) LastInsertRowid() int64 {
 	var r int64
 	withTLS(func(t *libc.TLS) int {
-		r = int64(lib.Xsqlite3_last_insert_rowid(t, db.p))
+		r = lib.Xsqlite3_last_insert_rowid(t, db.p)
 		return 0
 	})
 	return r
@@ -356,7 +357,7 @@ func (s *Stmt) ColumnInt(col int) int {
 func (s *Stmt) ColumnInt64(col int) int64 {
 	var r int64
 	withTLS(func(t *libc.TLS) int {
-		r = int64(lib.Xsqlite3_column_int64(t, s.p, int32(col)))
+		r = lib.Xsqlite3_column_int64(t, s.p, int32(col))
 		return 0
 	})
 	return r

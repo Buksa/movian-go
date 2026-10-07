@@ -122,7 +122,7 @@ func videoOglSurfaceSetup(gv *GlwVideo, gvs *glwVideoSurface) {
 		C.glBindBuffer(C.GL_PIXEL_UNPACK_BUFFER, C.GLuint(gvs.gvsPbo[i]))
 		C.glBufferData(C.GL_PIXEL_UNPACK_BUFFER,
 			C.GLsizeiptr(gvs.gvsSize[i]), nil, C.GL_STREAM_DRAW)
-		gvs.gvsData[i] = unsafe.Pointer(C.glMapBuffer(C.GL_PIXEL_UNPACK_BUFFER, C.GL_WRITE_ONLY))
+		gvs.gvsData[i] = C.glMapBuffer(C.GL_PIXEL_UNPACK_BUFFER, C.GL_WRITE_ONLY)
 		// C: assert(gvs->gvs_data[i] != NULL)
 	}
 	C.glBindBuffer(C.GL_PIXEL_UNPACK_BUFFER, 0)
@@ -248,8 +248,8 @@ func gvSurfacePixmapRelease(gv *GlwVideo, gvs *glwVideoSurface,
 			C.glBufferData(C.GL_PIXEL_UNPACK_BUFFER,
 				C.GLsizeiptr(gvs.gvsSize[i]), nil, C.GL_STREAM_DRAW)
 
-			gvs.gvsData[i] = unsafe.Pointer(C.glMapBuffer(C.GL_PIXEL_UNPACK_BUFFER,
-				C.GL_WRITE_ONLY))
+			gvs.gvsData[i] = C.glMapBuffer(C.GL_PIXEL_UNPACK_BUFFER,
+				C.GL_WRITE_ONLY)
 			// C: assert(gvs->gvs_data[i] != NULL)
 		}
 		C.glBindBuffer(C.GL_PIXEL_UNPACK_BUFFER, 0)

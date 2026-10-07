@@ -14,12 +14,13 @@ import (
 	"math"
 	"sync"
 
+	"github.com/godbus/dbus/v5"
+	"github.com/godbus/dbus/v5/introspect"
+
 	eventpkg "github.com/czz/movian-go/internal/event"
 	facore "github.com/czz/movian-go/internal/fileaccess"
 	propcore "github.com/czz/movian-go/internal/prop"
 	tracepkg "github.com/czz/movian-go/internal/trace"
-	"github.com/godbus/dbus/v5"
-	"github.com/godbus/dbus/v5/introspect"
 )
 
 const (

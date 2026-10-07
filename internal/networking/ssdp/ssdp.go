@@ -80,13 +80,14 @@ func parse(buf string, list *httpnet.HTTPHeaders) int {
 
 		if first {
 			first = false
-			if line == "HTTP/1.1 200 OK" {
+			switch line {
+			case "HTTP/1.1 200 OK":
 				r = ssdpCmdResponse
-			} else if line == "M-SEARCH * HTTP/1.1" {
+			case "M-SEARCH * HTTP/1.1":
 				r = ssdpCmdSearch
-			} else if line == "NOTIFY * HTTP/1.1" {
+			case "NOTIFY * HTTP/1.1":
 				r = ssdpCmdNotify
-			} else {
+			default:
 				return 0
 			}
 		} else {

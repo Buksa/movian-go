@@ -108,7 +108,7 @@ func (r *pesReader) getpts() int64 {
 // enqueued as MB_CTRL_DVD_SPU2 buffers (18×u32 header + payload).
 func (vs *Vobsub) demuxPES(mp *mediacore.MediaPipe, sc uint32,
 	buf []byte, pts int64) {
-	dts := int64(mediacore.PTSUnset)
+	dts := mediacore.PTSUnset
 	r := &pesReader{b: buf, l: len(buf)}
 
 	x := r.getu8()
@@ -124,14 +124,15 @@ func (vs *Vobsub) demuxPES(mp *mediacore.MediaPipe, sc uint32,
 		return
 	}
 
-	if flags&0xc0 == 0xc0 {
+	switch flags & 0xc0 {
+	case 0xc0:
 		if hlen < 10 {
 			return
 		}
 		pts = r.getpts()
 		dts = r.getpts()
 		hlen -= 10
-	} else if flags&0xc0 == 0x80 {
+	case 0x80:
 		if hlen < 5 {
 			return
 		}
@@ -173,8 +174,8 @@ func (vs *Vobsub) demuxPES(mp *mediacore.MediaPipe, sc uint32,
 			copy(d[18*4:], outbuf)
 			mediacore.MbEnqueueAlways(mp, mp.Video, mb)
 		}
-		pts = int64(mediacore.PTSUnset)
-		dts = int64(mediacore.PTSUnset)
+		pts = mediacore.PTSUnset
+		dts = mediacore.PTSUnset
 		r.b = r.b[rlen:]
 		r.l -= rlen
 	}
@@ -343,10 +344,10 @@ func (vs *Vobsub) vobsubPicker(pts int64) {
 // microseconds.
 func VobsubGetTS(buf string) int64 {
 	if len(buf) < 12 {
-		return int64(mediacore.PTSUnset)
+		return mediacore.PTSUnset
 	}
 	if buf[2] != ':' || buf[5] != ':' || buf[8] != ':' {
-		return int64(mediacore.PTSUnset)
+		return mediacore.PTSUnset
 	}
 	return 1000 * (int64(buf[0]-'0')*36000000 +
 		int64(buf[1]-'0')*3600000 +
@@ -436,7 +437,7 @@ func VobsubLoad(json string, mp *mediacore.MediaPipe) *subtitles.ExtSubtitles {
 				p = p[1:]
 			}
 			ts := VobsubGetTS(p)
-			if ts == int64(mediacore.PTSUnset) {
+			if ts == mediacore.PTSUnset {
 				return
 			}
 			x := indexOf(p, "filepos:")

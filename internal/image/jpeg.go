@@ -174,7 +174,7 @@ func parseAPP1(ji *JPEGInfo, buf []byte, length int, flags int) int {
 					}
 				}
 			case 3:
-				value = int(uint16(exif16(po)))
+				value = int(exif16(po))
 			case 4:
 				value = int(exif32(po))
 			case 6:

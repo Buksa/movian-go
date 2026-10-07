@@ -297,10 +297,11 @@ func subTagToCode(s []byte, output []uint32, olen int, context int, flags int,
 
 		i := 0
 		for i < len(s) && s[i] != 0 {
-			if s[i] == 'b' {
+			switch s[i] {
+			case 'b':
 				olen = addOneCode(TR_CODE_BOLD_ON, output, olen)
 				pc.eolResetBold = doreset
-			} else if s[i] == 'i' {
+			case 'i':
 				olen = addOneCode(TR_CODE_ITALIC_ON, output, olen)
 				pc.eolResetItalic = doreset
 			}

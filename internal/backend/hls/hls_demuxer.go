@@ -269,7 +269,7 @@ func extractPs(hv *hlsVariant, mb *mediacore.MediaBuf) {
 	p := -1 // index of NAL data start (after a startcode), C's `p`
 	i := 0
 	for len(d)-i > 3 {
-		if !(d[i] == 0 && d[i+1] == 0 && d[i+2] == 1) {
+		if d[i] != 0 || d[i+1] != 0 || d[i+2] != 1 {
 			i++
 			continue
 		}

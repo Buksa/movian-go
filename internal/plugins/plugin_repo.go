@@ -6,6 +6,7 @@ package plugins
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -35,7 +36,8 @@ func (pm *PluginManager) LoadRepo(pr *PluginRepo) error {
 	// Fetch repo data without holding the lock (network I/O)
 	repoData, err := pm.fetchRepo(pr.URL)
 	if err != nil {
-		if re, ok := err.(*RepoError); ok && re.Network {
+		var re *RepoError
+		if errors.As(err, &re) && re.Network {
 			return err
 		}
 		return err

@@ -430,7 +430,7 @@ func (s *Scanner) analyzer(probe bool) {
 					Modified: entry.Stat.MTime,
 					URL:      entry.URL,
 				},
-				probestatus: ScannerProbeStatus(entry.Probed),
+				probestatus: entry.Probed,
 				ignoreCache: entry.IgnoreCache,
 			}
 			fde.md = entry.md // C: fde_md carried on the real dir entry

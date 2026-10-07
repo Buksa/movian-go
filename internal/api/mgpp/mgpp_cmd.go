@@ -43,7 +43,7 @@ func (c *MGPPClient) BeMgppOpen(page any, url string, sync bool) error {
 		if err != nil || len(idBytes) != 16 {
 			// C: nav_open_error(page, "Bad URL")
 			navcore.OpenError(c.pm, pp, "Bad URL")
-			return nil
+			return nil //nolint:nilerr // bad URL → error page + nil, intentional
 		}
 		var id [16]byte
 		copy(id[:], idBytes)

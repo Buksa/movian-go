@@ -552,13 +552,14 @@ func (ub *upnpBrowse) addSortOptionType(model *propcore.Prop,
 	// C: kv_url_opt_get_rstr(ub->ub_url, KVSTORE_DOMAIN_SYS, "sortorder")
 	cur := ub.sys.kvstore.UrlOptGetString(ub.url, kvstore.DomainSys, "sortorder")
 
-	if cur == "date" {
+	switch cur {
+	case "date":
 		propcore.ProxySelect(onDate)
 		ub.sortcriteria = "-dc:date"
-	} else if cur == "dateold" {
+	case "dateold":
 		propcore.ProxySelect(onDate)
 		ub.sortcriteria = "+dc:date"
-	} else {
+	default:
 		propcore.ProxySelect(onTitle)
 		ub.sortcriteria = ""
 	}

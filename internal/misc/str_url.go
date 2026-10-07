@@ -12,11 +12,12 @@ func UrlDeescape(s []byte) {
 	d := 0
 	i := 0
 	for i < len(s) && s[i] != 0 {
-		if s[i] == '+' {
+		switch s[i] {
+		case '+':
 			s[d] = ' '
 			d++
 			i++
-		} else if s[i] == '%' {
+		case '%':
 			i++
 			var v byte
 			switch {
@@ -45,7 +46,7 @@ func UrlDeescape(s []byte) {
 			i++
 			s[d] = v
 			d++
-		} else {
+		default:
 			s[d] = s[i]
 			d++
 			i++
@@ -114,10 +115,7 @@ func UrlEscape(dst []byte, size int, src []byte, how int) int {
 	}
 
 	i := 0
-	for {
-		if i >= len(src) {
-			break
-		}
+	for i < len(src) {
 		s = src[i]
 		i++
 		if s == 0 {
@@ -270,10 +268,7 @@ func UrlResolveRelative(proto, hostname string, port int, path, ref string) stri
 	s := 0
 
 	// Check if ref starts with a valid scheme
-	for {
-		if s >= len(ref) {
-			break
-		}
+	for s < len(ref) {
 		c := ref[s]
 		if (c >= 'a' && c <= 'z') ||
 			(c >= 'A' && c <= 'Z') ||

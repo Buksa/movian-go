@@ -62,7 +62,7 @@ func PropVecAppend(pv *PropVec, p *Prop) *PropVec {
 		pv = npv
 	}
 	// C: assert(pv->pv_length < pv->pv_capacity)
-	if !(pv.pvLength < pv.pvCapacity) {
+	if pv.pvLength >= pv.pvCapacity {
 		panic("prop_vec_append: length >= capacity")
 	}
 	// C: pv->pv_vec[pv->pv_length] = prop_ref_inc(p)

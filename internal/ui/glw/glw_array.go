@@ -289,7 +289,7 @@ func glwArrayRenderOne(a *glwArray, c *Glw, width, height int,
 	var rc3 glwRctx
 	cd := arrayItemData(c)
 	y := cd.posFy - a.gsc.roundedPos
-	var ct, cb int = -1, -1
+	var ct, cb = -1, -1
 	gr := a.w.glwRoot
 	ch := int(cd.height)
 	cw := int(cd.width)

@@ -208,7 +208,7 @@ func esPropGetValueGaf(ctx *gaftape.Context) int {
 		sb.WriteString("[prop directory {")
 		delim := ""
 		for _, c := range p.GetChildren() {
-			sb.WriteString(fmt.Sprintf("%s\"%s\"", delim, c.GetName()))
+			fmt.Fprintf(&sb, "%s\"%s\"", delim, c.GetName())
 			delim = ", "
 		}
 		sb.WriteString("}]")
@@ -614,7 +614,8 @@ func esSubCb(opaque any, eventType propcore.EventType, args ...any) {
 			// Fallback for flattened *Event (subtypes lose their outer
 			// type on round-trip — C casts event_t* back). Payload and
 			// Actions live on the base Event.
-			if ev.Type == event.EVENT_DYNAMIC_ACTION {
+			switch ev.Type {
+			case event.EVENT_DYNAMIC_ACTION:
 				nargs = 2
 				ctx.PushString("action")
 				if eps.epsActionAsArray {
@@ -625,7 +626,7 @@ func esSubCb(opaque any, eventType propcore.EventType, args ...any) {
 					ctx.PushString(ev.Payload)
 				}
 				nav = ev.Nav
-			} else if ev.Type == event.EVENT_ACTION_VECTOR {
+			case event.EVENT_ACTION_VECTOR:
 				nargs = 2
 				ctx.PushString("action")
 				if eps.epsActionAsArray {
@@ -778,9 +779,10 @@ func esPropSendEvent(ctx *gaftape.Context) int {
 	typ := ctx.RequireString(1)
 	var e propcore.ExtEvent
 
-	if typ == "redirect" {
+	switch typ {
+	case "redirect":
 		e = esEnv.eventManager.CreateStr(event.EVENT_REDIRECT, ctx.RequireString(2))
-	} else if typ == "openurl" {
+	case "openurl":
 		url := EsPropToRstr(ctx, 2, "url")
 		view := EsPropToRstr(ctx, 2, "view")
 		how := EsPropToRstr(ctx, 2, "how")
@@ -792,7 +794,7 @@ func esPropSendEvent(ctx *gaftape.Context) int {
 			How:       esRstrGet(how),
 			ParentURL: esRstrGet(parentURL),
 		})
-	} else {
+	default:
 		ctx.Error(gaftape.GAF_ERR_ERROR, "Event type %s not understood", typ)
 	}
 
@@ -941,21 +943,23 @@ func esPropNodeFilterAddPred(ctx *gaftape.Context) int {
 
 	cfstr := ctx.RequireString(2)
 	var cf propcore.PropNFCmp
-	if cfstr == "eq" {
+	switch cfstr {
+	case "eq":
 		cf = propcore.PropNFCmpEq
-	} else if cfstr == "neq" {
+	case "neq":
 		cf = propcore.PropNFCmpNeq
-	} else {
+	default:
 		ctx.Error(gaftape.GAF_ERR_ERROR, "Bad comparison function")
 	}
 
 	modestr := ctx.RequireString(5)
 	var mode propcore.PropNFMode
-	if modestr == "include" {
+	switch modestr {
+	case "include":
 		mode = propcore.PropNFModeInclude
-	} else if modestr == "exclude" {
+	case "exclude":
 		mode = propcore.PropNFModeExclude
-	} else {
+	default:
 		ctx.Error(gaftape.GAF_ERR_ERROR, "Bad filter mode")
 	}
 

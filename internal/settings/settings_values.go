@@ -799,14 +799,15 @@ func (sm *SettingsManager) SettingCreate(settingType int, model any, flags int, 
 		}
 
 		if i32 != -2147483648 {
-			if settingType == SettingInt {
+			switch settingType {
+			case SettingInt:
 				if i32 > max {
 					i32 = max
 				}
 				if i32 < min {
 					i32 = min
 				}
-			} else if settingType == SettingBool {
+			case SettingBool:
 				if i32 != 0 {
 					i32 = 1
 				}

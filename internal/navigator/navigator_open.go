@@ -306,7 +306,7 @@ func Redirect(pm *propcore.PropManager, root *propcore.Prop, url string) {
 			Payload:  url,
 		},
 	}
-	e.Event.SetConcrete(e)
+	e.SetConcrete(e)
 	pm.SendExtEvent(eventSink, e.AsEvent())
 	e.AsEvent().Release()
 }

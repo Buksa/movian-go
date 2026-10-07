@@ -444,7 +444,8 @@ func parsePesHeader(te *tsES, buf []byte) int {
 		return -1
 	}
 
-	if flags&0xc0 == 0xc0 {
+	switch flags & 0xc0 {
+	case 0xc0:
 		if hlen < 10 {
 			return -1
 		}
@@ -456,7 +457,7 @@ func parsePesHeader(te *tsES, buf []byte) int {
 			// More than two seconds of PTS/DTS delta, PTS probably corrupt
 			te.PTS = mediacore.PTSUnset
 		}
-	} else if flags&0xc0 == 0x80 {
+	case 0x80:
 		if hlen < 5 {
 			return -1
 		}
@@ -1184,7 +1185,7 @@ func hexdumpHLS(ts *trace.TraceSystem, prefix string, data []byte, n int) {
 		var line strings.Builder
 		line.WriteString(prefix + ": ")
 		for j := i; j < i+16 && j < n; j++ {
-			line.WriteString(fmt.Sprintf("%02x ", data[j]))
+			fmt.Fprintf(&line, "%02x ", data[j])
 		}
 		ts.Trace(trace.TRACE_DEBUG, "HLS", "%s", line.String())
 	}

@@ -146,7 +146,7 @@ func TCPConnect(hostname string, port int, timeout int,
 			// C: net_resolve — gethostbyname first-address semantics
 			na, err := netcore.NetResolve(hostname)
 			if err != nil {
-				rerr := fmt.Errorf("Unable to resolve %s -- %s",
+				rerr := fmt.Errorf("Unable to resolve %s -- %w",
 					hostname, err)
 				// C: If no dots in hostname, try NetBIOS name lookup
 				if strings.IndexByte(hostname, '.') != -1 {
@@ -222,7 +222,8 @@ func tcpConnectArch(addr *netcore.NetAddr, timeout int,
 		if ctx.Err() == context.Canceled {
 			return nil, errors.New("Cancelled")
 		}
-		if ne, ok := err.(net.Error); ok && ne.Timeout() {
+		var ne net.Error
+		if errors.As(err, &ne) && ne.Timeout() {
 			return nil, errors.New("Connection attempt timed out")
 		}
 		return nil, err
@@ -256,7 +257,7 @@ func (tc *TCPCon) tcpSSLOpen(hostname string, verify bool) error {
 		tc.conn.SetDeadline(time.Now().Add(time.Duration(tc.readTimeout) * time.Millisecond))
 	}
 	if err := tc.conn.(*tls.Conn).Handshake(); err != nil {
-		return fmt.Errorf("SSL connect: %s", err)
+		return fmt.Errorf("SSL connect: %w", err)
 	}
 	tc.conn.SetDeadline(time.Time{})
 	return nil

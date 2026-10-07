@@ -296,9 +296,10 @@ func glwContainerXLayout(w *Glw, rc *glwRctx) {
 		pos = float32(co.coPadding[0])
 
 		if co.weightSum == 0 {
-			if co.w.glwAlignment == layoutAlignCenter {
+			switch co.w.glwAlignment {
+			case layoutAlignCenter:
 				pos = float32(rc.rcWidth)/2 - float32(wsum-int(co.paddingWidth))/2
-			} else if co.w.glwAlignment == layoutAlignRight {
+			case layoutAlignRight:
 				pos = float32(rc.rcWidth) - float32(wsum-int(co.paddingWidth))
 			}
 		}
@@ -464,9 +465,10 @@ func glwContainerYLayout(w *Glw, rc *glwRctx) {
 		pos = float32(co.coPadding[1])
 
 		if co.weightSum == 0 {
-			if co.w.glwAlignment == layoutAlignCenter {
+			switch co.w.glwAlignment {
+			case layoutAlignCenter:
 				pos = float32(rc.rcHeight)/2 - float32(height)/2
-			} else if co.w.glwAlignment == layoutAlignBottom {
+			case layoutAlignBottom:
 				pos = float32(rc.rcHeight) - float32(height)
 			}
 		}

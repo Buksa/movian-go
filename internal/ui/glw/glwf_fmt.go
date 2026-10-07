@@ -34,11 +34,11 @@ func fmtBuildFmt(zeropad, fl1, fl2 int, typ byte) string {
 }
 
 func fmtAddInt(out *strings.Builder, v int, zeropad, fl1, fl2 int) {
-	out.WriteString(fmt.Sprintf(fmtBuildFmt(zeropad, fl1, fl2, 'd'), v))
+	fmt.Fprintf(out, fmtBuildFmt(zeropad, fl1, fl2, 'd'), v)
 }
 
 func fmtAddFloat(out *strings.Builder, v float32, zeropad, fl1, fl2 int) {
-	out.WriteString(fmt.Sprintf(fmtBuildFmt(zeropad, fl1, fl2, 'f'), v))
+	fmt.Fprintf(out, fmtBuildFmt(zeropad, fl1, fl2, 'f'), v)
 }
 
 func fmtAddString(out *strings.Builder, str string, outIsRich, strIsRich int) {

@@ -552,12 +552,12 @@ func albumAnalysis(db *DecoBrowse) {
 
 	db.contentsMask &^= dbContentsAlbum
 
-	if !(db.types[int(ContentAudio)] > 1 &&
-		db.types[int(ContentVideo)] == 0 &&
-		db.types[int(ContentArchive)] == 0 &&
-		db.types[int(ContentDir)] == 0 &&
-		db.types[int(ContentAlbum)] == 0 &&
-		db.types[int(ContentPlugin)] == 0) {
+	if db.types[int(ContentAudio)] <= 1 ||
+		db.types[int(ContentVideo)] != 0 ||
+		db.types[int(ContentArchive)] != 0 ||
+		db.types[int(ContentDir)] != 0 ||
+		db.types[int(ContentAlbum)] != 0 ||
+		db.types[int(ContentPlugin)] != 0 {
 		return
 	}
 

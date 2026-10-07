@@ -1210,7 +1210,7 @@ func (sys *System) textRender0(uc []uint32, length int, flags, defaultSize int,
 						eg := sys.glyphGet(horizontalEllipsisUnicode,
 							int(g.size), 0, g.face.url,
 							g.face.fontDomain)
-						if w > maxWidth-int(eg.advX) {
+						if w > maxWidth-eg.advX {
 							for j > 0 && items[li.start+j-1].code == ' ' {
 								j--
 								jv := int(items[li.start+j].advX)
@@ -1222,7 +1222,7 @@ func (sys *System) textRender0(uc []uint32, length int, flags, defaultSize int,
 							items[li.start+j].g = eg
 							items[li.start+j].kerning = 0
 							tiFlags |= image.TextTruncated
-							w += int(eg.advX)
+							w += eg.advX
 							li.count = j + 1
 							break
 						}
