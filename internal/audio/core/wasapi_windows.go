@@ -4,7 +4,7 @@ package core
 
 // WASAPI audio driver — NO upstream C counterpart (upstream never
 // shipped win32 audio; mac_audio.c's AudioQueue driver is the closest
-// model). Shared-mode event-driven IAudioClient on the default render
+// model). Shared-mode polled IAudioClient on the default render
 // endpoint: the DeliverUnlocked seam maps to GetCurrentPadding +
 // IAudioRenderClient GetBuffer/ReleaseBuffer, the clock anchor maps to
 // IAudioClock::GetPosition, volume to ISimpleAudioVolume.
@@ -17,6 +17,8 @@ package core
 #include <mmdeviceapi.h>
 #include <audioclient.h>
 #include <avrt.h>
+#include <functiondiscoverykeys_devpkey.h>
+#include <propidl.h>
 #include <initguid.h>
 #include <string.h>
 #include <stdint.h>
@@ -35,13 +37,18 @@ DEFINE_GUID(IID_ISimpleAudioVolume, 0x87FB5498, 0x68A6, 0x4E40,
             0x92, 0x15, 0x01, 0x47, 0xA5, 0xA1, 0x34, 0xDC);
 DEFINE_GUID(IID_IAudioClock, 0xCD63314F, 0x3FBA, 0x4a1b,
             0x81, 0x2C, 0xEF, 0x96, 0x35, 0x87, 0x28, 0xE7);
+// PKEY_Device_FriendlyName = {a45c254e-df1c-4efd-8020-67d146a850e0}, 14
+// (mingw's functiondiscoverykeys doesn't export the symbol)
+static const PROPERTYKEY ml_PKEY_Device_FriendlyName = {
+    {0xa45c254e, 0xdf1c, 0x4efd,
+     {0x80, 0x20, 0x67, 0xd1, 0x46, 0xa8, 0x50, 0xe0}}, 14};
 
 typedef struct {
     IAudioClient        *client;
     IAudioRenderClient  *render;
     ISimpleAudioVolume  *vol;
     IAudioClock         *clock;
-    HANDLE               event;
+    IMMDevice           *dev;
     uint32_t             buf_frames;
     uint32_t             frame_bytes;
     uint32_t             rate;
@@ -49,9 +56,9 @@ typedef struct {
 
 // ml_wasapi_open — CoCreateInstance(MMDeviceEnumerator) →
 // GetDefaultAudioEndpoint(eRender) → Activate(IAudioClient) →
-// Initialize(shared, EVENTCALLBACK, ~40ms) → SetEventHandle →
-// GetService(render/vol/clock). fmt: float32 PCM at the engine mix
-// rate (caller's resampler — ad.AVR — converts).
+// Initialize(shared, polled, ~40ms) → GetService(render/vol/clock).
+// fmt: float32 PCM at the engine mix rate (caller's resampler —
+// ad.AVR — converts).
 static int
 ml_wasapi_open(ml_wasapi *w, uint32_t rate, uint16_t channels)
 {
@@ -62,9 +69,6 @@ ml_wasapi_open(ml_wasapi *w, uint32_t rate, uint16_t channels)
     HRESULT hr;
 
     memset(w, 0, sizeof(*w));
-    w->event = CreateEvent(NULL, FALSE, FALSE, NULL);
-    if(w->event == NULL)
-        return -1;
 
     CoInitializeEx(NULL, COINIT_MULTITHREADED);
 
@@ -79,9 +83,11 @@ ml_wasapi_open(ml_wasapi *w, uint32_t rate, uint16_t channels)
         return -3;
     hr = dev->lpVtbl->Activate(dev, &IID_IAudioClient, CLSCTX_ALL,
         NULL, (void **)&w->client);
-    dev->lpVtbl->Release(dev);
-    if(FAILED(hr))
+    if(FAILED(hr)) {
+        dev->lpVtbl->Release(dev);
         return -4;
+    }
+    w->dev = dev;
 
     hr = w->client->lpVtbl->GetMixFormat(w->client, &mix);
     if(FAILED(hr))
@@ -98,12 +104,16 @@ ml_wasapi_open(ml_wasapi *w, uint32_t rate, uint16_t channels)
     wfx.nBlockAlign = wfx.nChannels * 4;
     wfx.nAvgBytesPerSec = rate * wfx.nBlockAlign;
 
+    // Shared mode, polled (no EVENTCALLBACK): old drivers (e.g. IDT on
+    // pre-Win10-era laptops) wedge the render stream in event mode —
+    // GetCurrentPadding sticks at buf_frames after the first fill and
+    // the event never refires. Poll padding with a short sleep instead;
+    // the caller adds an IAudioClock position cross-check.
     hr = w->client->lpVtbl->Initialize(w->client,
         AUDCLNT_SHAREMODE_SHARED,
-        AUDCLNT_STREAMFLAGS_EVENTCALLBACK, dur, 0, &wfx, NULL);
+        0, dur, 0, &wfx, NULL);
     if(FAILED(hr))
         return -6;
-    w->client->lpVtbl->SetEventHandle(w->client, w->event);
     w->client->lpVtbl->GetBufferSize(w->client, &w->buf_frames);
     w->frame_bytes = wfx.nBlockAlign;
 
@@ -128,18 +138,15 @@ ml_wasapi_padding(ml_wasapi *w)
     return p;
 }
 
-// ml_wasapi_write — write `frames` interleaved frames; returns frames
-// actually written (clamped by available space).
+// ml_wasapi_write — write `frames` interleaved frames. The caller has
+// already computed free space (GetCurrentPadding, with an
+// IAudioClock::GetPosition fallback for drivers where padding wedges at
+// buf_frames); re-checking padding here would re-clamp to the bogus 0.
 static uint32_t
 ml_wasapi_write(ml_wasapi *w, const void *data, uint32_t frames)
 {
     BYTE *buf = NULL;
-    uint32_t pad = 0, avail;
 
-    w->client->lpVtbl->GetCurrentPadding(w->client, &pad);
-    avail = w->buf_frames - pad;
-    if(frames > avail)
-        frames = avail;
     if(frames == 0)
         return 0;
     if(FAILED(w->render->lpVtbl->GetBuffer(w->render, frames, &buf)))
@@ -160,10 +167,11 @@ ml_wasapi_position(ml_wasapi *w, uint64_t *pos, uint64_t *qpc)
         ? -1 : 0;
 }
 
-static void ml_wasapi_start(ml_wasapi *w)
+static int ml_wasapi_start(ml_wasapi *w)
 {
     if(w->client)
-        w->client->lpVtbl->Start(w->client);
+        return FAILED(w->client->lpVtbl->Start(w->client)) ? -1 : 0;
+    return -1;
 }
 static void ml_wasapi_stop(ml_wasapi *w)
 {
@@ -181,6 +189,31 @@ static void ml_wasapi_volume(ml_wasapi *w, float level)
         w->vol->lpVtbl->SetMasterVolume(w->vol, level, NULL);
 }
 
+// ml_wasapi_devname — friendly name of the endpoint.
+static int
+ml_wasapi_devname(ml_wasapi *w, char *out, int outsz)
+{
+    IPropertyStore *ps;
+    PROPVARIANT v;
+    HRESULT hr;
+    if(!w->dev)
+        return -1;
+    hr = w->dev->lpVtbl->OpenPropertyStore(w->dev, STGM_READ, &ps);
+    if(FAILED(hr))
+        return -1;
+    PropVariantInit(&v);
+    hr = ps->lpVtbl->GetValue(ps, &ml_PKEY_Device_FriendlyName, &v);
+    ps->lpVtbl->Release(ps);
+    if(FAILED(hr) || v.vt != VT_LPWSTR) {
+        PropVariantClear(&v);
+        return -1;
+    }
+    WideCharToMultiByte(CP_UTF8, 0, v.pwszVal, -1, out, outsz,
+        NULL, NULL);
+    PropVariantClear(&v);
+    return 0;
+}
+
 static void
 ml_wasapi_close(ml_wasapi *w)
 {
@@ -191,12 +224,14 @@ ml_wasapi_close(ml_wasapi *w)
     if(w->render) w->render->lpVtbl->Release(w->render);
     if(w->vol)    w->vol->lpVtbl->Release(w->vol);
     if(w->clock)  w->clock->lpVtbl->Release(w->clock);
-    if(w->event)  CloseHandle(w->event);
+    if(w->dev)    w->dev->lpVtbl->Release(w->dev);
+
 }
 */
 import "C"
 
 import (
+	"errors"
 	"unsafe"
 
 	archpkg "github.com/czz/movian-go/internal/arch"
@@ -244,6 +279,11 @@ func wasapiAudioReconfig(ad *AudioDecoder) int {
 			"open failed (%d) — audio disabled", int(r))
 		return 1
 	}
+	var dname [256]C.char
+	if C.ml_wasapi_devname(&d.w, &dname[0], 256) == 0 {
+		ad.ts.Trace(trace.TRACE_DEBUG, "WASAPI",
+			"endpoint: %s", C.GoString(&dname[0]))
+	}
 	// Shared mode pins the engine mix rate — read it back (it may
 	// differ from what we asked for; AVR converts).
 	ad.OutSampleRate = int(d.w.rate)
@@ -253,13 +293,16 @@ func wasapiAudioReconfig(ad *AudioDecoder) int {
 
 	ad.ts.Trace(trace.TRACE_DEBUG, "WASAPI", "Start %d Hz",
 		ad.OutSampleRate)
-	C.ml_wasapi_start(&d.w)
+	if C.ml_wasapi_start(&d.w) != 0 {
+		ad.ts.Trace(trace.TRACE_ERROR, "WASAPI",
+			"IAudioClient::Start failed — stream never enters mixer")
+	}
 	return 0
 }
 
 // wasapiAudioDeliver — alsa_audio_deliver's role: wait for buffer
-// space (event-driven instead of snd_pcm_wait), pull from ad.AVR,
-// write, anchor the audio clock, report ad.Delay. Returns 0.
+// space (polled, like snd_pcm_wait), pull from ad.AVR, write, anchor
+// the audio clock, report ad.Delay. Returns 0.
 func wasapiAudioDeliver(ad *AudioDecoder, samples int, pts int64,
 	epoch int) int {
 	d := ad.getWasapi()
@@ -268,16 +311,33 @@ func wasapiAudioDeliver(ad *AudioDecoder, samples int, pts int64,
 		return -1
 	}
 
-	// C: snd_pcm_wait(h, 100) — WaitForSingleObject on the event
-	// handle (signaled when buffer space is available).
+	// C: snd_pcm_wait(h, 100) — poll GetCurrentPadding; the engine
+	// drains ~10ms device periods.
 	pad := int(C.ml_wasapi_padding(&d.w))
 	avail := int(d.w.buf_frames) - pad
 	if avail <= 0 {
-		C.WaitForSingleObject(d.w.event, 100)
+		C.Sleep(10)
 		pad = int(C.ml_wasapi_padding(&d.w))
 		avail = int(d.w.buf_frames) - pad
 		if avail <= 0 {
-			return 100 // C: retry path — wait 100ms on mq_avail
+			// Padding can wedge at buf_frames on some drivers
+			// (device keeps playing, padding never drops — e.g.
+			// old IDT/Realtek). Cross-check against
+			// IAudioClock::GetPosition: frames really played is
+			// d.samples - pos; space is what remains.
+			var pos, qpc C.uint64_t
+			if C.ml_wasapi_position(&d.w, &pos, &qpc) == 0 {
+				inflight := d.samples - int64(pos)
+				if inflight < 0 {
+					inflight = 0
+				}
+				if a2 := int(d.w.buf_frames) - int(inflight); a2 > avail {
+					avail = a2
+				}
+			}
+			if avail <= 0 {
+				return 10 // retry soon — engine drains ~10ms periods
+			}
 		}
 	}
 
@@ -288,12 +348,14 @@ func wasapiAudioDeliver(ad *AudioDecoder, samples int, pts int64,
 	if cap(d.tmp) < cInt*d.framesize {
 		d.tmp = make([]byte, cInt*d.framesize)
 	}
+	got := 0
 	if ad.AVR != nil && cInt > 0 {
 		need := cInt * ad.AVR.bytesPerSample
 		if need > len(d.tmp) {
 			need = len(d.tmp)
 		}
-		cInt = ad.AVR.Read(d.tmp[:need], cInt)
+		got = ad.AVR.Read(d.tmp[:need], cInt)
+		cInt = got
 	}
 
 	// Clock anchor — IAudioClock::GetPosition gives the device play
@@ -352,12 +414,21 @@ func wasapiAudioSetVolume(ad *AudioDecoder, level float32) {
 	C.ml_wasapi_volume(&d.w, C.float(level))
 }
 
+// errReconfig — wasapiAudioReconfig's nonzero return (device open or
+// stream init failure).
+var errReconfig = errors.New("wasapi: reconfig failed")
+
 // audioDriverStartPlatform — the windows driver (wasapi); same
 // AudioClass seam as alsa/mac_audio.
 func audioDriverStartPlatform(settings any) (*AudioClass, error) {
 	return &AudioClass{
-		Fini:            wasapiAudioFini,
-		Reconfig:        func(ad *AudioDecoder) error { wasapiAudioReconfig(ad); return nil },
+		Fini: wasapiAudioFini,
+		Reconfig: func(ad *AudioDecoder) error {
+			if wasapiAudioReconfig(ad) != 0 {
+				return errReconfig
+			}
+			return nil
+		},
 		DeliverUnlocked: wasapiAudioDeliver,
 		Pause:           wasapiAudioPause,
 		Play:            wasapiAudioPlay,
