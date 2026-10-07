@@ -246,7 +246,6 @@ func bencodeParseValue(src []byte, s, stop int,
 // Returns (msg, consumedBytes, err).
 func BencodeDeserialize(src []byte,
 	cb BencodeParseCb, opaque any) (*htsmsg.HTSMsg, int, error) {
-
 	if len(src) == 0 {
 		return nil, 0, errors.New("zero size bencode")
 	}

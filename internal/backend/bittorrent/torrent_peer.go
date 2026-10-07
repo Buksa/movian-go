@@ -92,7 +92,6 @@ func (btg *BtGlobal) findOptimalPeer(to *Torrent, tp *TorrentPiece) *Peer {
 	var best *Peer
 
 	for p := to.unchokedPeers.lhFirst; p != nil; p = p.unchokedLinkNext {
-
 		if p.pieceFlags == nil ||
 			p.pieceFlags[tp.index]&PieceHave == 0 {
 			continue
@@ -128,7 +127,6 @@ func (btg *BtGlobal) findOptimalPeer(to *Torrent, tp *TorrentPiece) *Peer {
 // findAnyPeer — C: find_any_peer
 func (btg *BtGlobal) findAnyPeer(to *Torrent, tp *TorrentPiece) *Peer {
 	for p := to.unchokedPeers.lhFirst; p != nil; p = p.unchokedLinkNext {
-
 		if p.pieceFlags == nil ||
 			p.pieceFlags[tp.index]&PieceHave == 0 {
 			continue
@@ -159,7 +157,6 @@ func (btg *BtGlobal) serveWaitingBlocks(to *Torrent, tp *TorrentPiece, optimal b
 			}
 
 			btg.addRequest(tb, p, now)
-
 		} else {
 			p := btg.findAnyPeer(to, tp)
 			if p == nil {
@@ -167,7 +164,6 @@ func (btg *BtGlobal) serveWaitingBlocks(to *Torrent, tp *TorrentPiece, optimal b
 			}
 
 			btg.addRequest(tb, p, now)
-
 		}
 		listRemove(tb, tbPieceLink)
 		listInsertHead(&tp.sentBlocks.lhFirst, tb, tbPieceLink)
@@ -182,7 +178,6 @@ func (btg *BtGlobal) findFasterPeer(to *Torrent, tb *TorrentBlock,
 	tp := tb.piece
 
 	for p := to.unchokedPeers.lhFirst; p != nil; p = p.unchokedLinkNext {
-
 		if p.pieceFlags == nil ||
 			p.pieceFlags[tp.index]&PieceHave == 0 {
 			continue
@@ -285,7 +280,6 @@ func (btg *BtGlobal) torrentSendHave(to *Torrent) {
 			panic("assertion failed: pid < to.num_pieces")
 		}
 		for p := to.runningPeers.lhFirst; p != nil; p = p.runningLinkNext {
-
 			if p.pieceFlags == nil {
 				p.pieceFlags = make([]byte, to.numPieces)
 			}

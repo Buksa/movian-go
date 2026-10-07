@@ -1,9 +1,10 @@
 package subtitles
 
 import (
-	mediacore "github.com/czz/movian-go/internal/media/core"
 	"sync"
 	"sync/atomic"
+
+	mediacore "github.com/czz/movian-go/internal/media/core"
 
 	fileaccesscore "github.com/czz/movian-go/internal/fileaccess"
 	propcore "github.com/czz/movian-go/internal/prop"

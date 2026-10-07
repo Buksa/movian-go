@@ -501,7 +501,6 @@ func LibAVDeliverFrame(vd *VideoDecoder, mp *mediacore.MediaPipe, mq *mediacore.
 	if vd.ConvertWidth != fi.Width ||
 		vd.ConvertHeight != fi.Height ||
 		vd.ConvertPixFmt != srcFmt {
-
 		if vd.Convert == nil {
 			// FFmpeg 7: AVPicture removed; a heap AVFrame plays its role
 			vd.Convert = libav.AvFrameAlloc()

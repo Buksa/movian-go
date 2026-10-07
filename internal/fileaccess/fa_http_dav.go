@@ -40,7 +40,6 @@ type DAVXMLMap struct {
 // bodies. Wired to htsmsg by pkg/htsmsg/fa_http_bridge.go (htsmsg
 // parsePropfind — C: parse_propfind.
 func parsePropfind(hf *httpFile, xml *DAVXMLMap, fd *Dir) error {
-
 	// Compare deescaped paths — deescape the searched-for path once.
 	rpath := []byte(hf.path)
 	rpath = append(rpath, 0)

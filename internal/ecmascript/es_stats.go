@@ -110,7 +110,6 @@ func dumpContext(out *misc.HtsbufQueue, ec *ESContext) {
 // dumpstats — C: dumpstats (es_stats.c:93-112)
 func dumpstats(hc *httpnet.HTTPConnection, remain string, opaque any,
 	method httpnet.HTTPCmd) int {
-
 	out := &misc.HtsbufQueue{}
 	out.HtsbufQueueSetup(0)
 
@@ -131,7 +130,6 @@ func dumpstats(hc *httpnet.HTTPConnection, remain string, opaque any,
 // dogc — C: dogc (es_stats.c:118-140)
 func dogc(hc *httpnet.HTTPConnection, remain string, opaque any,
 	method httpnet.HTTPCmd) int {
-
 	out := &misc.HtsbufQueue{}
 	out.HtsbufQueueSetup(0)
 

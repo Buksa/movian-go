@@ -15,7 +15,6 @@ import (
 // VideoOverlayRenderCleartext — C: video_overlay_render_cleartext
 func VideoOverlayRenderCleartext(sys *subtitles.System, txt string, start, stop int64,
 	tags int, fontdomain int) *mediacore.VideoOverlay {
-
 	txtLen := len(txt)
 
 	vo := &mediacore.VideoOverlay{}

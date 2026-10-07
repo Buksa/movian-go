@@ -13,13 +13,14 @@ package ssdp
 import (
 	"context"
 	"fmt"
-	"github.com/czz/movian-go/internal/trace"
 	"net"
 	"slices"
 	"strconv"
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/czz/movian-go/internal/trace"
 
 	"github.com/czz/movian-go/internal/app"
 	httpnet "github.com/czz/movian-go/internal/networking/http"
@@ -163,7 +164,6 @@ func (si *ssdpInterface) response(args *httpnet.HTTPHeaders) {
 // C: ssdp_send (ssdp.c:140-193)
 func (si *ssdpInterface) send(myaddr *net.UDPAddr, dst *net.UDPAddr,
 	nt, nts, location string, inclHost int, usnPostfix string) {
-
 	var date string
 	if dst != nil {
 		date = httpnet.HTTPAsctime(time.Now(), nil, 0)
@@ -236,7 +236,6 @@ func (si *ssdpInterface) send(myaddr *net.UDPAddr, dst *net.UDPAddr,
 // C: ssdp_send_all (ssdp.c:199-238)
 func (si *ssdpInterface) sendAll(myaddr *net.UDPAddr,
 	dst *net.UDPAddr, nts string) {
-
 	nt := fmt.Sprintf("uuid:%s", si.srv.uuid)
 
 	// Root device discovery
@@ -294,7 +293,6 @@ type ssdpInterface struct {
 // C: ssdp_input (ssdp.c:281-304)
 func (si *ssdpInterface) input(mc bool, input []byte,
 	remoteAddr *net.UDPAddr) {
-
 	var args httpnet.HTTPHeaders
 
 	buf := string(input)
@@ -529,7 +527,6 @@ func (srv *Server) Shutdown() {
 func NewServer(uuid string, httpPort int, nm *ifaddr.NetIfAddrManager,
 	add func(url, typ string, maxage int),
 	del func(url string), ts *trace.TraceSystem) *Server {
-
 	srv := &Server{
 		uuid:      uuid,     // C: ssdp_uuid = strdup(uuid)
 		httpPort:  httpPort, // C: http_server_port = http_server_port0

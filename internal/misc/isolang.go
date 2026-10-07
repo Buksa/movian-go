@@ -446,7 +446,7 @@ var langtable = []IsolangT{
 	{"tar", "", "Arwi"},
 	{"tat", "tt", "Tatar"},
 	{"tel", "te", "Telugu"},
-	{"tem", "", "Timne"},
+	{"tem", "", "Time"},
 	{"ter", "", "Tereno"},
 	{"tet", "", "Tetum"},
 	{"tgk", "tg", "Tajik"},

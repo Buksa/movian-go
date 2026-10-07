@@ -2,10 +2,11 @@ package service
 
 import (
 	"fmt"
-	"github.com/czz/movian-go/internal/trace"
 	"slices"
 	"strings"
 	"sync"
+
+	"github.com/czz/movian-go/internal/trace"
 
 	propcore "github.com/czz/movian-go/internal/prop"
 )
@@ -366,7 +367,6 @@ func (ss *ServiceSystem) ServiceCreateManaged(id, title, url, typ, icon string, 
 
 // serviceCreate0 internal service creation
 func (ss *ServiceSystem) serviceCreate0(id, title string, ptitle any, url, typ, icon string, probe, enabled bool, origin int) *Service {
-
 	// Resolve effective title from ptitle if title is empty
 	effectiveTitle := title
 	if effectiveTitle == "" {

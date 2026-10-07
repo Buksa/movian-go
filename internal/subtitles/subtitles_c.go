@@ -254,7 +254,6 @@ func spPrioCmp(a, b *SubtitleProvider) int {
 func (s *System) SubtitleProviderRegister(sp *SubtitleProvider, id string,
 	title *propcore.Prop, defaultPrio int, subtype string,
 	defaultEnable, defaultAutosel int) {
-
 	sp.id = id
 	sp.prio = defaultPrio
 	if sp.prio == 0 {
@@ -439,7 +438,6 @@ func (s *System) fsSubMatch(video, sub string) int {
 func (s *System) checkSubtitleFile(ss *SubScanner, subFilename, subURL,
 	videoFilename string, baseScore, matchResult, autosel int,
 	lang string) {
-
 	pi := strings.LastIndex(subFilename, ".")
 	if pi < 0 {
 		return
@@ -539,7 +537,6 @@ func mpAddTrack(parent *propcore.Prop, title, url, format, longformat,
 
 func (s *System) fsSubScanDir(ss *SubScanner, url, video string, descendAll bool,
 	level uint, sp1, sp2 *SubtitleProvider, lang string) {
-
 	if level == 0 {
 		return
 	}
@@ -575,11 +572,9 @@ func (s *System) fsSubScanDir(ss *SubScanner, url, video string, descendAll bool
 
 		if fde.Type == fileaccesscore.ContentDir ||
 			fde.Type == fileaccesscore.ContentShare {
-
 			if descendAll || strings.EqualFold(filename, "subs") {
 				s.fsSubScanDir(ss, fde.URL, video, descendAll,
 					level-1, sp1, sp2, lang)
-
 			} else if len(filename) > 5 &&
 				strings.EqualFold(filename[:5], "subs-") {
 				if il := misc.IsolangFind(filename[5:]); il != nil {
@@ -730,7 +725,6 @@ type SubScannerArgs struct {
 
 func (s *System) SubScannerCreate(url string, proproot *propcore.Prop,
 	va *SubScannerArgs, duration int, fam *fileaccesscore.FileAccessManager) *SubScanner {
-
 	if s == nil { // unwired port — C would deref the global
 		return nil
 	}

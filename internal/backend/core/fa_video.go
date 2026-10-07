@@ -306,7 +306,6 @@ func (bs *BackendSystem) videoPlayerLoop(fctx *medialibav.AVFormatCtx,
 	sidx, cidx *seekIndexT, fh *fileaccesscore.Handle,
 	resumeMode int, title string, vpi *htsmsg.HTSMsg,
 	origin *propcore.Prop) *mediacore.MediaEvent {
-
 	var mb *mediacore.MediaBuf
 	var mq *mediacore.MediaQueue
 	var e *mediacore.MediaEvent
@@ -416,17 +415,13 @@ func (bs *BackendSystem) videoPlayerLoop(fctx *medialibav.AVFormatCtx,
 					mb.Duration = faVideoRescale(fctx, dur, si)
 				}
 				mp.Framerate = mediacore.AVRational{Num: num, Den: den}
-
 			} else if streamInfo != nil &&
 				streamInfo.CodecType == medialibav.AVMediaTypeAudio {
-
 				mb = mediacore.MediaBufFromAVPkt(mp, pktPtr)
 				mb.DataType = int(mediacore.MBAudio)
 				mq = mp.Audio
-
 			} else if streamInfo != nil &&
 				streamInfo.CodecType == medialibav.AVMediaTypeSubtitle {
-
 				// C: int duration = pkt.convergence_duration ?:
 				//   pkt.duration (FFmpeg ≥7: merged into pkt.duration)
 				duration2 := medialibav.PacketConvergenceDuration(pktPtr)
@@ -441,7 +436,6 @@ func (bs *BackendSystem) videoPlayerLoop(fctx *medialibav.AVFormatCtx,
 				mq = mp.Video
 
 				mb.Duration = faVideoRescale(fctx, duration2, si)
-
 			} else {
 				// C: bad: — not a consumed stream
 				libav.AvPacketFree(pktPtr)

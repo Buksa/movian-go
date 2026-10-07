@@ -149,9 +149,7 @@ func (s *System) playWithContext(uri string, meta *htsmsg.HTSMsg) int {
 		// Same invariant as upnp_add_device's introspect_device.
 		if s.browseChildren(us.controlURL, parentid, nodes, id, &t) != 0 ||
 			t == nil {
-
 			s.propManager.Destroy(model)
-
 		} else {
 			if s.playQueue != nil {
 				s.playQueue.LoadWithSource(t, model, PQPaused)

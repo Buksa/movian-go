@@ -165,7 +165,6 @@ func espQuery(sp *subtitles.SubtitleProvider, ss *subtitles.SubScanner,
 		}
 
 		ctx.Pop()
-
 	}
 	EsResourceRelease(esp.super)
 	EsContextEnd(ec, 1, ctx)

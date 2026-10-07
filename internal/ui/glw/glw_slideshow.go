@@ -213,10 +213,8 @@ func glwSlideshowEvent(w *Glw, e *eventpkg.Event) int {
 		w.glwFocused = c
 		s.deadline = 0
 		glwNeedRefresh(gr, 0)
-
 	} else if e.IsAction(eventpkg.ACTION_SKIP_BACKWARD) ||
 		e.IsAction(eventpkg.ACTION_LEFT) {
-
 		if w.glwFocused != nil {
 			c = glwPrevWidget(w.glwFocused)
 		}
@@ -226,24 +224,19 @@ func glwSlideshowEvent(w *Glw, e *eventpkg.Event) int {
 		w.glwFocused = c
 		s.deadline = 0
 		glwNeedRefresh(gr, 0)
-
 	} else if e.Type == eventpkg.EVENT_UNICODE &&
 		(*eventpkg.EventInt)(unsafe.Pointer(e)).Val == 32 {
-
 		if s.hold != 0 {
 			s.hold = 0
 		} else {
 			s.hold = 1
 		}
 		glwSlideshowUpdatePlaystatus(s)
-
 	} else if e.IsAction(eventpkg.ACTION_PLAYPAUSE) ||
 		e.IsAction(eventpkg.ACTION_PLAY) ||
 		e.IsAction(eventpkg.ACTION_PAUSE) {
-
 		s.hold = actionUpdateHoldByEvent(s.hold, e)
 		glwSlideshowUpdatePlaystatus(s)
-
 	} else if e.IsAction(eventpkg.ACTION_STOP) {
 
 		// prop_set_string(s->playstatus, "stop");

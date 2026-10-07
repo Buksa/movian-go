@@ -7,8 +7,9 @@ package subtitles
 // decoders live in pkg/media/core/dvdspu.go for the same reason.
 
 import (
-	"github.com/czz/movian-go/internal/misc"
 	"strings"
+
+	"github.com/czz/movian-go/internal/misc"
 
 	fileaccesscore "github.com/czz/movian-go/internal/fileaccess"
 	"github.com/czz/movian-go/internal/htsmsg"
@@ -22,7 +23,6 @@ import (
 // emits a "vobsub:" JSON subtitle track via mp_add_track.
 func vobsubProbe(fam *fileaccesscore.FileAccessManager, url, filename string, score int, prop *propcore.Prop,
 	subfile string, autosel int) {
-
 	if subfile == "" {
 		// C: sf = strrchr(mystrdupa(url), '.');
 		//    if(sf == NULL || strlen(sf) != 4) return;

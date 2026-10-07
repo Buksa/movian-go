@@ -137,7 +137,6 @@ func parseAPP1(ji *JPEGInfo, buf []byte, length int, flags int) int {
 	ifdbase := int(exif32(4))
 
 	for ifdbase != 0 {
-
 		if length < ifdbase+2 {
 			return -1
 		}
@@ -215,7 +214,6 @@ func parseAPP1(ji *JPEGInfo, buf []byte, length int, flags int) int {
 	if flags&JPEGInfoThumbnail != 0 &&
 		thumbnailJpegOffset != -1 && thumbnailJpegSize != -1 &&
 		thumbnailJpegOffset+thumbnailJpegSize <= length {
-
 		ji.Thumbnail = CodedCreateFromData(
 			buf[thumbnailJpegOffset:thumbnailJpegOffset+thumbnailJpegSize],
 			CodedJPEG)
@@ -326,9 +324,7 @@ func JpegInfo(ji *JPEGInfo, reader JpegReaderFunc, handle any,
 			// Continue with bytes after section
 			buf = loadbuf[mlen:]
 			offset += mlen
-
 		} else {
-
 			loadbuf = make([]byte, 4)
 			offset += mlen
 			if jpegRead(jp, loadbuf, int64(offset), 4) != 4 {

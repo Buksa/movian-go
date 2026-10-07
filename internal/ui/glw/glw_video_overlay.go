@@ -5,12 +5,13 @@ package glw
 // pointer routing.
 
 import (
+	"slices"
+
 	"github.com/czz/movian-go/internal/backend/dvd/dvdlib"
 	eventpkg "github.com/czz/movian-go/internal/event"
 	imagepkg "github.com/czz/movian-go/internal/image"
 	mediacore "github.com/czz/movian-go/internal/media/core"
 	"github.com/czz/movian-go/internal/video/decoder"
-	"slices"
 )
 
 // ---------------------------------------------------------------------------
@@ -196,11 +197,8 @@ func glwVideoOverlayLayout(gv *GlwVideo, frc, vrc *glwRctx) {
 		gc.gcSetFloat(w, glwAttribSizeScale, scaling, nil)
 
 		if gvo.gvoAbspos != 0 {
-
 			glwLayout0(w, rc)
-
 		} else {
-
 			var f [4]int16
 			f[0] = int16(scaling * float32(gvo.gvoPaddingLeft))
 			f[1] = 0
@@ -244,7 +242,6 @@ func glwVideoOverlayRender(gv *GlwVideo, frc, vrc *glwRctx) {
 	_ = vd
 
 	for gvo := gv.gvOverlays.lhFirst; gvo != nil; gvo = gvo.linkNext {
-
 		if gv.gvVoOnVideo != 0 || gvo.gvoVideoframeAlign != 0 {
 			rc0 = *vrc
 		} else {
@@ -269,7 +266,6 @@ func glwVideoOverlayRender(gv *GlwVideo, frc, vrc *glwRctx) {
 
 		case gvoBitmap:
 			if gvo.gvoAlignment != 0 {
-
 				left := gvo.gvoPaddingLeft
 				top := int(rc0.rcHeight) - gvo.gvoPaddingTop
 				right := int(rc0.rcWidth) - gvo.gvoPaddingRight
@@ -325,7 +321,6 @@ func glwVideoOverlayRender(gv *GlwVideo, frc, vrc *glwRctx) {
 				glwRendererVtxPos(&gvo.gvoRenderer, 1, x2, y1, 0)
 				glwRendererVtxPos(&gvo.gvoRenderer, 2, x2, y2, 0)
 				glwRendererVtxPos(&gvo.gvoRenderer, 3, x1, y2, 0)
-
 			} else {
 				var w, h float32
 
@@ -349,7 +344,6 @@ func glwVideoOverlayRender(gv *GlwVideo, frc, vrc *glwRctx) {
 			rc0.rcAlpha *= gvo.gvoAlpha
 
 			if gvo.gvoAbspos != 0 {
-
 				x := gvo.gvoX * int(rc0.rcWidth) / gvo.gvoCanvasWidth
 				y := gvo.gvoY * int(rc0.rcHeight) / gvo.gvoCanvasHeight
 
@@ -360,9 +354,7 @@ func glwVideoOverlayRender(gv *GlwVideo, frc, vrc *glwRctx) {
 					0-y)
 
 				glwRender0(gvo.gvoWidget, &rc0)
-
 			} else {
-
 				glwRender0(gvo.gvoWidget, &rc0)
 			}
 		}
@@ -495,7 +487,6 @@ func spuRepaint(gv *GlwVideo, d *mediacore.DVDSPU) {
 
 			if hliSS && ha != nil &&
 				x >= haSX && y >= haSY && x <= haEX && y <= haEY {
-
 				if hiAlpha[i] == 0 {
 					px = 0
 				} else {
@@ -503,7 +494,6 @@ func spuRepaint(gv *GlwVideo, d *mediacore.DVDSPU) {
 						uint32(hiAlpha[i]*0x11)<<24
 				}
 			} else {
-
 				if d.Alpha[i] == 0 {
 					// If it's 100% transparent, write RGB as zero too, or
 					// weird aliasing effect will occur when GL scales
@@ -730,14 +720,11 @@ func gvoCreateFromVoText(gv *GlwVideo, vo *mediacore.VideoOverlay) {
 		int(float32(gv.w.glwRoot.grCurrentSize)*1.5), nil)
 
 	if gvo.gvoAbspos != 0 {
-
 		gvo.gvoVideoframeAlign = 1
 		w.glwAlignment = layoutAlignTopLeft
 
 		gvoLISTInsertHead(&gv.gvOverlays, gvo)
-
 	} else {
-
 		if vo.Alignment != 0 {
 			w.glwAlignment = uint8(vo.Alignment)
 		} else {

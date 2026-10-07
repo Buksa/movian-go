@@ -2,9 +2,10 @@ package htsmsg
 
 import (
 	"fmt"
-	"github.com/czz/movian-go/internal/gconf"
 	"sync"
 	"time"
+
+	"github.com/czz/movian-go/internal/gconf"
 
 	fileaccesscore "github.com/czz/movian-go/internal/fileaccess"
 )

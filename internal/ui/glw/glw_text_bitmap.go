@@ -136,9 +136,7 @@ func glwTextBitmapLayout(w *Glw, rc *glwRctx) {
 
 	if gtb.gtbSavedWidth != int16(rc.rcWidth) ||
 		gtb.gtbSavedHeight != int16(rc.rcHeight) {
-
 		if ti != nil && gtb.gtbState == gtbValid {
-
 			if ti.Flags&imagepkg.TextWrapped != 0 {
 				gtb.gtbState = gtbNeedRender
 			}
@@ -149,11 +147,9 @@ func glwTextBitmapLayout(w *Glw, rc *glwRctx) {
 			}
 
 			if gtb.gtbFlags&gtbEllipsize != 0 {
-
 				if ti.Flags&imagepkg.TextTruncated != 0 {
 					gtb.gtbState = gtbNeedRender
 				} else {
-
 					if int(rc.rcWidth)-int(gtb.gtbPadding[2])-int(gtb.gtbPadding[0]) <
 						texWidth-int(gtb.gtbMargin)*2 {
 						gtb.gtbState = gtbNeedRender
@@ -174,7 +170,6 @@ func glwTextBitmapLayout(w *Glw, rc *glwRctx) {
 	}
 
 	if ti != nil && gtb.gtbNeedLayout {
-
 		margin := int(gtb.gtbMargin)
 
 		left := int(gtb.gtbPadding[0]) - margin
@@ -215,11 +210,9 @@ func glwTextBitmapLayout(w *Glw, rc *glwRctx) {
 
 		// Horizontal
 		if textWidth > right-left || ti.Flags&imagepkg.TextTruncated != 0 {
-
 			// Oversized, must cut
 			textWidth = right - left
 		} else {
-
 			glwRendererVtxColReset(&gtb.gtbTextRenderer)
 
 			switch w.glwAlignment {
@@ -262,12 +255,10 @@ func glwTextBitmapLayout(w *Glw, rc *glwRctx) {
 	}
 
 	if w.glwClass == &glwTextClass && gtb.gtbUpdateCursor {
-
 		i := int(gtb.gtbEditPtr)
 		var left int
 
 		if ti != nil && ti.CharPos != nil {
-
 			if i < int(ti.CharPosLen) {
 				left = ti.CharPos[i*2]
 			} else {
@@ -521,61 +512,47 @@ func glwTextBitmapEvent(w *Glw, e *eventpkg.Event) int {
 	gtb := (*GlwTextBitmap)(unsafe.Pointer(w))
 
 	if eventpkg.IsAction(e, eventpkg.ACTION_BS) {
-
 		delChar(gtb)
 		gtbNotify(gtb)
 		return 1
-
 	} else if e.Type == eventpkg.EVENT_UNICODE {
-
 		eu := (*eventpkg.EventInt)(unsafe.Pointer(e))
 
 		if insertChar(gtb, eu.Val) != 0 {
 			gtbNotify(gtb)
 		}
 		return 1
-
 	} else if e.Type == eventpkg.EVENT_INSERT_STRING {
 		ep := (*eventpkg.EventPayload)(unsafe.Pointer(e))
 		insertStr(gtb, ep.Payload)
 		return 1
-
 	} else if eventpkg.IsAction(e, eventpkg.ACTION_PASTE) {
-
 		if glwDeps.clip != nil {
 			if str := glwDeps.clip.Get(); str != nil {
 				insertStr(gtb, *str)
 			}
 		}
 		return 1
-
 	} else if eventpkg.IsAction(e, eventpkg.ACTION_LEFT) {
-
 		if gtb.gtbEditPtr > 0 {
 			gtb.gtbEditPtr--
 			gtb.gtbUpdateCursor = true
 		}
 		return 1
-
 	} else if eventpkg.IsAction(e, eventpkg.ACTION_RIGHT) {
-
 		if gtb.gtbEditPtr < gtb.gtbUcLen {
 			gtb.gtbEditPtr++
 			gtb.gtbUpdateCursor = true
 		}
 		return 1
-
 	} else if eventpkg.IsAction(e, eventpkg.ACTION_ACTIVATE) {
-
 		gtbCaptionRefresh(gtb)
 
 		if gtb.gtbFlags&(gtbFileRequest|gtbDirRequest) != 0 {
-
 			if gtb.gtbP == nil {
 				glwDeps.ts.Trace(tracepkg.TRACE_ERROR, "GLW",
 					"File requests on unbound widgets is not supported")
 			} else {
-
 				flags := 0
 				if gtb.gtbFlags&gtbFileRequest != 0 {
 					flags |= facore.FilepickerFiles
@@ -590,9 +567,7 @@ func glwTextBitmapEvent(w *Glw, e *eventpkg.Event) int {
 					gtb.gtbP, gtb.gtbCaption,
 					flags)
 			}
-
 		} else {
-
 			if eventpkg.IsAction(e, eventpkg.ACTION_ACTIVATE) &&
 				e.Flags&eventpkg.EventMouse != 0 {
 				return 1
@@ -675,7 +650,6 @@ func gtbUpdateEpilogue(gtb *GlwTextBitmap, flags int) {
 	if gtb.gtbFrozen {
 		gtb.gtbPendingUpdates |= uint8(flags)
 	} else {
-
 		if flags&gtbUpdateRealize != 0 {
 			gtbRealize(gtb)
 		}
@@ -1089,9 +1063,7 @@ func fontRenderThread(aux any) any {
 	glwLock(gr)
 
 	for gr.grFontThreadRunning != 0 {
-
 		if gtb := gr.grGtbDimQueue.tqhFirst; gtb != nil {
-
 			gtbTailqRemove(&gr.grGtbDimQueue, gtb)
 			gtb.gtbState = gtbDimensioning
 			gtbDoRender(gtb, gr, 1)
@@ -1099,7 +1071,6 @@ func fontRenderThread(aux any) any {
 		}
 
 		if gtb := gr.grGtbRenderQueue.tqhFirst; gtb != nil {
-
 			gtbTailqRemove(&gr.grGtbRenderQueue, gtb)
 			gtb.gtbState = gtbRendering
 			gtbDoRender(gtb, gr, 0)

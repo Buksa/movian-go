@@ -229,7 +229,6 @@ func glwImageRender(w *Glw, rc *glwRctx) {
 	}
 
 	if gi.giMode == giModeNormal || gi.giMode == giModeAlphaEdges {
-
 		if glt == nil || !glwIsTexStarted(&glt.gltTexture) {
 			return
 		}
@@ -240,12 +239,9 @@ func glwImageRender(w *Glw, rc *glwRctx) {
 
 		if gi.giBitmapFlags&glwImageFixedSize != 0 {
 			glwScaleToPixels(&rc0, int(glt.gltXs), int(glt.gltYs))
-
 		} else if w.glwClass == &glwImageClass || w.glwClass == &glwIconClass {
-
 			extraYMargin := 0
 			if w.glwClass == &glwIconClass {
-
 				ys := int(gi.giFixedSize)
 				if ys == 0 {
 					ys = int(gi.giSizeScale * float32(w.glwRoot.grCurrentSize))
@@ -278,7 +274,6 @@ func glwImageRender(w *Glw, rc *glwRctx) {
 		}
 
 		if alphaSelf > glwAlphaEpsilon {
-
 			if gi.giBitmapFlags&glwImageAdditive != 0 {
 				glwBlendmode(w.glwRoot, glwBlendAdditive)
 			}
@@ -300,9 +295,7 @@ func glwImageRender(w *Glw, rc *glwRctx) {
 			glwZinc(&rc0)
 			renderChildSimple(w, &rc0)
 		}
-
 	} else {
-
 		rc0 := *rc
 
 		if glwIsFocusableOrClickable(w) {
@@ -316,7 +309,6 @@ func glwImageRender(w *Glw, rc *glwRctx) {
 
 		if glt != nil && glwIsTexStarted(&glt.gltTexture) &&
 			alphaSelf > glwAlphaEpsilon {
-
 			if gi.giBitmapFlags&glwImageAdditive != 0 {
 				glwBlendmode(w.glwRoot, glwBlendAdditive)
 			}
@@ -492,16 +484,13 @@ func glwImageUpdateConstraints(gi *GlwImage) {
 	glt := gi.giCurrent
 
 	if gi.giBitmapFlags&glwImageFixedSize != 0 {
-
 		glwSetConstraints(&gi.w,
 			int(glt.gltXs),
 			int(glt.gltYs),
 			0,
 			glwConstraintX|glwConstraintY)
-
 	} else if gi.w.glwClass == &glwBackdropClass ||
 		gi.w.glwClass == &glwFrontdropClass {
-
 		c := gi.w.glwChilds.tqhFirst
 
 		if c != nil {
@@ -512,26 +501,21 @@ func glwImageUpdateConstraints(gi *GlwImage) {
 					int(gi.giBoxTop)+int(gi.giBoxBottom),
 				c.glwReqWeight,
 				c.glwFlags&glwConstraintFlags)
-
 		} else if glt != nil {
 			glwSetConstraints(&gi.w,
 				int(glt.gltXs)-int(glt.gltMargin)*2,
 				int(glt.gltYs)-int(glt.gltMargin)*2,
 				0, 0)
 		}
-
 	} else if gi.w.glwClass == &glwImageClass && glt != nil {
-
 		if glt.gltState == gltStateError {
 			glwClearConstraints(&gi.w)
 		} else if gi.giBitmapFlags&glwImageSetAspect != 0 {
 			glwSetConstraints(&gi.w, 0, 0, -glt.gltAspect, glwConstraintW)
 		} else if gi.w.glwFlags&glwConstraintConfX != 0 {
-
 			ys := int(float32(glwReqWidth(&gi.w)) / glt.gltAspect)
 			glwSetConstraints(&gi.w, 0, ys, 0, glwConstraintY)
 		} else if gi.w.glwFlags&glwConstraintConfY != 0 {
-
 			xs := int(float32(glwReqHeight(&gi.w)) * glt.gltAspect)
 			glwSetConstraints(&gi.w, xs, 0, 0, glwConstraintX)
 		}
@@ -584,7 +568,6 @@ func glwImageLayout(w *Glw, rc *glwRctx) {
 		int(rc.rcWidth) == gr.grWidth &&
 		int(rc.rcHeight) == gr.grHeight &&
 		w.glwClass == &glwBackdropClass {
-
 		if gr.grExternalizeCnt < glwMaxExternalized {
 			gr.grExternalized[gr.grExternalizeCnt] = w
 			gr.grExternalizeCnt++
@@ -614,13 +597,9 @@ func glwImageLayout(w *Glw, rc *glwRctx) {
 			}
 
 			gi.giUpdate = true
-
 		} else {
-
 			if hq {
-
 				if w.glwClass == &glwIconClass {
-
 					ys = int(gi.giFixedSize)
 					if ys == 0 {
 						ys = int(gi.giSizeScale * float32(w.glwRoot.grCurrentSize))
@@ -629,7 +608,6 @@ func glwImageLayout(w *Glw, rc *glwRctx) {
 					if ys > int(rc.rcHeight) {
 						ys = int(rc.rcHeight)
 					}
-
 				} else if w.glwClass == &glwImageClass {
 					if rc.rcWidth < rc.rcHeight {
 						xs = int(rc.rcWidth)
@@ -643,7 +621,6 @@ func glwImageLayout(w *Glw, rc *glwRctx) {
 			}
 
 			if xs != 0 && ys != 0 {
-
 				gi.giPending = glwImageTexLoad(gi, gi.giPendingUrl, xs, ys)
 
 				miscpkg.RstrRelease(gi.giPendingUrl)
@@ -694,7 +671,6 @@ func glwImageLayout(w *Glw, rc *glwRctx) {
 	if glt.gltState == gltStateError {
 		giSetLoadStatus(gi, glwStatusError)
 	} else if glwIsTexStarted(&glt.gltTexture) {
-
 		gr.grCanExternalize = 0
 
 		giSetLoadStatus(gi, glwStatusLoaded)
@@ -705,7 +681,6 @@ func glwImageLayout(w *Glw, rc *glwRctx) {
 			glwRendererFree(&gi.giGr)
 
 			switch gi.giMode {
-
 			case giModeNormal:
 				glwRendererSetupQuad(&gi.giGr)
 				glwImageLayoutNormal(gr, gi, glt)
@@ -724,15 +699,12 @@ func glwImageLayout(w *Glw, rc *glwRctx) {
 			default:
 				panic("glw_image_layout: bad gi_mode")
 			}
-
 		} else if gi.giLastWidth != rc.rcWidth ||
 			gi.giLastHeight != rc.rcHeight {
-
 			gi.giLastWidth = rc.rcWidth
 			gi.giLastHeight = rc.rcHeight
 
 			switch gi.giMode {
-
 			case giModeNormal:
 			case giModeBorderScaling,
 				giModeBorderOnlyScaling:
@@ -747,12 +719,10 @@ func glwImageLayout(w *Glw, rc *glwRctx) {
 
 		if gi.giNeedReload && gi.giPending == nil &&
 			gi.giPendingUrl == nil && rc.rcWidth > 0 && rc.rcHeight > 0 {
-
 			xs, ys := -1, -1
 			var rescale int
 
 			if w.glwClass == &glwImageClass || w.glwClass == &glwIconClass {
-
 				if rc.rcWidth < rc.rcHeight {
 					rescale = iabs(int(rc.rcWidth) - int(glt.gltXs) - int(glt.gltMargin)*2)
 					xs = int(rc.rcWidth)
@@ -810,7 +780,6 @@ func glwImageLayout(w *Glw, rc *glwRctx) {
 func glwImageCallback(w *Glw, opaque any, signal glwSignal,
 	extra any) int {
 	switch signal {
-
 	case glwSignalChildConstraintsChanged,
 		glwSignalChildCreated:
 		glwImageUpdateConstraints((*GlwImage)(unsafe.Pointer(w)))
@@ -1019,7 +988,6 @@ func pickSource(gi *GlwImage, next int) {
 	if curname == nil {
 		setPending(gi, gi.giSources[0], 0)
 	} else {
-
 		found := -1
 		for i := 0; i < len(gi.giSources) && found == -1; i++ {
 			if miscpkg.RstrGet(gi.giSources[i]) == miscpkg.RstrGet(curname) {
@@ -1126,7 +1094,6 @@ func glwImageSetInt(w *Glw, attrib glwAttribute, value int,
 	gi := (*GlwImage)(unsafe.Pointer(w))
 
 	switch attrib {
-
 	case glwAttribAlphaEdges:
 		if gi.giAlphaEdge == uint8(value) {
 			return 0

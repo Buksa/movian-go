@@ -429,7 +429,6 @@ func fhOpaque(fh *Handle) any { return fh.reader }
 // wraps a fresh handle in the readahead cache.
 func FABufferedOpen(fam *FileAccessManager, url string, flags int,
 	extra *OpenExtra) (*Handle, error) {
-
 	proto, _, err := fam.FAResolveProto(url)
 	if err != nil {
 		return nil, err

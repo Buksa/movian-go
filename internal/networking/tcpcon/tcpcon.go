@@ -201,7 +201,6 @@ func nmbResolve(hostname string) *netcore.NetAddr {
 // (C: tcp_set_cancellable → tcp_shutdown → poll abort).
 func tcpConnectArch(addr *netcore.NetAddr, timeout int,
 	c *misc.Cancellable, dbg bool) (*TCPCon, error) {
-
 	ctx := context.Background()
 	var cancel context.CancelFunc
 	if c != nil {

@@ -81,7 +81,6 @@ func msSetEnable(opaque any, value any) {
 func (mm *MetadataManager) MetadataAddSource(name, description string, prio int,
 	mtype MetadataType, funcs *MetadataSourceFuncs,
 	partials, complete uint64) *MetadataSource {
-
 	pm := mm.pm
 	sm := mm.settingsMgr
 

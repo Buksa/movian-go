@@ -111,7 +111,6 @@ func glwVideoRctxAdjust(rc *glwRctx, gv *GlwVideo) {
 	}
 
 	if tAspect*float32(rc.rcHeight) < float32(rc.rcWidth) {
-
 		if gv.gvHstretch != 0 {
 			return
 		}
@@ -131,7 +130,6 @@ func glwVideoRctxAdjust(rc *glwRctx, gv *GlwVideo) {
 		glwScalef(rc, s, 1, 1)
 
 		rc.rcWidth = int16(right - left)
-
 	} else {
 		// Shrink Y
 		border := int(float32(rc.rcHeight) - float32(rc.rcWidth)/tAspect)
@@ -221,7 +219,6 @@ func glwVideoComputeAvdiff(gr *glwRoot, mp *mediacore.MediaPipe,
 		code = media.AVDiffIncorrectEpoch
 		mp.PropAVDiffError.SetInt(code)
 	} else {
-
 		gv.gvAvdiff = int32(aclock - pts)
 
 		var d int32
@@ -293,14 +290,12 @@ func glwVideoComputeBlend(gv *GlwVideo, sa *glwVideoSurface,
 	var pts int64
 
 	if interpolation == 0 {
-
 		sa.gvsDuration -= outputDuration
 		if sa.gvsPts != mediacore.PTSUnset {
 			sa.gvsPts += int64(outputDuration)
 		}
 
 		if sa.gvsDuration < 0 && sb != nil {
-
 			spill := -sa.gvsDuration
 			sa.gvsDuration = 0
 
@@ -316,9 +311,7 @@ func glwVideoComputeBlend(gv *GlwVideo, sa *glwVideoSurface,
 		gv.gvSb = nil
 
 		pts = sa.gvsPts
-
 	} else if sa.gvsDuration >= outputDuration {
-
 		gv.gvSa = sa
 		gv.gvSb = nil
 
@@ -328,18 +321,14 @@ func glwVideoComputeBlend(gv *GlwVideo, sa *glwVideoSurface,
 		if sa.gvsPts != mediacore.PTSUnset {
 			sa.gvsPts += int64(outputDuration)
 		}
-
 	} else if sb != nil {
-
 		gv.gvSa = sa
 		gv.gvSb = sb
 
 		gv.gvBlend = float32(sa.gvsDuration) / float32(outputDuration)
 
 		if sa.gvsDuration+sb.gvsDuration < outputDuration {
-
 			pts = sb.gvsPts
-
 		} else {
 			pts = sa.gvsPts
 			x := outputDuration - sa.gvsDuration
@@ -349,7 +338,6 @@ func glwVideoComputeBlend(gv *GlwVideo, sa *glwVideoSurface,
 			}
 		}
 		sa.gvsDuration = 0
-
 	} else {
 		gv.gvSa = sa
 		gv.gvSb = nil
@@ -392,7 +380,6 @@ again:
 			gv.gvSa = nil
 		}
 	} else {
-
 		sb := sa.gvsLinkNext
 
 		if !vd.Hold {
@@ -946,7 +933,6 @@ func glwVideoConfigure(gv *GlwVideo, engine *glwVideoEngine) int {
 	// C: hts_mutex_assert(&gv->gv_surface_mutex)
 
 	if gv.gvEngine != engine {
-
 		if gv.gvEngine != nil {
 			gv.gvEngine.gveReset(gv)
 		}
@@ -1062,7 +1048,6 @@ func glwRegisterVideoEngine(gve *glwVideoEngine) {
 
 // C: static int glw_video_input (glw_video_common.c:1163-1197)
 func glwVideoInput(fi *mediacore.FrameInfo, opaque any) int {
-
 	gv := opaque.(*GlwVideo)
 	var gve *glwVideoEngine
 	var rval int
@@ -1070,15 +1055,12 @@ func glwVideoInput(fi *mediacore.FrameInfo, opaque any) int {
 	gv.gvSurfaceMutex.Lock()
 
 	if fi == nil {
-
 		rval = 0
 
 		if gv.gvEngine != nil && gv.gvEngine.gveBlackout != nil {
 			gv.gvEngine.gveBlackout(gv)
 		}
-
 	} else {
-
 		rval = 1
 
 		gv.gvDarNum = fi.DARNum

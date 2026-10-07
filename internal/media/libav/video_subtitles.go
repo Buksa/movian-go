@@ -85,7 +85,6 @@ import (
 // ctx is mc->ctx, the AVCodecContext of the subtitle decoder.
 func VideoSubtitlesLavc(mp *mediacore.MediaPipe, mb *mediacore.MediaBuf,
 	ctx *libav.AVCodecContext) {
-
 	var sub C.AVSubtitle
 
 	var dataPtr unsafe.Pointer

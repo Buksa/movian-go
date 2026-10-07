@@ -92,7 +92,6 @@ type rarSegment struct {
 // create==1 creates missing nodes; returns the leaf (or dir for trailing).
 func rarArchiveFindFile(ra *rarArchive, parent *rarFile, name string,
 	create int, unpver, method byte) *rarFile {
-
 	if parent == nil {
 		return nil
 	}
@@ -324,7 +323,6 @@ openVolume:
 
 				FASeek(fh, int64(packsize), io.SeekCurrent)
 				voff += int64(packsize)
-
 			} else if buf[2] == rarHeaderEndarc {
 				x := 0
 				if flags&earcDatacrc != 0 {

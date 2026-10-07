@@ -441,7 +441,7 @@ func (p *xmlParser) decodeLabelReference(ccq *[]*ccSegment, pos int) (int, bool)
 	if code != -1 {
 		addUnicode(ccq, code)
 	} else {
-		p.xmlerr(start, 0, "Unknown label referense: \"&%s;\"\n", label)
+		p.xmlerr(start, 0, "Unknown label references: \"&%s;\"\n", label)
 		return pos, false
 	}
 	return pos, true

@@ -37,7 +37,6 @@ func glwRender0(w *Glw, rc *glwRctx) {
 			}
 		}
 		w.glwClass.gcRender(w, &rc0)
-
 	} else if w.glwFlags&glwHaveMargins != 0 {
 		rc0 := *rc
 		glwReposition(&rc0,
@@ -61,7 +60,6 @@ func glwRender0(w *Glw, rc *glwRctx) {
 // C: glw_t *glw_create (glw.c:543-590)
 func glwCreate(gr *glwRoot, class *glwClass, parent *Glw, before *Glw,
 	originator *propcore.Prop, scope *glwScope, file *miscpkg.Rstr, line int) *Glw {
-
 	// C: w = calloc(1, class->gc_instance_size +
 	//      (parent ? parent->glw_class->gc_parent_data_size : 0))
 	//

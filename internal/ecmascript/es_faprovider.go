@@ -411,7 +411,6 @@ func esFapCloseTask(aux any) {
 
 // esFapClose — C: es_fap_close (fap_close impl, es_faprovider.c:431-448).
 func esFapClose(fah *esFah) {
-
 	fah.fahEf.super.erCtx.sys.fa.mu.Lock()
 	fah.fahStatus = esFAWorking
 

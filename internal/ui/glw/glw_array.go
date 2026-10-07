@@ -122,7 +122,6 @@ func glwArrayLayout(w *Glw, rc *glwRctx) {
 	width := int(rc0.rcWidth)
 
 	if a.childTilesX != 0 && a.childTilesY != 0 {
-
 		xspacing = float32(a.xspacing)
 		yspacing = float32(a.yspacing)
 
@@ -157,9 +156,7 @@ func glwArrayLayout(w *Glw, rc *glwRctx) {
 		if w.glwAlignment == layoutAlignCenter && rows < a.childTilesY {
 			ypos = int(float32(a.childTilesY-rows) * (yspacing + float32(a.childHeightPx)) / 2)
 		}
-
 	} else if a.childTilesX != 0 {
-
 		xspacing = float32(a.xspacing)
 		yspacing = float32(a.yspacing)
 
@@ -172,7 +169,6 @@ func glwArrayLayout(w *Glw, rc *glwRctx) {
 		a.childWidthPx = int((float32(rc0.rcWidth) - float32(a.xentries-1)*xspacing) /
 			float32(xe))
 		a.childHeightPx = a.childWidthPx
-
 	} else {
 		tileW := 100
 		tileH := 100
@@ -223,9 +219,7 @@ func glwArrayLayout(w *Glw, rc *glwRctx) {
 			}
 
 			cd.col = -1
-
 		} else {
-
 			if column == a.xentries {
 				ypos += int(a.yspacing) + gridLayoutRow(a, &rc0, rowvector,
 					&column, &reqRowHeight, height)

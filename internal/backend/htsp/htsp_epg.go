@@ -268,7 +268,6 @@ func htspChannelDelete(hc *htspConnection, m *htsmsg.HTSMsg) {
 	if ch := htspChannelGet(hc, int(id), 0); ch != nil {
 		channelDestroy(hc, ch)
 	}
-
 }
 
 // C: channel_delete_all (htsp.c:684-690)
@@ -473,7 +472,6 @@ func htspTagDelete(hc *htspConnection, m *htsmsg.HTSMsg) {
 	if ht != nil {
 		tagDestroy(hc, ht)
 	}
-
 }
 
 // C: tag_delete_all (htsp.c:872-879)

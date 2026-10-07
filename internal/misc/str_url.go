@@ -154,7 +154,6 @@ func UrlSplit(proto []byte, protoSize int,
 	portPtr *int,
 	path []byte, pathSize int,
 	url string) {
-
 	// av_url_split implementation
 	var ls, at int
 

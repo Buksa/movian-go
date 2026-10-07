@@ -190,7 +190,6 @@ func beDvdPlay(u *usage.Reporter, nm *notifications.NotificationManager,
 	e, perr = DvdPlay(u, nm, url, mp, 0)
 
 	if e != nil && meIsAction(e, event.ACTION_EJECT) {
-
 		fd, err := unix.Open(url, unix.O_RDONLY|unix.O_NONBLOCK, 0)
 		if err == nil && fd != -1 {
 			r1, _, errno := unix.Syscall(unix.SYS_IOCTL,

@@ -18,7 +18,6 @@ import (
 // around the callback by prop_dispatch_one).
 func (pq *PlayQueue) watchNamedChild(node *propcore.Prop, name string,
 	cb func(ev propcore.EventType, args []any)) *pqNamedChildSub {
-
 	w := &pqNamedChildSub{}
 	var leafChild *propcore.Prop
 

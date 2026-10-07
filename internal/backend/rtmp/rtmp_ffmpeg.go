@@ -28,7 +28,6 @@ import (
 func (b *Backend) rtmpPlayvideoAV(bs *backendcore.BackendSystem,
 	url string, mp *mediacore.MediaPipe,
 	va *backendcore.VideoArgs) (any, error) {
-
 	// C: mp_set_url + "format"="RTMP" + loading prop (rtmp.c:673-683)
 	va2 := *va
 	mediacore.MpSetURL(mp, va.CanonicalURL, va.ParentURL, va.ParentTitle)

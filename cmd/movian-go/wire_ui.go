@@ -199,5 +199,4 @@ func wireUI(ctx *appContext, cleanupOnFail func()) {
 		loadingProp := pm.CreateEx(modelProp, "loading", nil, false, false)
 		pm.SetIntEx(loadingProp, nil, 0)
 	})
-
 }

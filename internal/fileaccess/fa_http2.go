@@ -339,7 +339,7 @@ func (hf *h2File) h2Issue(start int64) error {
 			if err != nil {
 				return err
 			}
-			// C: add_premanent_redirect on 301 — keep 308 (permanent,
+			// C: add_permanent_redirect on 301 — keep 308 (permanent,
 			// method-preserving) in the same cache.
 			if code == 301 || code == 308 {
 				hf.fam.addPermanentRedirect(url, next.String())

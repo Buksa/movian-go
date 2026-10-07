@@ -43,7 +43,6 @@ func getNibble(buf []byte, nibbleOffset int) int {
 // (index colors 0..3), interlaced by the caller's linesize stride.
 func decodeRLE(bitmap []byte, linesize, w, h int, buf []byte,
 	nibbleOffset, bufSize int) int {
-
 	nibbleEnd := bufSize * 2
 	x := 0
 	y := 0
@@ -270,7 +269,6 @@ func DvdspuDecodeClut(dst, src []uint32) {
 // mp->mp_spu_queue (under mp->mp_overlay_mutex).
 func DvdspuEnqueue(mp *MediaPipe, data []byte, size int,
 	clut []uint32, width, height int, pts int64) {
-
 	if size < 4 {
 		return
 	}

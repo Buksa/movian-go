@@ -248,7 +248,6 @@ again:
 	}
 
 	if numDead == ipc.nsources {
-
 		// All sources are dead, or we don't have any sources (yet)
 
 		fh, err = fileaccesscore.FAOpenEx(ipc.fam, ipc.url, flags, extra)
@@ -324,7 +323,6 @@ again:
 
 	load:
 		if isPls || isM3u || isXspf {
-
 			// C: buf_t *b = fa_load_and_close(fh)
 			b := fileaccesscore.LoadAndClose(fh)
 			if b == nil {
@@ -356,9 +354,7 @@ again:
 		// C: fa_seek(fh, 0, SEEK_SET)
 		fileaccesscore.Seek(fh, 0, io.SeekStart)
 		url = ipc.url
-
 	} else {
-
 		// C: int r = rand() % (ipc->ipc_nsources - num_dead);
 		r := rand.Intn(ipc.nsources - numDead)
 		for _, s := range ipc.sources {
@@ -588,12 +584,9 @@ func (ipc *icecastPlayContext) streamRadio() *mediacore.MediaEvent {
 	defer libav.AvPacketFree(pkt)
 
 	for {
-
 		// Need to fetch a new packet ?
 		if mb == nil {
-
 			if ipc.mf == nil {
-
 				if ipc.hold != 0 {
 					e = mediacore.MpDequeueEvent(mp)
 					goto handleEvent
@@ -705,7 +698,6 @@ func (ipc *icecastPlayContext) streamRadio() *mediacore.MediaEvent {
 				}
 				break
 			}
-
 		} else if e = mediacore.MbEnqueueWithEvents(mp, mq, mb); e == nil {
 			mb = nil // Enqueue succeeded
 			if loading != 0 {
@@ -717,7 +709,6 @@ func (ipc *icecastPlayContext) streamRadio() *mediacore.MediaEvent {
 
 	handleEvent:
 		if eventIsType(e, event.EVENT_HOLD) {
-
 			ei, _ := event.ConcreteOf(e.Data).(*event.EventInt)
 
 			ipc.hold = ei.Val
@@ -729,7 +720,6 @@ func (ipc *icecastPlayContext) streamRadio() *mediacore.MediaEvent {
 					mb = nil
 				}
 			}
-
 		} else if eventIsType(e, event.EVENT_PLAYQUEUE_JUMP) ||
 			eventIsAction(e, event.ACTION_SKIP_BACKWARD) ||
 			eventIsAction(e, event.ACTION_SKIP_FORWARD) ||
@@ -863,7 +853,6 @@ func (s *icyMeta) Read(buf []byte) (int, error) {
 	size := len(buf)
 
 	for size > 0 {
-
 		if s.remain == 0 {
 			lb := make([]byte, 1)
 			if n, _ := fileaccesscore.Read(s.src, lb); n != 1 {

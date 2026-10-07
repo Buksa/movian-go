@@ -4,11 +4,12 @@ package prop
 // No symbol, lock, or event-order changes.
 
 import (
-	"github.com/czz/movian-go/internal/gconf"
 	"slices"
 	"strconv"
 	"sync"
 	"sync/atomic"
+
+	"github.com/czz/movian-go/internal/gconf"
 )
 
 type PropManager struct {

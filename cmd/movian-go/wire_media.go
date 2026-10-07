@@ -294,7 +294,6 @@ func wireMedia(ctx *appContext) {
 			return pq.OpenPage(pageP, url, sync)
 		}
 		bs.Register(pqBe)
-
 	}
 	// C: BE_REGISTER(ecmascript) — be_ecmascript with
 	// BACKEND_OPEN_CHECKS_URI + be_open=ecmascript_openuri +
@@ -378,5 +377,4 @@ func wireMedia(ctx *appContext) {
 	bs.SetAppShutdown(func(retcode int) {
 		app_shutdown(ctx, retcode)
 	})
-
 }

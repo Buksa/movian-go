@@ -61,7 +61,6 @@ func vsCmp(a, b *VSource) int {
 // LIST_INSERT_SORTED: insert before first entry with vs_cmp(entry,vs) > 0.
 func vsourceInsert(list *VSourceList, bs *BackendSystem, url, mimetype string,
 	bitrate, flags int) {
-
 	// C: backend_canhandle(url) — non-retained nil-check; Go's CanHandle
 	// retains, so release the reference immediately.
 	be := bs.CanHandle(url)
@@ -314,7 +313,6 @@ func (s *vqLeafSub) unsubscribe() {
 // under PROP_TAG_MUTEX — SubNoInitialUpdate + inline seed is equivalent).
 func (vq *VideoQueue) subscribeChildString(p *propcore.Prop, name string,
 	cb func(s string, has bool)) *vqLeafSub {
-
 	s := &vqLeafSub{}
 
 	arm := func(c *propcore.Prop) {
@@ -518,7 +516,6 @@ func args0Slice(args []any, i int) []*propcore.Prop {
 // as it appears/disappears.
 func VideoQueueCreate(pm *propcore.PropManager, model *propcore.Prop,
 	mp *mediacore.MediaPipe) *VideoQueue {
-
 	vq := &VideoQueue{mp: mp, pm: pm}
 	if model == nil {
 		return vq
@@ -629,7 +626,6 @@ func VideoQueueDestroy(vq *VideoQueue) {
 // Returns a followed prop (caller RefDec's) or nil.
 func VideoQueueFindNext(vq *VideoQueue, current *propcore.Prop, reverse bool,
 	wrap bool) *propcore.Prop {
-
 	if current == nil {
 		return nil
 	}
@@ -692,7 +688,6 @@ func playVideo(bs *BackendSystem, pm *propcore.PropManager, url string,
 	mp *mediacore.MediaPipe, flags, priority int,
 	vq *VideoQueue, parentURL, parentTitle string, origin *propcore.Prop,
 	resumeMode int, loadRequestTimestamp int64) (*mediacore.MediaEvent, error) {
-
 	if parentURL == "" {
 		parentURL = ""
 	}
@@ -719,7 +714,6 @@ func playVideo(bs *BackendSystem, pm *propcore.PropManager, url string,
 	canonicalURL := ""
 
 	if !strings.HasPrefix(url, "videoparams:") {
-
 		be := bs.CanHandle(url)
 		if be == nil || be.PlayVideo == nil {
 			p := pm.CreateRootEx("", true)
@@ -822,9 +816,7 @@ func playVideo(bs *BackendSystem, pm *propcore.PropManager, url string,
 		if perr != nil {
 			lastErr = perr
 		}
-
 	} else {
-
 		url = url[len("videoparams:"):]
 		var err error
 		m, err = htsmsg.DeserializeJSON(url)
@@ -993,9 +985,7 @@ func playVideo(bs *BackendSystem, pm *propcore.PropManager, url string,
 	}
 
 	for e != nil {
-
 		if meIsType(e, event.EVENT_REOPEN) {
-
 			if len(vsources) == 0 {
 				lastErr = errors.New("No alternate video sources")
 				e = nil
@@ -1047,7 +1037,6 @@ type courierPathSub struct {
 func newCourierPathSub(pm *propcore.PropManager, root *propcore.Prop,
 	courier *propcore.Courier, path []string,
 	cb func(s string, has bool)) *courierPathSub {
-
 	s := &courierPathSub{pm: pm, courier: courier, path: path, cb: cb}
 	s.arm(root, 0)
 	return s
@@ -1198,7 +1187,6 @@ func toMediaEvent(v any) *mediacore.MediaEvent {
 // play_video, and handles EOF/continuous-play/skip track advancement.
 func videoPlayerIdle(mp *mediacore.MediaPipe, bs *BackendSystem,
 	pm *propcore.PropManager) {
-
 	run := true
 	var e *mediacore.MediaEvent
 	errStr := "" // C: char errbuf[256] — persists across iterations
@@ -1221,7 +1209,6 @@ func videoPlayerIdle(mp *mediacore.MediaPipe, bs *BackendSystem,
 	resumeCtrl := resumeNo
 
 	for run {
-
 		if playURL != "" {
 			errprop.SetVoid()
 
@@ -1297,7 +1284,6 @@ func videoPlayerIdle(mp *mediacore.MediaPipe, bs *BackendSystem,
 		}
 
 		if meIsType(e, event.EVENT_PLAY_URL) {
-
 			forceContinuous = false
 			errprop.SetVoid()
 
@@ -1366,15 +1352,12 @@ func videoPlayerIdle(mp *mediacore.MediaPipe, bs *BackendSystem,
 					forceContinuous = true
 				}
 			}
-
 		} else if meIsType(e, event.EVENT_EXIT) {
 			e = nil
 			break
-
 		} else if meIsType(e, event.EVENT_EOF) ||
 			mediacoreIsAction(e, event.ACTION_SKIP_FORWARD) ||
 			mediacoreIsAction(e, event.ACTION_SKIP_BACKWARD) {
-
 			// Try to figure out which track to play next
 			var next *propcore.Prop
 

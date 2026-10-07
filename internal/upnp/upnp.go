@@ -345,7 +345,6 @@ func NewSystem(httpServerPort int, srv *httpnet.HTTPServer,
 	cs *callout.CalloutSystem,
 	store *htsmsg.Store, kvs *kvstore.KVStore,
 	ts *trace.TraceSystem) *System {
-
 	s := &System{ts: ts}
 	// C: hts_cond_init(&upnp_device_cond, &upnp_lock)
 	s.deviceCond = sync.NewCond(&s.mu)

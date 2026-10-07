@@ -63,7 +63,6 @@ func ScannerDestroy(s *Scanner) {
 		s.notifMgr.Fini()
 		s.notifMgr = nil
 	}
-
 }
 
 // ScannerRelease releases a scanner reference

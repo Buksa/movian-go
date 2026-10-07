@@ -231,7 +231,6 @@ func glwContainerXConstraints(co *glwContainer, skip *Glw) int {
 		co.paddingWidth != int16(paddingWidth) ||
 		co.spacingWidth != spacingWidth ||
 		co.cflags != cflags {
-
 		co.weightSum = weight
 		co.width = int16(width)
 		co.spacingWidth = spacingWidth
@@ -415,7 +414,6 @@ func glwContainerYConstraints(co *glwContainer, skip *Glw) int {
 	if co.height != int16(height) ||
 		co.weightSum != weight ||
 		co.cflags != cflags {
-
 		co.height = int16(height)
 		co.weightSum = weight
 		co.cflags = cflags

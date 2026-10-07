@@ -36,7 +36,6 @@ func hlsPlayvideo(u *usage.Reporter, mm *metadata.MetadataManager, url string, m
 	vq, vsl any,
 	va0 *backendcore.VideoArgs, ts *trace.TraceSystem, g *gconf.T,
 	subSys *subtitles.System) (*mediacore.MediaEvent, error) {
-
 	mediacore.MpSetURL(mp, va0.CanonicalURL, va0.ParentURL, va0.ParentTitle)
 
 	if mp.PropRoot != nil {

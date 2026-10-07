@@ -108,13 +108,11 @@ func (btg *BtGlobal) torrentCreateFromHash(infoHash []byte, initiator string) *T
 	if to.metainfo == nil {
 		b := btg.torrentDiskioLoadInfofileFromHash(infoHash)
 		if b != nil {
-
 			btg.torrentTrace(to, "Trying to initialize torrent from disk cache")
 
 			doc, _, derr := BencodeDeserialize(b.C8(), nil, nil)
 
 			if doc != nil {
-
 				if perr := btg.torrentParseTorrentfile(to, doc); perr == nil {
 					to.metainfo = b // ownership tranfered
 					b = nil
@@ -469,7 +467,6 @@ func (btg *BtGlobal) torrentLoad(to *Torrent, buf []byte, offset uint64, size in
 	}
 	boff := 0
 	for size > 0 {
-
 		tp := btg.torrentPieceFind(to, piece)
 
 		listInsertHead(&tp.activeFh.lhFirst, tfh, tfhPieceLink)

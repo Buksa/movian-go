@@ -8,13 +8,14 @@ import (
 	"cmp"
 	"errors"
 	"fmt"
-	"github.com/czz/movian-go/internal/gconf"
-	"github.com/czz/movian-go/internal/misc"
 	"net"
 	"slices"
 	"strconv"
 	"strings"
 	"sync"
+
+	"github.com/czz/movian-go/internal/gconf"
+	"github.com/czz/movian-go/internal/misc"
 
 	"github.com/czz/movian-go/internal/app"
 	"github.com/czz/movian-go/internal/arch"
@@ -544,7 +545,6 @@ func (s *Server) cmdRETR(fc *ftpConnection, args *string) int {
 
 // cmdSTOR — C: cmd_STOR
 func (s *Server) cmdSTOR(fc *ftpConnection, args *string) int {
-
 	pathbuf, _ := s.constructPath(fc, *args)
 
 	fh, oerr := s.open(pathbuf, facore.FaWrite)
@@ -603,7 +603,6 @@ func (s *Server) cmdMKD(fc *ftpConnection, args *string) int {
 
 // cmdDELE — C: cmd_DELE
 func (s *Server) cmdDELE(fc *ftpConnection, args *string) int {
-
 	pathbuf, _ := s.constructPath(fc, *args)
 
 	if uerr := s.unlink(pathbuf); uerr != nil {
@@ -616,7 +615,6 @@ func (s *Server) cmdDELE(fc *ftpConnection, args *string) int {
 
 // cmdRMD — C: cmd_RMD
 func (s *Server) cmdRMD(fc *ftpConnection, args *string) int {
-
 	pathbuf, _ := s.constructPath(fc, *args)
 
 	if rerr := s.rmdir(pathbuf); rerr != nil {
@@ -629,7 +627,6 @@ func (s *Server) cmdRMD(fc *ftpConnection, args *string) int {
 
 // cmdRNFR — C: cmd_RNFR
 func (s *Server) cmdRNFR(fc *ftpConnection, args *string) int {
-
 	pathbuf, _ := s.constructPath(fc, *args)
 
 	_, err := s.stat(pathbuf)
@@ -645,7 +642,6 @@ func (s *Server) cmdRNFR(fc *ftpConnection, args *string) int {
 
 // cmdRNTO — C: cmd_RNTO
 func (s *Server) cmdRNTO(fc *ftpConnection, args *string) int {
-
 	if fc.pendingRNFR == nil {
 		s.ftpWrite(fc, 503, "Bad sequence of commands")
 		return 0
@@ -750,7 +746,6 @@ func (s *Server) ftpSession(fc *ftpConnection) {
 		r := -1
 		for i := range ftpcmds {
 			if strings.EqualFold(ftpcmds[i].cmd, cmd) {
-
 				if ftpcmds[i].flags&ftpCmdAuthReq != 0 &&
 					!fc.authorized {
 					s.ftpWrite(fc, 530, "Please login first")
@@ -838,7 +833,6 @@ func (s *Server) enableDisable() {
 	defer s.mu.Unlock()
 
 	if s.port != 0 && s.enable != 0 {
-
 		if s.fd != nil && s.fd.GetPort() == s.port {
 			return
 		}

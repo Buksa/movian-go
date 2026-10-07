@@ -8,7 +8,6 @@ import (
 
 func (bs *BackendSystem) PlayVideo(url string, mediaPipe any,
 	videoQueue any, vsourceList any, va *VideoArgs) (any, error) {
-
 	// C: backend_canhandle(url) — score-based selection only
 	backend := bs.CanHandle(url)
 	if backend == nil {
@@ -28,7 +27,6 @@ func (bs *BackendSystem) PlayVideo(url string, mediaPipe any,
 // plays, then releases. Passes be_opaque to the backend.
 func (bs *BackendSystem) PlayAudio(url string, mediaPipe any, paused bool,
 	mimetype string) (any, error) {
-
 	// C: backend_resolve(url) — tries dynamic prefix backends first, then canhandle
 	backend := bs.Resolve(url)
 	if backend == nil {

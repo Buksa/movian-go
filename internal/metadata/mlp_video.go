@@ -181,7 +181,6 @@ func isQtypeCompat(qa, qb int) int {
 func (mm *MetadataManager) queryByFilenameOrDirname(dbc *dbpkg.DB,
 	mlv *MetadataLazyVideo, msf *MetadataSourceFuncs, qtype *int,
 	duration, lonely int) int64 {
-
 	var year int
 	var title *misc.Rstr
 	var rval int64
@@ -189,7 +188,6 @@ func (mm *MetadataManager) queryByFilenameOrDirname(dbc *dbpkg.DB,
 
 	if MetadataFilenameToEpisode(misc.RstrGet(mlv.Filename),
 		&season, &episode, &title) == 0 {
-
 		if msf == nil || msf.QueryByEpisode == nil {
 			misc.RstrRelease(title)
 			return int64(MetadataPermanentError)
@@ -231,7 +229,6 @@ func (mm *MetadataManager) queryByFilenameOrDirname(dbc *dbpkg.DB,
 	}
 
 	if IsReasonableMovieName(misc.RstrGet(mlv.Filename)) != 0 {
-
 		MetadataFilenameToTitle(misc.RstrGet(mlv.Filename), &year, &title)
 
 		mm.metadataTrace(
@@ -264,7 +261,6 @@ func (mm *MetadataManager) queryByFilenameOrDirname(dbc *dbpkg.DB,
 	}
 
 	if rval == int64(MetadataPermanentError) && lonely != 0 && mlv.Folder != nil {
-
 		MetadataFilenameToTitle(misc.RstrGet(mlv.Folder), &year, &title)
 
 		mm.metadataTrace(
@@ -354,7 +350,6 @@ func (mm *MetadataManager) setArtwork(p *propcore.Prop, name string,
 // refresh=0: normal path; refresh=1: bypass cache (force re-query).
 func (mm *MetadataManager) mlvGetVideoInfo0(dbc *dbpkg.DB,
 	mlv *MetadataLazyVideo, refresh int) int {
-
 	var title *misc.Rstr
 	var md *Metadata
 	var ms *MetadataSource
@@ -449,9 +444,7 @@ func (mm *MetadataManager) mlvGetVideoInfo0(dbc *dbpkg.DB,
 	mm.pm.SetVEx(nil, mlv.M, "loading", 1)
 
 	if mlv.Manual == 0 && (md == nil || !md.Preferred) {
-
 		for i := range numMsqi {
-
 			msqi := &msqivec[i]
 			ms = msqi.MS
 
@@ -487,25 +480,20 @@ func (mm *MetadataManager) mlvGetVideoInfo0(dbc *dbpkg.DB,
 
 				qtype = MetadataQTypeIMDB
 				q = misc.RstrGet(imdbID)
-
 			} else if mlv.QType == MetadataQTypeMovie {
-
 				if msf == nil || msf.QueryByTitleAndYear == nil {
 					continue
 				}
 
 				qtype = MetadataQTypeMovie
 				q = ""
-
 			} else if mlv.QType == MetadataQTypeTVShow {
-
 				if msf == nil || msf.QueryByEpisode == nil {
 					continue
 				}
 
 				qtype = MetadataQTypeTVShow
 				q = ""
-
 			} else {
 				if mlv.Passive != 0 {
 					continue
@@ -528,7 +516,6 @@ func (mm *MetadataManager) mlvGetVideoInfo0(dbc *dbpkg.DB,
 				 */
 				if msqi.Mark &&
 					isQtypeCompat(qtype, msqi.QType) != 0 {
-
 					/**
 					 * This weirdness is to be able to requery if
 					 * we discover that a movie is lonely in its
@@ -548,7 +535,6 @@ func (mm *MetadataManager) mlvGetVideoInfo0(dbc *dbpkg.DB,
 				misc.RstrGet(mlv.URL), ms.ID))
 
 			if rval == 0 {
-
 				switch qtype {
 				case MetadataQTypeIMDB, MetadataQTypeCustomIMDB:
 
@@ -657,7 +643,6 @@ func (mm *MetadataManager) mlvGetVideoInfo0(dbc *dbpkg.DB,
 		}() &&
 		ms.Funcs != nil && ms.Funcs.QueryByID != nil &&
 		(mlv.MLP.ReqItems&ms.CompleteProps) != 0 {
-
 		mm.metadataTrace(
 			"Performing additional query for %s : %s", ms.Name,
 			md.ExtID)
@@ -795,7 +780,6 @@ func (mm *MetadataManager) mlvGetVideoInfo0(dbc *dbpkg.DB,
 				mm.pm.RefDec(pepi)
 				mm.pm.RefDec(psea)
 				mm.pm.RefDec(pser)
-
 			} else {
 				if title == nil {
 					title = misc.RstrAllocStr(md.Title)
@@ -817,7 +801,6 @@ func (mm *MetadataManager) mlvGetVideoInfo0(dbc *dbpkg.DB,
 bad:
 	// C: bad: if(mlv->mlv_m != NULL) { mlv_cleanup(mlv); ... }
 	if mlv.M != nil {
-
 		mm.mlvCleanup(mlv)
 
 		if title == nil {
@@ -964,7 +947,6 @@ func (mm *MetadataManager) mlvSetSource(mlv *MetadataLazyVideo,
 	id := 0
 
 	if name != "" {
-
 		if name == "1" {
 			// dsid 1 is reserved for local file
 			id = 1
@@ -1465,7 +1447,6 @@ func (mm *MetadataManager) mlvOptionsCb(mlv *MetadataLazyVideo,
 func (mm *MetadataManager) MetadataBindVideoInfo(url, filename, imdbID string,
 	duration int, root *propcore.Prop, folder string, lonely, passive int,
 	year, season, episode int, manual int, initiator string) *MetadataLazyVideo {
-
 	mlv := &MetadataLazyVideo{}
 	mlv.MLP = *mlpAlloc(&mlcVideo)
 	mlv.MLP.mm = mm

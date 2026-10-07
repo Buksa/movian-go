@@ -6,10 +6,11 @@
 package scanner
 
 import (
-	"github.com/czz/movian-go/internal/gconf"
 	"slices"
 	"sync"
 	"sync/atomic"
+
+	"github.com/czz/movian-go/internal/gconf"
 
 	dbpkg "github.com/czz/movian-go/internal/db"
 	fileaccesscore "github.com/czz/movian-go/internal/fileaccess"
@@ -29,7 +30,6 @@ func (indexer *Indexer) indexerTrace(format string, args ...any) {
 // updateItem — C: update_item (fa_indexer.c:40-67)
 func (indexer *Indexer) updateItem(db *dbpkg.DB, fsentry *fileaccesscore.DirEntry,
 	parent string, parentMtime int64) {
-
 	var md *metadata.Metadata
 	indexStatus := metadata.IndexStatusAnalyzed
 
@@ -58,7 +58,6 @@ func (indexer *Indexer) updateItem(db *dbpkg.DB, fsentry *fileaccesscore.DirEntr
 // Diffs the live directory listing against the metadb contents.
 func (indexer *Indexer) rescanDirectory(url string, db *dbpkg.DB,
 	fsMtime int64) int {
-
 	// C: fa_scandir(url, errbuf, errlen)
 	fsdir, err := fileaccesscore.ScanDir(indexer.fam.Load(), url)
 	if err != nil {
@@ -85,7 +84,6 @@ func (indexer *Indexer) rescanDirectory(url string, db *dbpkg.DB,
 		}
 
 		if fsentry != nil {
-
 			// Exist in fs and in db, check modification time and index status
 			dbmd, _ := dbentry.Md.(*metadata.Metadata)
 			if fsentry.Stat.MTime.Unix() == dbentry.Stat.MTime.Unix() &&

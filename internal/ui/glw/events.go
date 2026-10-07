@@ -128,14 +128,12 @@ func glwRootEventHandler(gr *glwRoot, e *eventpkg.Event) int {
 
 	if e.IsAction(eventpkg.ACTION_ENABLE_SCREENSAVER) {
 		gr.grScreensaverForceEnable = 1
-
 	} else if e.IsAction(eventpkg.ACTION_NAV_BACK) ||
 		e.IsAction(eventpkg.ACTION_NAV_FWD) ||
 		e.IsAction(eventpkg.ACTION_HOME) ||
 		e.IsAction(eventpkg.ACTION_PLAYQUEUE) ||
 		e.IsAction(eventpkg.ACTION_RELOAD_DATA) ||
 		e.Type == eventpkg.EVENT_OPENURL {
-
 		p := glwDeps.pm.GetByName([]string{"nav", "eventSink"}, 0, nil, nil,
 			&propcore.PropRootNode{P: gr.grPropNav, Name: "nav"})
 		glwDeps.pm.SendExtEvent(p, e)
@@ -258,7 +256,6 @@ func glwPointerEventDeliver(w *Glw, gpe *glwPointerEventT) int {
 	var r int
 	var flags int
 	switch gpe.typ {
-
 	case glwPointerRightPress:
 		e := glwDeps.em.CreateAction(eventpkg.ACTION_ITEMMENU).AsEvent()
 		e.Flags |= eventpkg.EventMouse | eventpkg.EventScreenPosition
@@ -326,7 +323,6 @@ func glwPointerEvent0(gr *glwRoot, w *Glw, gpe *glwPointerEventT,
 	}
 
 	if w.glwMatrix != nil {
-
 		var x, y float32
 		ur := glwWidgetUnproject(w.glwMatrix, &x, &y, p, dir)
 		if ur != 0 &&
@@ -352,7 +348,6 @@ func glwPointerEvent0(gr *glwRoot, w *Glw, gpe *glwPointerEventT,
 			if glwIsFocusableOrClickable(w) {
 				*hoverp = w
 			}
-
 		} else {
 			return 0
 		}
@@ -445,7 +440,6 @@ func glwPointerEvent(gr *glwRoot, gpe *glwPointerEventT) {
 		if gpe.typ == glwPointerMotionUpdate ||
 			gpe.typ == glwPointerTouchMove ||
 			gpe.typ == glwPointerMotionRefresh {
-
 			if gpe.typ == glwPointerMotionUpdate {
 				gr.grPointerVisible.SetInt(1)
 			}
@@ -466,7 +460,6 @@ func glwPointerEvent(gr *glwRoot, gpe *glwPointerEventT) {
 				gpe0.localY = y
 				glwSendPointerEvent(w, &gpe0)
 			} else if w = gr.grPointerPress; w != nil && w.glwMatrix != nil {
-
 				lossPress := 0
 
 				if glwWidgetUnproject(w.glwMatrix, &x, &y, p, dir) == 0 ||
@@ -554,7 +547,6 @@ func glwDispatchEvent(gr *glwRoot, e *eventpkg.Event) {
 	}
 
 	if e.Type == eventpkg.EVENT_KEYDESC {
-
 		if glwEvent(gr, e) != 0 {
 			return // Was consumed
 		}
@@ -584,7 +576,6 @@ func glwDispatchEvent(gr *glwRoot, e *eventpkg.Event) {
 		e.IsAction(eventpkg.ACTION_STANDBY) ||
 		e.Type == eventpkg.EVENT_SELECT_AUDIO_TRACK ||
 		e.Type == eventpkg.EVENT_SELECT_SUBTITLE_TRACK) {
-
 		if e.Flags&eventpkg.EventKeypress != 0 {
 			if glwSetKeyboardMode(gr, 1) != 0 {
 				/*
@@ -611,22 +602,15 @@ func glwDispatchEvent(gr *glwRoot, e *eventpkg.Event) {
 	if e.IsAction(eventpkg.ACTION_RELOAD_UI) {
 		glwLoadUniverse(gr)
 		return
-
 	} else if e.IsAction(eventpkg.ACTION_ZOOM_UI_INCR) {
-
 		GlwSettingsAdjSize(1)
 		return
-
 	} else if e.IsAction(eventpkg.ACTION_ZOOM_UI_DECR) {
-
 		GlwSettingsAdjSize(-1)
 		return
-
 	} else if e.IsAction(eventpkg.ACTION_ZOOM_UI_RESET) {
-
 		GlwSettingsAdjSize(0)
 		return
-
 	}
 
 	glwEvent(gr, e)

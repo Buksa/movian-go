@@ -406,7 +406,6 @@ func compositeGRAY8OnIAFullAlpha(d *Pixmap, dst int, s *Pixmap, src int,
 func compositeGRAY8OnBGR32(d *Pixmap, dst int, s *Pixmap, src int,
 	CR, CG, CB, CA, width int) {
 	for range width {
-
 		SA := div255(int(s.Data[src]) * CA)
 		SR := CR
 		SG := CG

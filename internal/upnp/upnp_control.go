@@ -19,7 +19,6 @@ var upnpControlInvalidArgs = &htsmsg.HTSMsg{}
 // C: control_dispatch_method (upnp_control.c:34-99)
 func (uls *UPNPLocalService) controlDispatchMethod(usm *UPNPServiceMethod,
 	hc *httpnet.HTTPConnection, inargs *htsmsg.HTSMsg) int {
-
 	httpCode := 200
 
 	inargs = inargs.GetMap("tags")
@@ -85,7 +84,6 @@ func soapEncodeArgsHTSMsg(xml *strings.Builder, out *htsmsg.HTSMsg) {
 // C: control_parse_soap (upnp_control.c:106-162)
 func (uls *UPNPLocalService) controlParseSoap(hc *httpnet.HTTPConnection,
 	envelope *htsmsg.HTSMsg) int {
-
 	methods := envelope.GetMapMulti(
 		"tags",
 		"http://schemas.xmlsoap.org/soap/envelope/Envelope",
@@ -146,7 +144,6 @@ func (uls *UPNPLocalService) controlParseSoap(hc *httpnet.HTTPConnection,
 // C: upnp_control (upnp_control.c:168-190)
 func upnpControl(hc *httpnet.HTTPConnection, remain string, opaque any,
 	method httpnet.HTTPCmd) int {
-
 	uls := opaque.(*UPNPLocalService)
 	xml := hc.HTTPGetPostData(nil, true)
 

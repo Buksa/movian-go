@@ -216,7 +216,6 @@ func (hp *H264Parser) DecodeSPS(bs *miscpkg.BitstreamT, sps *H264SPS) int {
 		sps.Profile == 44 || sps.Profile == 83 ||
 		sps.Profile == 86 || sps.Profile == 118 ||
 		sps.Profile == 128 || sps.Profile == 144 {
-
 		sps.ChromaFormat = uint8(bs.ReadGolombUe(bs))
 		if sps.ChromaFormat == 3 {
 			sps.ResidualColorTransformFlag = bs.ReadBits(bs, 1) != 0
@@ -409,7 +408,6 @@ func calcPOC(hp *H264Parser, sps *H264SPS) int {
 
 		if hp.PicOrderCntLsb < hp.PrevPOCLsb &&
 			hp.PrevPOCLsb-hp.PicOrderCntLsb >= int(maxPOCCntLsb/2) {
-
 			hp.POCMsb += int(maxPOCCntLsb)
 		} else if hp.PicOrderCntLsb > hp.PrevPOCLsb &&
 			hp.PicOrderCntLsb-hp.PrevPOCLsb > int(maxPOCCntLsb/2) {

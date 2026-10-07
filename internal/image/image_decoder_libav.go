@@ -19,9 +19,10 @@ import "C"
 import (
 	"errors"
 	"fmt"
-	"github.com/czz/movian-go/internal/gconf"
 	"runtime"
 	"unsafe"
+
+	"github.com/czz/movian-go/internal/gconf"
 
 	"github.com/czz/movian-go/internal/arch"
 	miscbuf "github.com/czz/movian-go/internal/misc"

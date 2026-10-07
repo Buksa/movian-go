@@ -187,7 +187,6 @@ func esSqliteStep(ctx *gaftape.Context) int {
 
 	for i := range cols {
 		switch es.esStmt.ColumnType(i) {
-
 		case db.SQLITE_INTEGER:
 			i64 := es.esStmt.ColumnInt64(i)
 			if i64 >= math.MinInt32 && i64 <= math.MaxInt32 {

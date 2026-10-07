@@ -268,7 +268,6 @@ func nbtAsyncReq(cc *cifsConnection, request []byte, isTrans2 bool, info string)
 // Caller holds cc.sys.mu; returns with it held.
 func nbtAsyncReqReply(cc *cifsConnection, request []byte,
 	isTrans2 bool, info string) ([]byte, int) {
-
 	nr := nbtAsyncReq(cc, request, isTrans2, info)
 
 	for nr.result == -1 {

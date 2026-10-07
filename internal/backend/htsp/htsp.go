@@ -63,25 +63,21 @@ func (sys *System) beHtspOpen(bs *backendcore.BackendSystem, page any, url strin
 
 		sys.makeModel(propRoot, nls.GetProp("Channels"),
 			hc.channelsSorted, "tvchannels")
-
 	} else if pathStr == "/recordings" {
 		bs.Usage().PageOpen(sync, "HTSP Recordings")
 		sys.makeModel(propRoot, nls.GetProp("Recorded shows"),
 			hc.dvrSorted, "")
-
 	} else if strings.HasPrefix(pathStr, "/tag/") {
 		bs.Usage().PageOpen(sync, "HTSP Tag")
 		model := pm.CreateEx(hc.tagsNodes,
 			pathStr[len("/tag/"):], nil, false, false)
 		sys.makeModel2(propRoot, model, "tvchannels")
-
 	} else if pathStr == "" {
 		bs.Usage().PageOpen(sync, "HTSP Root")
 
 		pm.Link(hc.rootModel,
 			pm.CreateEx(propRoot, "model", nil, false, false),
 			nil, false, false)
-
 	} else {
 		navcore.OpenErrorf(pm, propRoot, "Invalid HTSP URL")
 	}

@@ -156,7 +156,6 @@ func (btg *BtGlobal) peerAbortRequests(p *Peer) {
 		listRemove(tr, trPeerLink)
 
 		if tb != nil {
-
 			listRemove(tr, trBlockLink)
 			if tb.requests.lhFirst == nil {
 				tp := tb.piece
@@ -188,7 +187,6 @@ func (btg *BtGlobal) peerConnectCb(opaque any, err string) {
 		p.chokedTime = p.stateChangeT
 		btg.peerTrace(p, peerDbgConn, "Connected")
 	} else {
-
 		btg.peerTrace(p, peerDbgConn, "%s in state %s",
 			err, btg.peerStateTxt(uint(p.state)))
 
@@ -269,7 +267,6 @@ func (btg *BtGlobal) peerShutdown(p *Peer, nextState int, resched int) {
 	// Do stuff depending on current (old) state
 
 	switch p.state {
-
 	case PeerStateDisconnected:
 		tailqRemove(&to.disconnectedPeers.tqFirst,
 			&to.disconnectedPeers.tqLast, p, peerQLink)
@@ -478,7 +475,6 @@ func (btg *BtGlobal) recvBitfield(p *Peer, data []byte, length int) int {
 	to := p.torrent
 
 	if to.metainfo == nil {
-
 		p.pendingBitfield = make([]byte, length)
 		copy(p.pendingBitfield, data[:length])
 		p.pendingBitfieldSize = length
@@ -507,7 +503,6 @@ func (btg *BtGlobal) recvHave(p *Peer, data []byte, length int) int {
 		uint32(data[2])<<8 | uint32(data[3])
 
 	if to.metainfo == nil {
-
 		if p.pendingBitfield != nil {
 			if pid/8 < uint32(p.pendingBitfieldSize) {
 				p.pendingBitfield[pid/8] |= 0x80 >> (pid & 0x7)
@@ -758,18 +753,15 @@ func (btg *BtGlobal) recvRequest(p *Peer, buf []byte, length int) int {
 	}
 
 	if tp == nil {
-
 		// C indexes to_cachefile_piece_map[piece] unchecked; the
 		// canonical read is UB for out-of-range piece indexes.
 		// Go: treat as "not in cache" (equivalent for all defined
 		// behavior — the C UB case has no defined result).
 		if int(piece) < to.numPieces &&
 			to.cachefilePieceMap[piece] != -1 {
-
 			tp = btg.torrentPieceCreate(to, int(piece))
 			tp.loadReq = true
 			btg.torrentDiskioWakeup()
-
 		} else {
 			btg.peerTrace(p, peerDbgUpload,
 				"Got request for piece %d:0x%x+0x%x -- Not in cache",
@@ -795,7 +787,6 @@ func (btg *BtGlobal) recvRequest(p *Peer, buf []byte, length int) int {
 	}
 
 	if delayXmit {
-
 		ts := &TorrentSendreq{}
 
 		if p.sendreqs.tqFirst == nil {
@@ -985,7 +976,6 @@ func (btg *BtGlobal) peerReadCb(opaque any, q *misc.HtsbufQueue) {
 	btg.mu.Lock()
 
 	switch p.state {
-
 	case PeerStateWaitHandshake:
 		if btg.recvHandshake(p, q) != 0 {
 			break
@@ -1196,7 +1186,6 @@ func (btg *BtGlobal) peerAdd(to *Torrent, na *netcore.NetAddr) {
 	listInsertHead(&to.peers.lhFirst, p, peerLink)
 	if to.activePeers >= btg.maxPeersTorrent ||
 		btg.activePeers >= btg.maxPeersGlobal {
-
 		btg.peerSetState(p, PeerStateInactive)
 		tailqInsertTail(&to.inactivePeers.tqFirst,
 			&to.inactivePeers.tqLast, p, peerQLink)
@@ -1221,7 +1210,6 @@ func (btg *BtGlobal) peerActivatePendingData(to *Torrent) {
 		next := p.runningLinkNext
 
 		if p.pendingHaveAll {
-
 			if p.pieceFlags == nil {
 				p.pieceFlags = make([]byte, to.numPieces)
 			}
@@ -1269,7 +1257,6 @@ func (btg *BtGlobal) peerParseExtensionMetadata(p *Peer, msg *htsmsg.HTSMsg,
 	}
 
 	for mr := p.metainfoRequests.lhFirst; mr != nil; mr = mr.mrPeerLinkNext {
-
 		if mr.piece == int(piece) && mr.state == MRSent {
 			if msgType == 1 {
 				mr.size = length

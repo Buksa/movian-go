@@ -1368,7 +1368,6 @@ func (ad *AudioDecoder) audioProcessAudio(mb *mediacore.MediaBuf) bool {
 		frameFmt != ad.InSampleFormat ||
 		frameLayout != ad.InChannelLayout ||
 		ad.WantReconfig {
-
 		ad.WantReconfig = false
 		ad.InSampleRate = frameRate
 		ad.InSampleFormat = frameFmt

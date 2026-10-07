@@ -358,9 +358,7 @@ func dvdPes(dp *dvdPlayer, sc uint32, buf []byte, length int) *mediacore.MediaEv
 
 		mcp.Width = dp.vwidth
 		mcp.Height = dp.vheight
-
 	} else if (sc >= 0x80 && sc <= 0xaf) || (sc >= 0x1c0 && sc <= 0x1df) {
-
 		if dp.audioTrack == dpAudioDisable {
 			return nil
 		}
@@ -395,9 +393,7 @@ func dvdPes(dp *dvdPlayer, sc uint32, buf []byte, length int) *mediacore.MediaEv
 		}
 		cwp = &dp.audio
 		mq = mp.Audio
-
 	} else if sc >= 0x20 && sc <= 0x3f {
-
 		if dp.spuTrack == dpSpuDisable {
 			return nil
 		}
@@ -417,7 +413,6 @@ func dvdPes(dp *dvdPlayer, sc uint32, buf []byte, length int) *mediacore.MediaEv
 
 		cwp = &dp.spu
 		mq = mp.Video
-
 	} else {
 		return nil
 	}
@@ -476,7 +471,6 @@ func dvdBlock(dp *dvdPlayer, buf []byte, length int) *mediacore.MediaEvent {
 	length -= 14
 
 	for length > 0 {
-
 		if length < 4 {
 			break
 		}
@@ -565,18 +559,14 @@ func dvdUpdateStreams(dp *dvdPlayer) {
 	pm := dp.pm
 
 	for i := range 8 {
-
 		if dp.dvdnav.GetAudioLogicalStream(i) == -1 {
-
 			// Not present
 
 			if dp.audioProps[i] != nil {
 				pm.Destroy(dp.audioProps[i])
 				dp.audioProps[i] = nil
 			}
-
 		} else {
-
 			p = dp.audioProps[i]
 			if p == nil {
 				p = pm.CreateRoot("")
@@ -642,18 +632,14 @@ func dvdUpdateStreams(dp *dvdPlayer) {
 	}
 
 	for i := range 32 {
-
 		if dp.dvdnav.GetSpuLogicalStream(i) == -1 {
-
 			// Not present
 
 			if dp.spuProps[i] != nil {
 				pm.Destroy(dp.spuProps[i])
 				dp.spuProps[i] = nil
 			}
-
 		} else {
-
 			p = dp.spuProps[i]
 			if p == nil {
 				p = pm.CreateRoot("")
@@ -920,7 +906,6 @@ func dvdProcessEvent(dp *dvdPlayer, e *mediacore.MediaEvent) *mediacore.MediaEve
 					est.ID[len("audio:"):], btoi(est.Manual))
 			}
 		}
-
 	} else if e.Type == int(event.EVENT_SELECT_SUBTITLE_TRACK) {
 		if est, ok := event.ConcreteOf(e.Data).(*event.EventSelectTrack); ok {
 			if strings.HasPrefix(est.ID, "sub:") {
@@ -928,55 +913,34 @@ func dvdProcessEvent(dp *dvdPlayer, e *mediacore.MediaEvent) *mediacore.MediaEve
 					est.ID[len("sub:"):], btoi(est.Manual))
 			}
 		}
-
 	} else if meIsAction(e, event.ACTION_ACTIVATE) {
-
 		dp.dvdnav.ButtonActivate(pci)
-
 	} else if meIsAction(e, event.ACTION_UP) {
-
 		dp.dvdnav.UpperButtonSelect(pci)
-
 	} else if meIsAction(e, event.ACTION_DOWN) {
-
 		dp.dvdnav.LowerButtonSelect(pci)
-
 	} else if meIsAction(e, event.ACTION_LEFT) {
-
 		dp.dvdnav.LeftButtonSelect(pci)
-
 	} else if meIsAction(e, event.ACTION_RIGHT) {
-
 		dp.dvdnav.RightButtonSelect(pci)
-
 	} else if e.Type == int(event.EVENT_DVD_PCI) {
-
 		if payload, ok := e.Data.([]byte); ok {
 			dp.pci = *dvdlib.PCIFromBytes(payload)
 		}
-
 	} else if e.Type == int(event.EVENT_DVD_SELECT_BUTTON) {
-
 		if payload, ok := e.Data.([]byte); ok && len(payload) > 0 {
 			dp.dvdnav.ButtonSelect(pci, int(payload[0]))
 		}
-
 	} else if e.Type == int(event.EVENT_DVD_ACTIVATE_BUTTON) {
-
 		if payload, ok := e.Data.([]byte); ok && len(payload) > 0 {
 			dp.dvdnav.ButtonSelectAndActivate(pci, int(payload[0]))
 		}
-
 	} else if meIsAction(e, event.ACTION_SKIP_BACKWARD) {
-
 		mediacore.MpFlush(mp)
 		dp.dvdnav.PrevPgSearch()
-
 	} else if meIsAction(e, event.ACTION_SKIP_FORWARD) {
-
 		mediacore.MpFlush(mp)
 		dp.dvdnav.NextPgSearch()
-
 	} else if meIsAction(e, event.ACTION_EJECT) {
 		return e
 	}

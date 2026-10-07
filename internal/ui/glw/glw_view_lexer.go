@@ -172,7 +172,7 @@ func lexIsdigit(v byte) bool {
 func lexIsalnum(v byte) bool { return lexIsalpha(v) || lexIsdigit(v) }
 
 // glw_view_lexer.c:170-339 — Do lexical analysis of buffer in 'src'.
-// Returns pointer to last token, or NULL if an error occured.
+// Returns pointer to last token, or NULL if an error occurred.
 func glwViewLexer(gr *glwRoot, src string, ei *errorinfoT,
 	f *miscpkg.Rstr, prev *Token) *Token {
 	var start int
@@ -377,7 +377,6 @@ func glwViewLexer(gr *glwRoot, src string, ei *errorinfoT,
 // token_t *prev, int may_unlock) (glw_view_lexer.c:349-385)
 func glwViewLoad1(gr *glwRoot, url *miscpkg.Rstr, ei *errorinfoT,
 	prev *Token, mayUnlock int) *Token {
-
 	p := glwResolvePath(url, prev.file, gr, nil)
 
 	if mayUnlock != 0 {

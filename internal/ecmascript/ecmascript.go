@@ -896,7 +896,6 @@ func EsContextResume(ec *ESContext, ctx *gaftape.Context,
 // EsContextEnd — C: es_context_end (ecmascript.c:710-756)
 func EsContextEnd(ec *ESContext, doGC int, ctx *gaftape.Context) {
 	if ec.ecGaf != nil {
-
 		ctx.SetTop(0)
 
 		if ec.ecThread == nil {
@@ -1048,7 +1047,6 @@ func esExec(ec *ESContext, path string, ctx *gaftape.Context) int {
 // EcmascriptPluginLoad — C: ecmascript_plugin_load
 func EcmascriptPluginLoad(u *usage.Reporter, id, url string,
 	version2 int, manifest string, flags int) int {
-
 	storage := fmt.Sprintf("%s/plugins/%s", esGconf().PersistentPath, id)
 
 	ec := esContextCreate(u, id, flags|ECMASCRIPT_PLUGIN, url, storage)
@@ -1082,7 +1080,6 @@ func EcmascriptPluginLoad(u *usage.Reporter, id, url string,
 	var ts0, ts1, ts2, ts3, ts4 int64
 
 	if version2 == 1 {
-
 		ts0 = archGetTS()
 
 		if esLoadAndCompile(ec, "dataroot://res/ecmascript/legacy/api-v1.js",

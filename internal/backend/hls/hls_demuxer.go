@@ -108,7 +108,6 @@ func hlsSelectDefaultVariant(hd *hlsDemuxer) *hlsVariant {
 	}
 	var best *hlsVariant
 	for _, hv := range slices.Backward(hd.Variants) {
-
 		if hv.AudioOnly {
 			continue
 		}
@@ -150,7 +149,6 @@ func demuxerSelectVariantSimple(hd *hlsDemuxer, now int64,
 	}
 
 	for _, hv := range slices.Backward(hd.Variants) {
-
 		if hv.AudioOnly || hv.CorruptionsLast >= 3 {
 			continue
 		}
@@ -246,7 +244,6 @@ func hlsEventCallback(mp *mediacore.MediaPipe, aux any,
 		meIsType(e, event.EVENT_EXIT) ||
 		meIsType(e, event.EVENT_PLAY_URL) ||
 		meIsType(e, event.EVENT_SEEK) {
-
 		misc.CancellableCancel(h.Primary.Cancellable)
 		misc.CancellableCancel(h.Audio.Cancellable)
 		return 0 // Continue processing
@@ -852,7 +849,6 @@ func hlsDemuxerClose(mp *mediacore.MediaPipe, hd *hlsDemuxer) {
 func hlsPlayExtm3u(u *usage.Reporter, mm *metadata.MetadataManager, content []byte, url string, mp *mediacore.MediaPipe,
 	vq, vsl any,
 	va0 *backendcore.VideoArgs, ts *trace.TraceSystem, g *gconf.T) (any, error) {
-
 	buf := content
 	if !strings.HasPrefix(string(buf), "#EXTM3U") {
 		return nil, errors.New("Not an m3u file")

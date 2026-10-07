@@ -55,7 +55,6 @@ var esResourceHook = &ESResourceClass{
 func EsHookInvoke(typ string,
 	pushArgs func(gaf *gaftape.Context, opaque any) int,
 	opaque any) int {
-
 	// First create an array with all matching sys.hookList
 	sys := esEnv.sys
 	sys.hookMu.Lock()

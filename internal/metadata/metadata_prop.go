@@ -78,7 +78,6 @@ func MetadataAddStream(md *Metadata, codec string, streamType int, streamIndex i
 // embedded stream ms.
 func metadataStreamMakeProp(pm *propcore.PropManager, ms *MetadataStream,
 	parent *propcore.Prop, score, autosel int) {
-
 	// C: snprintf(url, sizeof(url), "libav:%d", ms->ms_streamindex)
 	url := fmt.Sprintf("libav:%d", ms.StreamIndex)
 

@@ -3,8 +3,6 @@ package glw
 // C: src/ui/glw/glw.h — canonical 1:1 port.
 // Every constant, enum, struct, inline helper and macro from the header.
 
-import ()
-
 // C: TAILQ_HEAD(glw_queue, glw);
 type glwQueue struct {
 	tqhFirst *Glw

@@ -93,14 +93,12 @@ func (btg *BtGlobal) torrentWriteToDisk(to *Torrent, tp *TorrentPiece) {
 	ok := false
 
 	for range 2 {
-
 		btg.updateDiskUsage()
 
 		growth := max(to.nextDiskBlock+1-to.totalDiskBlocks, 0)
 
 		if btg.totalBytesActive+btg.totalBytesInactive+
 			uint64(growth)*uint64(to.pieceLength) >= btg.cacheLimit {
-
 			btg.diskioTrace(to, "Write would exceed cache size, need to cleanup")
 			if btg.torrentDiskioScan(false) != 0 {
 				// Managed to clean up something
@@ -152,9 +150,7 @@ func (btg *BtGlobal) torrentWriteToDisk(to *Torrent, tp *TorrentPiece) {
 
 		if n, err := facore.FASeek(to.cachefile, int64(dataOffset), 0); err == nil && n == int64(dataOffset) {
 			if w, err := facore.FAWrite(to.cachefile, tp.data[:tp.pieceLength]); err == nil && w == tp.pieceLength {
-
 				if n, err := facore.FASeek(to.cachefile, int64(mapOffset), 0); err == nil && n == int64(mapOffset) {
-
 					if w, err := facore.FAWrite(to.cachefile, mapdata[:]); err == nil && w == 4 {
 						ok = true
 					}
@@ -432,7 +428,6 @@ func (btg *BtGlobal) torrentDiskioOpen(to *Torrent) {
 	if btg.torrentDiskioVerify(to) == 0 {
 		btg.diskioTrace(to, "File %s seems valid", path)
 	} else {
-
 		facore.FASeek(to.cachefile, 0, 0)
 		var tmp [8]byte
 		binary.BigEndian.PutUint32(tmp[:], btCacheMagic)
@@ -594,7 +589,6 @@ func (btg *BtGlobal) torrentDiskioScan(forceFlush bool) int {
 		// Delete inactive torrents that exceed max limit
 
 		if !sf.active {
-
 			if forceFlush ||
 				btg.totalBytesActive+btg.totalBytesInactive >=
 					btg.cacheLimit {

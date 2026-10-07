@@ -920,7 +920,6 @@ func tmdbBackendCanHandle(url string) int {
 func tmdbBackendImageloader(client *TMDBClient, bs *backendcore.BackendSystem,
 	url string, imageMeta any,
 	cacheControl *int, cancellable any, be *backendcore.Backend) (any, error) {
-
 	if client == nil {
 		return nil, nil
 	}

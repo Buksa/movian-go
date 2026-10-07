@@ -420,7 +420,6 @@ func (fam *FileAccessManager) RegisterProtocols() {
 			return os.Rename(oldFilename, newFilename)
 		},
 	})
-
 }
 
 // Start completes fileaccess_init — C's per-protocol fap_init hooks and

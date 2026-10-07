@@ -585,7 +585,6 @@ unlink:
 func glwTexCreate(gr *glwRoot, filename *miscpkg.Rstr, flags int, xs, ys int,
 	radius int, shadow int, aspect float32, sourceFlags int,
 	be *backendcore.Backend) *GlwLoadableTexture {
-
 	if strings.HasPrefix(miscpkg.RstrGet(filename), "pixmap:") {
 		be = nil
 	}

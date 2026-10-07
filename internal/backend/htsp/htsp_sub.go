@@ -212,10 +212,8 @@ func htspSubscriber(hc *htspConnection, hs *htspSubscription,
 			}
 
 			m.Release()
-
 		} else if mpFlags&mediacore.MPCanPause != 0 &&
 			meIsType(e, event.EVENT_HOLD) {
-
 			ei, _ := event.ConcreteOf(e.Data).(*event.EventInt)
 			hold := ei.Val
 
@@ -244,7 +242,6 @@ func htspSubscriber(hc *htspConnection, hs *htspSubscription,
 			}
 
 			m.Release()
-
 		} else if meIsType(e, event.EVENT_SELECT_SUBTITLE_TRACK) {
 			est, _ := event.ConcreteOf(e.Data).(*event.EventSelectTrack)
 
@@ -255,7 +252,6 @@ func htspSubscriber(hc *htspConnection, hs *htspSubscription,
 				}
 				hc.sys.htspSetSubtitles(mp, est.ID[len("sub:"):], manual)
 			}
-
 		} else if meIsType(e, event.EVENT_SELECT_AUDIO_TRACK) {
 			est, _ := event.ConcreteOf(e.Data).(*event.EventSelectTrack)
 
@@ -266,7 +262,6 @@ func htspSubscriber(hc *htspConnection, hs *htspSubscription,
 				}
 				hc.sys.htspSetAudio(mp, est.ID[len("audio:"):], manual)
 			}
-
 		} else if meIsType(e, event.EVENT_PLAYBACK_PRIORITY) {
 			ei, _ := event.ConcreteOf(e.Data).(*event.EventInt)
 
@@ -291,21 +286,16 @@ func htspSubscriber(hc *htspConnection, hs *htspSubscription,
 			}
 
 			m.Release()
-
 		} else if meIsAction(e, event.ACTION_PREV_CHANNEL) ||
 			meIsAction(e, event.ACTION_SKIP_BACKWARD) {
-
 			if zr, zerr := zapChannel(hc, hs, 1, &name, vq); zr != 0 {
 				return nil, zerr
 			}
-
 		} else if meIsAction(e, event.ACTION_NEXT_CHANNEL) ||
 			meIsAction(e, event.ACTION_SKIP_FORWARD) {
-
 			if zr, zerr := zapChannel(hc, hs, 0, &name, vq); zr != 0 {
 				return nil, zerr
 			}
-
 		} else if meIsType(e, event.EVENT_EXIT) ||
 			meIsType(e, event.EVENT_PLAY_URL) {
 			break
@@ -382,7 +372,6 @@ func htspMuxInput(hc *htspConnection, m *htsmsg.HTSMsg) {
 
 	if int(stream) == mp.Audio.Stream || int(stream) == mp.Video.Stream ||
 		int(stream) == mp.Video.Stream2 {
-
 		var hss *htspSubscriptionStream
 		for _, s := range hs.streams {
 			if s.index == int(stream) {

@@ -91,7 +91,6 @@ func parseShuntingYard(expr *Token, ei *errorinfoT, gr *glwRoot) int {
 
 	for t != nil {
 		switch t.typ {
-
 		case tokenBlock, tokenPropertyRef, tokenPropertyName:
 			typ = tokenRpn
 			fallthrough
@@ -245,14 +244,12 @@ func optimizeAttributeAssignment(t *Token, prev *Token, gr *glwRoot) {
 			att.next != nil && att.next.next != nil &&
 			att.next.next.next == nil &&
 			att.next.next.typ == tokenAssignment {
-
 			val := att.next
 			ass := att.next.next
 			if val.typ == tokenFloat || val.typ == tokenInt ||
 				val.typ == tokenVectorFloat || val.typ == tokenVoid ||
 				val.typ == tokenCstring || val.typ == tokenRstring ||
 				val.typ == tokenIdentifier {
-
 				val.tAttrib = att.tAttrib
 
 				val.next = t.next
@@ -384,7 +381,6 @@ func parsePrepExpression(expr *Token, ei *errorinfoT, gr *glwRoot) int {
 		if (t.typ == tokenFloat || t.typ == tokenInt) &&
 			t1 != nil && t1.typ == tokenIdentifier &&
 			miscpkg.RstrGet(t1.tRstring) == "em" {
-
 			if t.typ == tokenInt {
 				t.tFloat = float32(t.tInt)
 			}
@@ -433,7 +429,6 @@ func parsePrepExpression(expr *Token, ei *errorinfoT, gr *glwRoot) int {
 					// i18n translations
 					t1.next.typ == tokenRstring &&
 					t1.next.next.typ == tokenRightParenthesis {
-
 					glwViewNlsString(t, miscpkg.RstrGet(t1.next.tRstring))
 
 					t.next = t1.next.next.next

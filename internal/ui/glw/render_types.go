@@ -3,8 +3,6 @@ package glw
 // C: src/ui/glw/glw.h — canonical 1:1 port.
 // Every constant, enum, struct, inline helper and macro from the header.
 
-import ()
-
 // C: glw_render_job_t (glw_renderer.h:112-135)
 type GlwRenderJob struct {
 	M             Mtx

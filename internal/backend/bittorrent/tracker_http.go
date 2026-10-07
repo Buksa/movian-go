@@ -22,7 +22,6 @@ func (btg *BtGlobal) trackerHTTPTorrentDestroy(tt *TrackerTorrent) {
 // httpCallback — C: http_callback (tracker_http.c:49-136).
 // Runs on the asyncio thread.
 func (btg *BtGlobal) httpCallback(req *facore.HTTPReqAux, opaque any) {
-
 	tt := opaque.(*TrackerTorrent)
 	to := tt.torrent
 
@@ -36,7 +35,6 @@ func (btg *BtGlobal) httpCallback(req *facore.HTTPReqAux, opaque any) {
 	if b != nil {
 		msg, _, _ := BencodeDeserialize(b.C8(), nil, nil)
 		if msg != nil {
-
 			if btg.cfg().EnableTorrentTrackerDebug.Load() {
 				btg.ts.Trace(trace.TRACE_DEBUG, "TRACKER",
 					"%s: Decoded response:", tt.tracker.url)

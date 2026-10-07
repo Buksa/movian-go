@@ -173,7 +173,6 @@ func (p *PlaybackPipeline) dispatchPacket(pkt *libav.AVPacketInfo) {
 		}
 
 		libav.LibAVDecodeVideo(p.videoCodec, p.videoDecoder, p.videoQueue, mb, 0)
-
 	} else if pkt.StreamIndex == p.audioStreamIndex && p.audioCodec != nil {
 		// Capture epoch before decoding. If a seek happens during decode
 		// (in another goroutine), the epoch will change and we skip the

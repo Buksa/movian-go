@@ -5,15 +5,15 @@ package core
 import (
 	"encoding/json"
 	"errors"
-	"github.com/czz/movian-go/internal/gconf"
-	imagepkg "github.com/czz/movian-go/internal/image"
 	"slices"
 	"strings"
+
+	"github.com/czz/movian-go/internal/gconf"
+	imagepkg "github.com/czz/movian-go/internal/image"
 )
 
 func (bs *BackendSystem) Imageloader(url string, imageMeta any,
 	cacheControl *int, cancellable any, backend *Backend) (any, error) {
-
 	var err error
 
 	// C: if(im0->im_req_width < -1 || im0->im_req_height < -1) (backend.c:263-266)

@@ -62,7 +62,6 @@ func NewRunControl(pm *propcore.PropManager, sm *settingscore.SettingsManager,
 	cs *callout.CalloutSystem,
 	canStandby, canPowerOff, canLogout, canOpenShell, canRestart, canExit bool,
 	shellFD int, shutdownCallback func(int)) *RunControl {
-
 	rc := &RunControl{
 		pm:           pm,
 		settingsMgr:  sm,

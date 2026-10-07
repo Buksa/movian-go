@@ -461,7 +461,6 @@ func addJob(gr *glwRoot, m *Mtx,
 	rc *glwRctx,
 	primitiveType int16,
 	zoffset int) {
-
 	if gr.grNumRenderJobs >= gr.grRenderJobsCapacity {
 		// Need more space
 		oldCapacity := gr.grRenderJobsCapacity

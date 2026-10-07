@@ -39,7 +39,6 @@ func SoapEncodeArgs(xml *strings.Builder, args *htsmsg.HTSMsg) {
 // C: soap_exec (soap.c:68-118) — r != 0 → err non-nil.
 func SoapExec(uri string, service string, version int, method string,
 	in *htsmsg.HTSMsg) (*htsmsg.HTSMsg, error) {
-
 	var post strings.Builder
 
 	fmt.Fprintf(&post,

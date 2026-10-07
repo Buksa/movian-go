@@ -975,7 +975,6 @@ const (
 func AudioFrameDecode(ctx *libav.AVCodecContext, data []byte, pts, dts int64) (
 	pcm []byte, sampleRate, sampleFmt int, chLayout uint64,
 	channels, nbSamples int, gotFrame bool, err error) {
-
 	return AudioFrameDecodeInto(ctx, data, pts, dts, make([]byte, 8*1024*1024))
 }
 
@@ -986,7 +985,6 @@ func AudioFrameDecode(ctx *libav.AVCodecContext, data []byte, pts, dts int64) (
 func AudioFrameDecodeInto(ctx *libav.AVCodecContext, data []byte, pts, dts int64, buf []byte) (
 	pcm []byte, sampleRate, sampleFmt int, chLayout uint64,
 	channels, nbSamples int, gotFrame bool, err error) {
-
 	if len(buf) == 0 {
 		return nil, 0, 0, 0, 0, 0, false,
 			fmt.Errorf("AudioFrameDecodeInto: empty output buffer")
@@ -1024,7 +1022,6 @@ func AudioFrameDecodeInto(ctx *libav.AVCodecContext, data []byte, pts, dts int64
 func AudioFrameDecodePkt(ctx *libav.AVCodecContext, pkt *libav.AVPacket) (
 	pcm []byte, sampleRate, sampleFmt int, chLayout uint64,
 	channels, nbSamples int, gotFrame bool, err error) {
-
 	if pkt == nil {
 		return nil, 0, 0, 0, 0, 0, false,
 			fmt.Errorf("AudioFrameDecodePkt: nil packet")
@@ -1037,7 +1034,6 @@ func AudioFrameDecodePkt(ctx *libav.AVCodecContext, pkt *libav.AVPacket) (
 func AudioFrameDecodePktInto(ctx *libav.AVCodecContext, pkt *libav.AVPacket, buf []byte) (
 	pcm []byte, sampleRate, sampleFmt int, chLayout uint64,
 	channels, nbSamples int, gotFrame bool, err error) {
-
 	if len(buf) == 0 {
 		return nil, 0, 0, 0, 0, 0, false,
 			fmt.Errorf("AudioFrameDecodePktInto: empty output buffer")

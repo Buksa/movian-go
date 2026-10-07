@@ -242,7 +242,7 @@ func (u *Upgrade) installError(str string, url string) {
 	if url != "" {
 		u.ts.Error("upgrade", "Download of %s failed -- %s", url, str)
 	} else {
-		u.ts.Error("upgrade", "Error occured: %s", str)
+		u.ts.Error("upgrade", "Error occurred: %s", str)
 	}
 }
 

@@ -306,5 +306,4 @@ func parseOpts(args []string, g *gconf.T) {
 	if i < len(args) {
 		g.InitialURL = args[i]
 	}
-
 }

@@ -124,7 +124,7 @@ func glwExpanderRender(w *Glw, rc *glwRctx) {
 	rc0 = *rc
 	rc0.rcAlpha *= w.glwAlpha
 
-	// Trick childs into rendering themselfs as if the widget is
+	// Trick childs into rendering themselves as if the widget is
 	// fully expanded
 	if w.glwClass == glwExpanderXClass {
 		rc0.rcWidth = int16(glwReqWidth(c))

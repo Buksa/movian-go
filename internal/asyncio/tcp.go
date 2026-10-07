@@ -373,7 +373,6 @@ func Sendq(af *AsyncIOFD, hq *miscpkg.HtsbufQueue, cork int) {
 func (aio *AsyncIO) Connect(name string, addr *netcore.NetAddr,
 	errcb ErrorCallback, readCb ReadCallback, opaque any,
 	timeout int, tlsctx *tls.Config, hostname string) *AsyncIOFD {
-
 	af := &AsyncIOFD{aio: aio}
 	af.recvq.HtsbufQueueSetup(0x7fffffff)
 	af.sendq.HtsbufQueueSetup(0x7fffffff)

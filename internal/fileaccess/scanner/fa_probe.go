@@ -282,7 +282,6 @@ func faProbeExif(md *metadata.Metadata, fh *fileaccesscore.Handle,
 // the header identified the content.
 func faProbeHeader(fam *fileaccesscore.FileAccessManager, md *metadata.Metadata, url string,
 	fh *fileaccesscore.Handle, filename string, buf []byte, l int) int {
-
 	if l >= 256 && bytes.Equal(buf[:11], []byte("d8:announce")) {
 		md.ContentType = metadata.ContentArchive
 		metdataSetRedirect(md, "torrentfile://%s/", url)
@@ -298,7 +297,6 @@ func faProbeHeader(fam *fileaccesscore.FileAccessManager, md *metadata.Metadata,
 	if fileaccesscore.FABrowseArchives(fam.Gconf()) && l >= 16 &&
 		buf[0] == 'R' && buf[1] == 'a' && buf[2] == 'r' && buf[3] == '!' &&
 		buf[4] == 0x1a && buf[5] == 0x07 && buf[6] == 0x0 && buf[9] == 0x73 {
-
 		flags := uint16(buf[10]) | uint16(buf[11])<<8
 		if flags&0x101 == 1 {
 			// Don't include slave volumes
@@ -312,7 +310,6 @@ func faProbeHeader(fam *fileaccesscore.FileAccessManager, md *metadata.Metadata,
 
 	if fileaccesscore.FABrowseArchives(fam.Gconf()) && l > 4 &&
 		buf[0] == 0x50 && buf[1] == 0x4b && buf[2] == 0x03 && buf[3] == 0x04 {
-
 		b, _ := fileaccesscore.FALoad(fam,
 			fmt.Sprintf("zip://%s/plugin.json", url), nil, nil, 0)
 		if b != nil && len(b.Data) > 0 {
@@ -420,7 +417,6 @@ func faProbeHeader(fam *fileaccesscore.FileAccessManager, md *metadata.Metadata,
 // FAProbeMetadata — C: fa_probe_metadata (fa_probe.c:544-619).
 func FAProbeMetadata(fam *fileaccesscore.FileAccessManager, url string,
 	filename string, stats any) (*metadata.Metadata, error) {
-
 	if strings.HasSuffix(url, ".m3u") {
 		// C: strrchr(url, '.') postfix == ".m3u" — some files can just be
 		// figured out by the file ending.

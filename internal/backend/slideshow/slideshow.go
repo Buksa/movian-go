@@ -237,7 +237,6 @@ func (ss *Slideshow) propSubfind(root *propcore.Prop, path []string, followLinks
 func (ss *Slideshow) propSubscribe(root *propcore.Prop, path []string,
 	trackDestroy bool,
 	cb func(ev propcore.EventType, args []any)) *ssSub {
-
 	// C: name[0] is the named-root alias — resolve the rest from root.
 	names := path[1:]
 
@@ -549,9 +548,7 @@ func ssiUpdateOrder(ssi *slideshowItem) {
 func ssiUpdateOutput(ssi *slideshowItem) {
 	ss := ssi.ssiSs
 	if ssi.ssiIsImage != 0 && ssi.ssiUrl != nil {
-
 		if ss.ssStart != nil && misc.RstrEq(ss.ssStart.ssiUrl, ssi.ssiUrl) != 0 {
-
 			// Got the initial item, steal it
 			ssi.ssiOutputRoot = ss.ssStart.ssiOutputRoot
 			if ss.ssStart.ssiOutputRoot == nil {
@@ -579,9 +576,7 @@ func ssiUpdateOutput(ssi *slideshowItem) {
 		} else {
 			ss.pm.SetVEx(nil, ssi.ssiOutputRoot, "url", misc.RstrGet(ssi.ssiUrl)) // C: prop_set PROP_SET_RSTRING
 		}
-
 	} else {
-
 		if ssi.ssiOutputRoot == nil {
 			return
 		}
@@ -688,7 +683,6 @@ func slideshowNodes(ss *Slideshow, ev propcore.EventType, args []any) {
 	var p1, p2 *propcore.Prop
 
 	switch ev {
-
 	case propcore.EventAddChild:
 		// C: PROP_ADD_CHILD — va_arg prop_t *child
 		p1, _ = args[0].(*propcore.Prop)

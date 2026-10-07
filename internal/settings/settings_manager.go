@@ -1,10 +1,11 @@
 package settings
 
 import (
-	"github.com/czz/movian-go/internal/gconf"
-	"github.com/czz/movian-go/internal/trace"
 	"slices"
 	"sync"
+
+	"github.com/czz/movian-go/internal/gconf"
+	"github.com/czz/movian-go/internal/trace"
 
 	"github.com/czz/movian-go/internal/app"
 	"github.com/czz/movian-go/internal/backend/prop"

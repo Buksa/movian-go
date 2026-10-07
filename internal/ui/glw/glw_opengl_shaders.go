@@ -134,17 +134,14 @@ func loadProgram(gr *glwRoot,
 	gpa *GlwProgramArgs,
 	rs *renderStateT,
 	rj *GlwRenderJob) *glwProgram {
-
 	var gp *glwProgram
 	gbr := &gr.grBe
 
 	if gpa != nil {
-
 		rs.t0 = nil
 		rs.t1 = nil
 
 		if t1 != nil {
-
 			if gpa.GpaLoadTexture != nil {
 				// Program has specialized code to load textures, run it
 				gpa.GpaLoadTexture(gr, gpa.GpaProg, gpa.GpaAux, t1, 1)
@@ -156,7 +153,6 @@ func loadProgram(gr *glwRoot,
 		}
 
 		if t0 != nil {
-
 			if gpa.GpaLoadTexture != nil {
 				// Program has specialized code to load textures, run it
 				gpa.GpaLoadTexture(gr, gpa.GpaProg, gpa.GpaAux, t0, 0)
@@ -175,7 +171,6 @@ func loadProgram(gr *glwRoot,
 	}
 
 	if t0 == nil {
-
 		if t1 != nil {
 			gp = gbr.gbrRendererFlatStencil
 
@@ -185,17 +180,13 @@ func loadProgram(gr *glwRoot,
 			} else {
 				rs.texloadSkips++
 			}
-
 		} else {
 			gp = gbr.gbrRendererFlat
 		}
-
 	} else {
-
 		doblur := blur > 0.05 || flags&glwRenderBlurAttribute != 0
 
 		if t1 != nil {
-
 			if doblur {
 				gp = gbr.gbrRendererTexStencilBlur
 			} else {
@@ -210,7 +201,6 @@ func loadProgram(gr *glwRoot,
 			} else {
 				rs.texloadSkips++
 			}
-
 		} else if doblur {
 			gp = gbr.gbrRendererTexBlur
 		} else {
@@ -273,7 +263,6 @@ func renderUnlocked(gr *glwRoot) {
 		}
 
 		if gp == nil {
-
 			// ENABLE_GLW_BACKEND_OPENGL fixed-function fallback —
 			// compiled out under the ES backend (enableGLWBackendOpenGL).
 			if enableGLWBackendOpenGL {
@@ -309,7 +298,6 @@ func renderUnlocked(gr *glwRoot) {
 				C.glDisable(C.GLenum(t0.Gltype))
 			}
 			continue
-
 		}
 
 		if !glwRgbCmp(&gp.gpCurrentColorOffset, &rj.RgbOff) {
@@ -353,7 +341,6 @@ func renderUnlocked(gr *glwRoot) {
 		}
 
 		if rj.Eyespace != 0 {
-
 			if gp.gpIdentityMvm == 0 {
 				C.glUniformMatrix4fv(C.GLint(gp.gpUniformModelview), 1, 0,
 					(*C.GLfloat)(unsafe.Pointer(&glwIdentitymtx[0])))
@@ -561,7 +548,6 @@ func glwProgramSetUniformColor(gbr *glwBackendRootT,
 // C: glw_make_program (glw_opengl_shaders.c:524-548)
 func glwMakeProgram(gr *glwRoot, vertexShader string,
 	fragmentShader string) *glwProgram {
-
 	vs := glwCompileShader(
 		orDefault(vertexShader, shaderPath("v1.glsl")),
 		C.GL_VERTEX_SHADER, gr)

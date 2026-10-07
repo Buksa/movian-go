@@ -124,7 +124,6 @@ func glwViewPreproc0(gr *glwRoot, p *Token, ei *errorinfoT,
 
 					if p.next.typ == tokenIdentifier &&
 						p.next.next.typ == tokenAssignment {
-
 						for mma := m.args.tqhFirst; mma != nil; mma = mma.linkNext {
 							mma.first = nil
 						}

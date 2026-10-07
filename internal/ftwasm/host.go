@@ -18,8 +18,9 @@
 package ftwasm
 
 import (
-	"github.com/czz/movian-go/internal/wasi"
 	"sync"
+
+	"github.com/czz/movian-go/internal/wasi"
 )
 
 // Host — consumer-provided callbacks for the module's w2g imports.

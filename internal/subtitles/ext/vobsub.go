@@ -108,7 +108,6 @@ func (r *pesReader) getpts() int64 {
 // enqueued as MB_CTRL_DVD_SPU2 buffers (18×u32 header + payload).
 func (vs *Vobsub) demuxPES(mp *mediacore.MediaPipe, sc uint32,
 	buf []byte, pts int64) {
-
 	dts := int64(mediacore.PTSUnset)
 	r := &pesReader{b: buf, l: len(buf)}
 
@@ -185,7 +184,6 @@ func (vs *Vobsub) demuxPES(mp *mediacore.MediaPipe, sc uint32,
 // startcodes, resyncs past unknown codes.
 func (vs *Vobsub) demuxBlock(buf []byte, mp *mediacore.MediaPipe,
 	pts int64) {
-
 	if buf[13]&7 != 0 {
 		return // Stuffing is not supported
 	}

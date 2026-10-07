@@ -75,7 +75,7 @@ func (httpConnectionLockmgr) Release(opaque any) {
 	httpConnectionRelease(opaque.(*httpConnection))
 }
 
-// addPermanentRedirect — C: add_premanent_redirect (sic).
+// addPermanentRedirect — C: add_permanent_redirect (sic).
 func (fam *FileAccessManager) addPermanentRedirect(from, to string) {
 	fam.httpRedirects.mu.Lock()
 	defer fam.httpRedirects.mu.Unlock()
@@ -165,7 +165,6 @@ func httpHeadersSend(q *misc.HtsbufQueue, def *httpnet.HTTPHeaderList,
 // Returns non-nil error when the request must fail (hri_force_fail).
 func httpRequestInspect(headers, cookies *httpnet.HTTPHeaderList,
 	hf *httpFile, method string, parameters []string) error {
-
 	fam := hf.fam
 	hostname := hf.connection.hostname
 	port := hf.connection.port
@@ -554,7 +553,7 @@ func httpRedirectF(hf *httpFile, redircount *int,
 
 	suffix := ""
 	if code == 301 {
-		suffix = ", (premanent)" // C: "premanent" (sic)
+		suffix = ", (permanent)" // C: "permanent" (sic)
 	}
 	hf.hfTrace("%s: Following redirect to %s%s", hf.url, hf.location, suffix)
 
@@ -1177,7 +1176,6 @@ func httpLoad(fap *FAProtocol, url string,
 	cb FALoadCB, opaque, c any,
 	reqHeadersI, respHeadersI any, location *string,
 	protocolCode *int) (*Buffer, error) {
-
 	var errbuf [256]byte
 	var headersIn, headersOut httpnet.HTTPHeaderList
 

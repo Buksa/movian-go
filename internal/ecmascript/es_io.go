@@ -117,7 +117,6 @@ func esHTTPDoRequest(ehr *esHTTPRequest) {
 		(ehr.ehrMethod == "" || ehr.ehrMethod == "GET") &&
 		ehr.ehrHeadreq == 0 &&
 		ehr.ehrPostdata == nil {
-
 		// GET + cache → fa_load path
 		var qargs [][2]string
 		for i := 0; i+1 < len(ehr.ehrHTTPArgs); i += 2 {
@@ -141,7 +140,6 @@ func esHTTPDoRequest(ehr *esHTTPRequest) {
 		if ehr.ehrResult == nil || err != nil {
 			ehr.ehrError = 1
 		}
-
 	} else {
 		var postdata *misc.HtsbufQueue
 		var postCT string
@@ -327,7 +325,6 @@ func esHTTPReq(ctx *gaftape.Context) int {
 		ctx.Pop()
 
 		ehr.ehrPostContentType = "application/x-www-form-urlencoded"
-
 	} else if ctx.IsString(-1) {
 		str := ctx.GetLstring(-1)
 		ehr.ehrPostdata = &misc.HtsbufQueue{}

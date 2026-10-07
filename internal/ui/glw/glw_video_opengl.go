@@ -114,7 +114,6 @@ func videoOglSurfaceSetup(gv *GlwVideo, gvs *glwVideoSurface) {
 
 	gvs.gvsUploaded = 0
 	for i := range gv.gvPlanes {
-
 		linesize := glwVideoLinesize(gvs.gvsWidth[i], gv.gvTexBytesPerPixel)
 
 		gvs.gvsSize[i] = linesize * gvs.gvsHeight[i]
@@ -376,9 +375,7 @@ func videoOglRender(gv *GlwVideo, rc *glwRctx) {
 		glwRendererVtxSt2(&gv.gvQuad, 1, 1, 1+yshiftB)
 		glwRendererVtxSt2(&gv.gvQuad, 2, 1, 0+yshiftB)
 		glwRendererVtxSt2(&gv.gvQuad, 3, 0, 0+yshiftB)
-
 	} else {
-
 		// One picture
 		if gv.gvPlanes == 3 {
 			gp = gbr.gbrYuv2rgb1f
@@ -445,7 +442,6 @@ func videoOglYuvpDeliver(fi *mediacore.FrameInfo, gv *GlwVideo,
 	}
 
 	if !fi.Interlaced {
-
 		for i = range 3 {
 			w = wvec[i]
 			h = hvec[i]
@@ -468,9 +464,7 @@ func videoOglYuvpDeliver(fi *mediacore.FrameInfo, gv *GlwVideo,
 		}
 
 		glwVideoPutSurface(gv, s, pts, fi.Epoch, int(fi.Duration), 0, 0)
-
 	} else {
-
 		duration := int(fi.Duration) >> 1
 
 		var fiTff int

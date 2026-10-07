@@ -31,7 +31,6 @@ func glwPathModify(w *Glw, set int, clr int, stop *Glw) {
 	glwPathFlood(w, set, clr)
 
 	for ; w != nil; w = w.glwParent {
-
 		oldFlags := w.glwFlags
 		glwFhpUpdate(w, set, clr)
 
@@ -203,7 +202,6 @@ func glwFocusSet(gr *glwRoot, w *Glw, how int, whom string) int {
 	}
 
 	if w != nil {
-
 		if how != glwFocusSetInteractive {
 			if checkAutofocusLimit(w, gr.grLastFocus) != 0 {
 				gr.grFocusWork = 0
@@ -212,7 +210,6 @@ func glwFocusSet(gr *glwRoot, w *Glw, how int, whom string) int {
 		}
 
 		for x := w; x.glwParent != nil; x = x.glwParent {
-
 			if sig != glwSignalFocusChildInteractive &&
 				(x.glwFlags&glwFocusBlocked != 0 ||
 					x.glwFlags&glwHidden != 0) {
@@ -275,7 +272,6 @@ func glwFocusSet(gr *glwRoot, w *Glw, how int, whom string) int {
 			p := getOriginatingProp(w)
 
 			if p != nil {
-
 				if gr.grLastFocusedInteractive != nil {
 					glwDeps.pm.RefDec(gr.grLastFocusedInteractive)
 				}
@@ -397,7 +393,6 @@ func glwFocusLeave(w *Glw) {
 	}
 
 	for w.glwParent != nil {
-
 		// C: assert(w->glw_parent->glw_focused == w)
 
 		if w.glwParent.glwFlags&glwDestroying == 0 {

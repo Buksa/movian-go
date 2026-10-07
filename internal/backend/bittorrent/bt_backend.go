@@ -67,7 +67,6 @@ func (btg *BtGlobal) torrentOpenURL(urlp *string) (*Torrent, error) {
 			}
 		}
 	} else {
-
 		*urlp = ""
 
 		u := url
@@ -114,7 +113,6 @@ func (btg *BtGlobal) torrentBrowseOpen(page *propcore.Prop, url string, sync boo
 		navigator.OpenErrorf(btg.propManager, page,
 			"Unable to open torrent: %s", terr)
 	} else {
-
 		var hashstr [41]byte
 
 		btg.torrentReleaseOnPropDestroy(page, to)

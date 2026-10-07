@@ -6,9 +6,10 @@ package plugins
 import (
 	"errors"
 	"fmt"
-	"github.com/czz/movian-go/internal/trace"
 	"strconv"
 	"sync"
+
+	"github.com/czz/movian-go/internal/trace"
 )
 
 // NativePlugin represents a native/bitcode plugin instance

@@ -512,7 +512,6 @@ func glwViewLoaderFlush(gr *glwRoot) {
 // (glw_view.c:387-462)
 func glwViewCreate(gr *glwRoot, url *miscpkg.Rstr, alturl *miscpkg.Rstr,
 	parent *Glw, scope *glwScope, file *miscpkg.Rstr, line int) *Glw {
-
 	if url == nil {
 		url = alturl
 		alturl = nil

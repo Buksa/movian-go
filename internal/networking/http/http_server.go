@@ -183,7 +183,6 @@ func (s *HTTPServer) HTTPAddWebSocket(path string, opaque any,
 	data WebSocketCallbackData,
 	fini WebSocketCallbackDisconnected,
 	removed WebSocketCallbackRemoved) *HTTPPath {
-
 	s.mu.Lock()
 	defer s.mu.Unlock()
 

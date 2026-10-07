@@ -168,7 +168,6 @@ const (
 
 func (il *imageLoader) faImageloader2(fam *fileaccesscore.FileAccessManager, url string,
 	cacheControl *int, c any) (*imagepkg.Image, int, error) {
-
 	// C: fa_load(url, FA_LOAD_ERRBUF, FA_LOAD_CACHE_CONTROL,
 	//   FA_LOAD_CANCELLABLE, FA_LOAD_FLAGS(FA_NON_INTERACTIVE|FA_CONTENT_ON_ERROR),
 	//   FA_LOAD_NO_FALLBACK, NULL)
@@ -217,7 +216,6 @@ func jpeginfoReader(handle any, buf []byte, offset int64,
 func (il *imageLoader) FAImageloader(fam *fileaccesscore.FileAccessManager, url string,
 	im0 *imagepkg.ImageMeta, cacheControl *int,
 	c any, be *Backend) (any, error) {
-
 	im := im0
 	if im == nil {
 		im = &imagepkg.ImageMeta{}
@@ -398,7 +396,6 @@ func (il *imageLoader) armThumbFlush() {
 func (il *imageLoader) writeThumb(bc *blobcache.BlobCache, srcW, srcH, srcFmt int,
 	sframe *libav.AVFrame, width, height int, cacheid string,
 	mtime time.Time, ts *trace.TraceSystem) {
-
 	if !il.thumbOK {
 		return // C: if(thumbcodec == NULL) return
 	}
@@ -481,7 +478,6 @@ func (il *imageLoader) thumbFromBuf(bc *blobcache.BlobCache, buf []byte, cacheid
 func (il *imageLoader) thumbFromAttachment(fam *fileaccesscore.FileAccessManager,
 	url string, offset, size int64, cacheid string,
 	mtime time.Time) (*imagepkg.Image, error) {
-
 	fh, err := fileaccesscore.FAOpenEx(fam, url,
 		fileaccesscore.FaNonInteractive, nil)
 	if err != nil {
@@ -504,7 +500,6 @@ const maxFrameScan = 500 // C: MAX_FRAME_SCAN
 func (il *imageLoader) faImageFromVideo2(fam *fileaccesscore.FileAccessManager, url string,
 	im *imagepkg.ImageMeta, cacheid string, sec int,
 	mtime time.Time, c any) (*imagepkg.Image, error) {
-
 	var img *imagepkg.Image
 	var err error
 	libavSys := libav.GetGlobalLibAVSystem()
@@ -760,7 +755,6 @@ func (il *imageLoader) faImageFromVideo2(fam *fileaccesscore.FileAccessManager, 
 func (il *imageLoader) faImageFromVideo(fam *fileaccesscore.FileAccessManager, url0 string,
 	im *imagepkg.ImageMeta, cacheControl *int,
 	c any) (*imagepkg.Image, error) {
-
 	// C: url = mystrdupa(url0); tim = strchr(url, '#'); *tim++ = 0
 	url := url0
 	tim := ""

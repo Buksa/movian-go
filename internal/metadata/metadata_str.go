@@ -6,10 +6,11 @@ package metadata
 // derive query titles, years, seasons and episodes.
 
 import (
-	"github.com/czz/movian-go/internal/gconf"
 	"regexp"
 	"strconv"
 	"strings"
+
+	"github.com/czz/movian-go/internal/gconf"
 
 	fileaccesscore "github.com/czz/movian-go/internal/fileaccess"
 	"github.com/czz/movian-go/internal/misc"

@@ -11,7 +11,6 @@ import (
 // bePixmapLoader — C: be_pixmap_loader (src/image/pixmap.c:1061-1094).
 func bePixmapLoader(url string, imageMeta any,
 	cacheControl *int, cancellable any, backend *Backend) (any, error) {
-
 	var img *imagepkg.Image
 	im, _ := imageMeta.(*ImageMeta)
 	w, h := -1, -1
@@ -43,7 +42,6 @@ func bePixmapLoader(url string, imageMeta any,
 		img = imagepkg.CreateFromPixmap(pm)
 		imagepkg.PixmapRelease(pm)
 		img.Flags |= imagepkg.FlagAdapted
-
 	} else {
 		return nil, errors.New("Invalid URL")
 	}

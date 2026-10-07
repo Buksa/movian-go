@@ -160,7 +160,6 @@ func (mtm *MediaTrackMgr) dispatch(fn func()) {
 func MpAddTrackR(pm *propcore.PropManager, parent *propcore.Prop,
 	title, url, format, longformat, isolang, source string,
 	sourcep *propcore.Prop, basescore, autosel int) *propcore.Prop {
-
 	if pm == nil {
 		return nil
 	}
@@ -674,7 +673,6 @@ func (mtm *MediaTrackMgr) mtmSetURL(str string, has bool) {
 // "current" prop, sorted the "sorted" dir prop.
 func MpTrackMgrSetup(mp *MediaPipe, mtm *MediaTrackMgr, root *propcore.Prop,
 	mtype MediaTrackManagerType, current, sorted *propcore.Prop) {
-
 	mtm.mp = mp
 	mtm.mtype = mtype
 	mtm.sortedNodes = sorted
@@ -985,7 +983,6 @@ func (w *namedChildSub) Unsubscribe() {
 
 func (mtm *MediaTrackMgr) watchNamedChild(node *propcore.Prop, name string,
 	cb func(str string, hasValue bool)) *namedChildSub {
-
 	w := &namedChildSub{}
 	var leafChild *propcore.Prop
 
@@ -1058,7 +1055,6 @@ func (mtm *MediaTrackMgr) watchNamedChild(node *propcore.Prop, name string,
 }
 func (mtm *MediaTrackMgr) watchNamedChildInt(node *propcore.Prop, name string,
 	cb func(v int)) *namedChildSub {
-
 	w := &namedChildSub{}
 	var leafChild *propcore.Prop
 

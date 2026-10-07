@@ -4,10 +4,11 @@ import (
 	"crypto/md5"
 	"encoding/hex"
 	"fmt"
-	"github.com/czz/movian-go/internal/gconf"
-	"github.com/czz/movian-go/internal/trace"
 	"slices"
 	"sync"
+
+	"github.com/czz/movian-go/internal/gconf"
+	"github.com/czz/movian-go/internal/trace"
 
 	backendprop "github.com/czz/movian-go/internal/backend/prop"
 	"github.com/czz/movian-go/internal/event"

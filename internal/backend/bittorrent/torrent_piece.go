@@ -98,7 +98,6 @@ func (btg *BtGlobal) torrentReceiveBlock(tb *TorrentBlock, buf []byte,
 
 	if tp.waitingBlocks.lhFirst == nil &&
 		tp.sentBlocks.lhFirst == nil {
-
 		// Piece complete
 
 		tp.complete = true
@@ -288,7 +287,6 @@ func (btg *BtGlobal) flushActivePieces(to *Torrent) {
 func (btg *BtGlobal) torrentReloadCorruptPieces(to *Torrent) {
 	for tp := to.activePieces.tqFirst; tp != nil; tp = tp.linkNext {
 		if tp.hashComputed && !tp.hashOk {
-
 			/**
 			 * Setting hash_computed to 0 again basically means that
 			 * the piece is not verified so noone will annouce it, etc
@@ -403,7 +401,6 @@ func (btg *BtGlobal) torrentCheckPendings() {
 	btg.mu.Lock()
 
 	for to := btg.torrents.lhFirst; to != nil; to = to.linkNext {
-
 		if to.newValidPiece {
 			to.newValidPiece = false
 			btg.torrentSendHave(to)
@@ -556,7 +553,6 @@ func (btg *BtGlobal) btHashThread(aux any) any {
 	btg.mu.Lock()
 
 	for {
-
 	restart:
 		for to := btg.torrents.lhFirst; to != nil; to = to.linkNext {
 			for tp := to.activePieces.tqFirst; tp != nil; tp = tp.linkNext {
@@ -564,7 +560,7 @@ func (btg *BtGlobal) btHashThread(aux any) any {
 					btg.torrentPieceVerifyHash(to, tp)
 					/**
 					 * 'to' may be invalid here because we have unlocked so restart
-					 * from begining
+					 * from beginning
 					 */
 					goto restart
 				}
@@ -605,7 +601,6 @@ func (btg *BtGlobal) torrentCheckMetainfo() {
 			}
 		}
 	}
-
 }
 
 // torrentWakeupForMetadataRequests — C: torrent_wakeup_for_metadata_requests

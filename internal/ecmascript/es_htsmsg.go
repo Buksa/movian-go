@@ -79,7 +79,6 @@ func esHtsmsgGetValueGaf(ctx *gaftape.Context) int {
 			return 0
 		}
 	} else {
-
 		str := ctx.SafeToString(1)
 		if len(str) > 0 && str[0] == '@' {
 			wantAttr = 1

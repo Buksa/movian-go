@@ -4,6 +4,7 @@ package core
 
 import (
 	"errors"
+
 	imagepkg "github.com/czz/movian-go/internal/image"
 	propcore "github.com/czz/movian-go/internal/prop"
 )

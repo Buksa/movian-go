@@ -144,7 +144,6 @@ func (s *System) makeImageItem(c, m *propcore.Prop, item *htsmsg.HTSMsg) {
 // C: add_item (upnp_browse.c:184-232)
 func (s *System) addItem(item *htsmsg.HTSMsg, root *propcore.Prop, trackid string,
 	trackptr **propcore.Prop, skip *propcore.Subscription, baseurl string) {
-
 	id := item.GetStr("id")
 	if id == "" {
 		return
@@ -193,7 +192,6 @@ func (s *System) addItem(item *htsmsg.HTSMsg, root *propcore.Prop, trackid strin
 // C: add_container (upnp_browse.c:238-266)
 func (s *System) addContainer(item *htsmsg.HTSMsg, root *propcore.Prop,
 	baseurl string, skip *propcore.Subscription) {
-
 	id := item.GetStr("id")
 	if id == "" {
 		return
@@ -225,7 +223,6 @@ func (s *System) addContainer(item *htsmsg.HTSMsg, root *propcore.Prop,
 // C: nodes_from_meta (upnp_browse.c:272-291)
 func (s *System) nodesFromMeta(meta *htsmsg.HTSMsg, root *propcore.Prop, trackid string,
 	trackptr **propcore.Prop, baseurl string, skip *propcore.Subscription) {
-
 	items := meta.GetMap("DIDL-Lite")
 	if items == nil {
 		return
@@ -248,7 +245,6 @@ func (s *System) nodesFromMeta(meta *htsmsg.HTSMsg, root *propcore.Prop, trackid
 // C: upnp_browse_children (upnp_browse.c:297-345)
 func (s *System) browseChildren(uri, id string, nodes *propcore.Prop,
 	trackid string, trackptr **propcore.Prop) int {
-
 	if trackptr != nil {
 		*trackptr = nil
 	}

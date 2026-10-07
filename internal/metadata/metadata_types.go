@@ -159,7 +159,6 @@ func MetadataQTypeStr(qtype int) string {
 func (md *Metadata) AddStream(codec string, streamType int, streamIndex int,
 	title string, info string, isolang string,
 	disposition int, trackNum int, channels int) {
-
 	stream := MetadataStream{
 		StreamIndex: streamIndex,
 		Title:       title,
@@ -178,7 +177,6 @@ func (md *Metadata) AddStream(codec string, streamType int, streamIndex int,
 // AddPerson adds a person to cast or crew
 func (md *Metadata) AddPerson(name string, character string, department string,
 	job string, portrait string, isCrew bool) {
-
 	person := MetadataPerson{
 		Name:       name,
 		Character:  character,

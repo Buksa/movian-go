@@ -157,7 +157,6 @@ func (pm *PropManager) Move(prop *Prop, before *Prop) {
 // the caller owns the reference and must RefDec.
 func (pm *PropManager) Subfind(p *Prop, names []string, followSymlinks int,
 	allowIndexing int, originChain *[]*Prop) *Prop {
-
 	for i := range names {
 		// C: while(follow_symlinks && p->hp_originator != NULL)
 		//      { if(origin_chain) origin_chain[ocnum++] = p; p = p->hp_originator }

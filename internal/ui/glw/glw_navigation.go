@@ -120,28 +120,20 @@ func glwNavigateVertical(w *Glw, e *eventpkg.Event) int {
 
 	if eventpkg.IsAction(e, eventpkg.ACTION_DOWN) {
 		return glwNavigateStep(c, 1, mayWrap)
-
 	} else if eventpkg.IsAction(e, eventpkg.ACTION_UP) {
 		return glwNavigateStep(c, -1, mayWrap)
-
 	} else if eventpkg.IsAction(e, eventpkg.ACTION_PAGE_UP) {
 		return glwNavigateStep(c, -10, 0)
-
 	} else if eventpkg.IsAction(e, eventpkg.ACTION_PAGE_DOWN) {
 		return glwNavigateStep(c, 10, 0)
-
 	} else if eventpkg.IsAction(e, eventpkg.ACTION_TOP) {
 		return glwNavigateFirst(w)
-
 	} else if eventpkg.IsAction(e, eventpkg.ACTION_BOTTOM) {
 		return glwNavigateLast(w)
-
 	} else if eventpkg.IsAction(e, eventpkg.ACTION_MOVE_DOWN) {
 		return glwNavigateMove(c, 1)
-
 	} else if eventpkg.IsAction(e, eventpkg.ACTION_MOVE_UP) {
 		return glwNavigateMove(c, -1)
-
 	}
 	return 0
 }
@@ -158,16 +150,12 @@ func glwNavigateHorizontal(w *Glw, e *eventpkg.Event) int {
 
 	if eventpkg.IsAction(e, eventpkg.ACTION_LEFT) {
 		return glwNavigateStep(c, -1, mayWrap)
-
 	} else if eventpkg.IsAction(e, eventpkg.ACTION_RIGHT) {
 		return glwNavigateStep(c, 1, mayWrap)
-
 	} else if eventpkg.IsAction(e, eventpkg.ACTION_MOVE_RIGHT) {
 		return glwNavigateMove(c, 1)
-
 	} else if eventpkg.IsAction(e, eventpkg.ACTION_MOVE_LEFT) {
 		return glwNavigateMove(c, -1)
-
 	}
 	return 0
 }
@@ -253,7 +241,7 @@ func glwNavigateMatrixSearch(w *Glw, nma *navigateMatrixAux) {
 // glwNavigateMatrix — C: glw_navigate_matrix (glw_navigation.c:329-392)
 //
 // This function tries to navigate based on the projected cordinates
-// of widgets. Basically it tries to find a widget that's a decendant
+// of widgets. Basically it tries to find a widget that's a descendant
 // (in the view tree) of the parameter 'w' and is as close as possible
 // to the currently focused widget.
 //

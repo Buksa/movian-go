@@ -4,8 +4,9 @@ import (
 	"crypto/rand"
 	"encoding/hex"
 	"fmt"
-	"github.com/czz/movian-go/internal/gconf"
 	"os"
+
+	"github.com/czz/movian-go/internal/gconf"
 
 	"github.com/czz/movian-go/internal/htsmsg"
 )

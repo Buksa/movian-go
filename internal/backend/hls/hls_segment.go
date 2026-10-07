@@ -142,7 +142,6 @@ func hvFindSegmentByTime(hv *hlsVariant, pos int64) *hlsSegment {
 	// C: TAILQ_FOREACH_REVERSE — returns NULL when pos precedes all
 	// segments (hs ends NULL), not the first segment.
 	for i, hs := range slices.Backward(hv.Segments) {
-
 		if hs.TimeOffset <= pos {
 			if i == len(hv.Segments)-1 &&
 				pos > hs.TimeOffset+hs.Duration {

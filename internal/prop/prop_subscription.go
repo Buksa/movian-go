@@ -1288,7 +1288,6 @@ func fireInitialValueEvent(sub *Subscription, value any, propType PropertyType) 
 // buildNotifyValue — C: prop_build_notify_value(s, direct, origin, p, pnq)
 // with pnq==NULL. direct=0 → only INTERNAL subs fire synchronously.
 func buildNotifyValue(sub *Subscription, value any, propType PropertyType, direct bool) {
-
 	// C: prop_build_notify_value — if PROP_SUB_SEND_VALUE_PROP,
 	// emit PROP_VALUE_PROP with backing prop BEFORE the value event.
 	// C: cb(opaque, PROP_VALUE_PROP, p) — NO user_int, and p is

@@ -300,7 +300,6 @@ func rasterizeBgr32(yy int, spans []ftSpan) {
 			dst := d + x*4
 			SA0 := div255(int(spans[s].coverage) * a0)
 			for range l {
-
 				SA := SA0
 				SR := r0
 				SG := g0

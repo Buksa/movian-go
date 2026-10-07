@@ -4,9 +4,10 @@ package prop
 // No symbol, lock, or event-order changes.
 
 import (
-	"github.com/czz/movian-go/internal/misc"
 	"strings"
 	"sync/atomic"
+
+	"github.com/czz/movian-go/internal/misc"
 )
 
 const (

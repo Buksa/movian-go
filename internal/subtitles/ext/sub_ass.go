@@ -339,7 +339,7 @@ func adcFindStyle(adc *assDecoderCtx, name string) *assStyle {
 	return &assStyleDefault
 }
 
-// assDialogue — C: ass_dialoge_t
+// assDialogue — C: ass_dialogue_t
 type assDialogue struct {
 	text []uint32 // C: ad_text
 

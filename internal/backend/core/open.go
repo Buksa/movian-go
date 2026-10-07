@@ -5,12 +5,13 @@ package core
 import (
 	"bytes"
 	"fmt"
-	fileaccesscore "github.com/czz/movian-go/internal/fileaccess"
-	propcore "github.com/czz/movian-go/internal/prop"
 	"io"
 	"os"
 	"path/filepath"
 	"strings"
+
+	fileaccesscore "github.com/czz/movian-go/internal/fileaccess"
+	propcore "github.com/czz/movian-go/internal/prop"
 )
 
 func (bs *BackendSystem) Open(page any, url string, sync bool) error {

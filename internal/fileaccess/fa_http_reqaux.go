@@ -440,7 +440,7 @@ retry:
 				hra.gzip = nil
 			}
 		} else {
-			hf.hfTrace("No data transfered")
+			hf.hfTrace("No data transferred")
 			r = 0
 		}
 	}

@@ -2,10 +2,11 @@ package navigator
 
 import (
 	"cmp"
-	"github.com/czz/movian-go/internal/trace"
 	"regexp"
 	"slices"
 	"sync"
+
+	"github.com/czz/movian-go/internal/trace"
 )
 
 // RouteCallback is invoked when a registered route matches a URL.

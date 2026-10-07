@@ -175,7 +175,6 @@ func subGenUuid() string {
 // C: upnp_subscribe (upnp_event.c:226-321)
 func upnpSubscribe(hc *httpnet.HTTPConnection, remain string, opaque any,
 	method httpnet.HTTPCmd) int {
-
 	uls := opaque.(*UPNPLocalService)
 	s := uls.sys
 	callback := hc.HTTPArgGetHdr("callback")
@@ -271,7 +270,6 @@ func upnpSubscribe(hc *httpnet.HTTPConnection, remain string, opaque any,
 				s.calloutSystem.ArmHires(nil, doNotifyOne,
 					uls.generateEvent(us), 0)
 			}
-
 		} else {
 			if callback != "" || typ != "" {
 				return hc.HTTPError(httpnet.HTTPStatusBadRequest,

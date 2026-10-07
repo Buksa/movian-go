@@ -369,7 +369,6 @@ func (vd *VideoDecoder) decoderThread() {
 
 		if mediacore.MediaBufDataType(mb.DataType) == mediacore.MBVideo &&
 			mc != nil && mc.DecodeLocked != nil {
-
 			if mc != mcCurrent {
 				mp.Mutex.Unlock()
 				if mcCurrent != nil {

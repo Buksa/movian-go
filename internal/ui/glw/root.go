@@ -496,7 +496,6 @@ func glwPrepareFrame(gr *glwRoot, flags int) {
 	gr.grTimeSec = float64(gr.grTimeUsec) / 1000000.0
 
 	if flags&glwNoFramerateUpdate == 0 {
-
 		if gr.grFrames > 16 { // C: likely(gr->gr_frames > 16)
 			d := gr.grFrameStart - gr.grFramerateAvg[gr.grFrames&0xf]
 			hz := 16000000.0 / float64(d)
@@ -530,7 +529,6 @@ func glwPrepareFrame(gr *glwRoot, flags int) {
 	}
 
 	if gr.grNeedRefresh != 0 {
-
 		for {
 			w := gr.grActiveFlushList.lhFirst
 			if w == nil {

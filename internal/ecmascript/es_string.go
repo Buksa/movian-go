@@ -113,7 +113,6 @@ func esUtf8FromBytesGaf(gaf *gaftape.Context) int {
 
 	if strings.EqualFold(csname, "utf-8") ||
 		strings.EqualFold(csname, "utf8") {
-
 		gaf.PushLstring(string(bytes_), size)
 		str := gaf.RequireString(-1)
 

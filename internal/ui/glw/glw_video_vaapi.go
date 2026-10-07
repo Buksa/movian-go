@@ -706,9 +706,7 @@ func vaapiRender(gv *GlwVideo, rc *glwRctx) {
 		glwRendererVtxSt2(&gv.gvQuad, 1, 1, 1)
 		glwRendererVtxSt2(&gv.gvQuad, 2, 1, 0)
 		glwRendererVtxSt2(&gv.gvQuad, 3, 0, 0)
-
 	} else {
-
 		// One picture
 		gp = gbr.gbrNv121f
 	}

@@ -73,7 +73,6 @@ func httpConnectionDestroy(hc *httpConnection, dbg bool, reason string) {
 func (fam *FileAccessManager) httpConnectionGet(hostname string, port int, ssl bool,
 	dbg bool, timeout int, c *misc.Cancellable,
 	allowReuse bool, maxConcurrent int, verifySSL bool) (*httpConnection, error) {
-
 	fam.httpConns.mu.Lock()
 
 	if maxConcurrent != 0 {

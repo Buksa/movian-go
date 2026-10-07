@@ -49,7 +49,6 @@ func asyncioHTTPCb(hra *HTTPReqAux, opaque any, err int) {
 func (fam *FileAccessManager) NewAsyncioHTTPReq(url string,
 	cb func(hra *HTTPReqAux, opaque any),
 	opaque any, args ...any) *AsyncioHTTPReq {
-
 	ahr := &AsyncioHTTPReq{fam: fam, cb: cb, opaque: opaque}
 	fam.HTTPReqv(url, args, asyncioHTTPCb, ahr)
 	return ahr

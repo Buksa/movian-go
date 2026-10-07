@@ -148,7 +148,6 @@ func (btg *BtGlobal) metainfoLoad(to *Torrent) (*misc.Buf, error) {
 		metainfoSize := 0
 
 		for piece := range numPieces {
-
 			maxActiveRequests := 1
 			pieceStart := arch.GetTS()
 			var mr *MetainfoRequest
@@ -171,11 +170,9 @@ func (btg *BtGlobal) metainfoLoad(to *Torrent) (*misc.Buf, error) {
 				}
 
 				if mr != nil {
-
 					p = mr.peer
 
 					if mr.state == MRReceived {
-
 						// Move peer that responded first to front
 						listRemove(p, peerRunningLink)
 						listInsertHead(&to.runningPeers.lhFirst,
@@ -185,9 +182,7 @@ func (btg *BtGlobal) metainfoLoad(to *Torrent) (*misc.Buf, error) {
 						listRemove(mr, mrQueryLink)
 						btg.magnetDestroyMetainfoRequests(&requests)
 						break
-
 					} else {
-
 						// C: assert(mr->mr_state == MR_REJECTED)
 						// Peer rejected our request, mark it as
 						// unable to send metadata

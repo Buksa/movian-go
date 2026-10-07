@@ -558,5 +558,4 @@ func wireNetwork(ctx *appContext, gc *gconf.T) {
 	// via asyncio.InitGroupHook (wired above); nothing to do here.
 
 	// Initialize pending action channel for HTTP /api/input/action/ endpoint
-
 }

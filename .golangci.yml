@@ -17,9 +17,11 @@ linters:
     - copyloopvar
     - govet
     - gomodguard_v2
+    - misspell
     - nakedret
     - nolintlint
     - tparallel
+    - whitespace
 
   exclusions:
     generated: lax
@@ -40,3 +42,8 @@ linters:
 issues:
   max-issues-per-linter: 0
   max-same-issues: 0
+
+formatters:
+  enable:
+    - gofmt
+    - goimports

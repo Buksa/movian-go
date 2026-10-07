@@ -377,7 +377,6 @@ func smbDispatch(cc *cifsConnection) {
 			if nr.isTrans2 &&
 				binary.LittleEndian.Uint32(buf[smbErrorcodeOff:]) == 0 &&
 				len(buf) >= trans2ReplyLen {
-
 				// TRANS2 reassembly (C: reassembly in smb_dispatch)
 				totalCount := int(binary.LittleEndian.Uint16(buf[35:]))
 				segCount := int(binary.LittleEndian.Uint16(buf[39:])) +
@@ -766,7 +765,6 @@ func smbTreeConnectAndX(cc *cifsConnection, share string) (*cifsTree, error) {
 // tree. Returns with cc.sys.mu held on TREE/CONNECTION results.
 func (sys *System) cifsResolve(url string, filename []byte, faFlags int,
 	pCT **cifsTree, pCC **cifsConnection, needFile bool) (int, error) {
-
 	var hostname [128]byte
 	var path [512]byte
 	port := -1

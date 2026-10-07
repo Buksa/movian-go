@@ -211,7 +211,6 @@ func kvValueCb(opaque any, event propcore.EventType,
 	kvs := kpbv.kpb.kvs
 
 	switch event {
-
 	case propcore.EventDestroyed:
 		// C: prop_unsubscribe(va_arg(ap, prop_sub_t *)); kpbv_destroy
 		for _, a := range args {
@@ -729,9 +728,7 @@ func kvWriteDB(dbc *db.DB, kw *kvstoreWrite, id int64, g *gconf.T) int {
 		}
 
 		value = "[DELETED]"
-
 	} else {
-
 		stmt, rc = db.DBPrepare(dbc,
 			"INSERT OR REPLACE INTO url_kv "+
 				"(url_id, key, domain, value) "+
@@ -843,7 +840,6 @@ again:
 	currentURL = ""
 
 	for _, kw := range kvs.writes {
-
 		if fileaccesscore.FAKVStoreAsXattr(kvs.gcfg()) {
 			if kvWriteXattr(kw, kvs.gcfg(), kvs.fam) == 0 {
 				continue

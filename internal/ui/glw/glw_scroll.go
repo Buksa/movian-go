@@ -162,12 +162,9 @@ func glwScrollLayout(gsc *glwScrollControl, w *Glw, height int) {
 	maxValue := max(gsc.totalSize-gsc.pageSize+gsc.scrollThresholdPost, 0)
 
 	if w.glwRoot.grPointerGrabScroll == w {
-
 		gsc.filteredPos = float32(gsc.targetPos)
 		gsc.filteredPos = glwClamp(gsc.filteredPos, 0, float32(maxValue))
-
 	} else if float32(math.Abs(float64(gsc.kineticScroll))) > 0.5 {
-
 		gsc.filteredPos += gsc.kineticScroll
 		if float32(gsc.targetPos) != gsc.filteredPos {
 			gsc.targetPos = int(gsc.filteredPos)
@@ -176,7 +173,6 @@ func glwScrollLayout(gsc *glwScrollControl, w *Glw, height int) {
 		gsc.kineticScroll *= 0.95
 		gsc.bottomAnchored = 0
 		gsc.filteredPos = glwClamp(gsc.filteredPos, 0, float32(maxValue))
-
 	} else {
 		gsc.kineticScroll = 0
 
@@ -231,7 +227,6 @@ func glwScrollUpdateMetrics(gsc *glwScrollControl, w *Glw) {
 	if gsc.totalSize > gsc.pageSize && w.glwFlags&glwCanScroll == 0 {
 		w.glwFlags |= glwCanScroll
 		glwSignal0(w, glwSignalCanScrollChanged, nil)
-
 	} else if gsc.totalSize <= gsc.pageSize && w.glwFlags&glwCanScroll != 0 {
 		w.glwFlags &^= glwCanScroll
 		glwSignal0(w, glwSignalCanScrollChanged, nil)

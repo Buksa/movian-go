@@ -163,7 +163,6 @@ func glwScaleToAspect(rc *glwRctx, tAspect float32) {
 		glwScalef(rc, s, 1.0, 1.0)
 
 		rc.rcWidth = int16(right - left)
-
 	} else {
 		// Shrink Y
 		border := float32(rc.rcHeight) - float32(rc.rcWidth)/tAspect

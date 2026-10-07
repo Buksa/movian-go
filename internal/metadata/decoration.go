@@ -10,10 +10,11 @@ package metadata
 import (
 	"cmp"
 	"fmt"
-	"github.com/czz/movian-go/internal/gconf"
 	"slices"
 	"strings"
 	"sync"
+
+	"github.com/czz/movian-go/internal/gconf"
 
 	"github.com/czz/movian-go/internal/db/kvstore"
 	fileaccesscore "github.com/czz/movian-go/internal/fileaccess"
@@ -1182,7 +1183,6 @@ func decoTagKey(db *DecoBrowse) string {
 func DecoratedBrowseCreate(model *propcore.Prop, pnf DecoNodeFilter,
 	items *propcore.Prop, title string, flags int, url string,
 	initiator string, kvs *kvstore.KVStore, mm *MetadataManager) *DecoBrowse {
-
 	pm := decoPM
 	if pm == nil {
 		// C uses the global prop system — adopt the items prop's manager.
