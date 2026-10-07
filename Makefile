@@ -471,6 +471,11 @@ rpi:
 	  CGO_LDFLAGS="-L$(RPI_SYSROOT)/opt/vc/lib -L$(RPI_SYSROOT)/usr/lib/arm-linux-gnueabihf" \
 	  go build -ldflags "$(LDFLAGS)" -tags "$(RPI_TAGS)" -o movian-go-rpi ./cmd/movian-go
 
+# Bootable mgos appliance SD image for Raspberry Pi (Buster armhf base +
+# connman + CEC + autostart). Produces build/mgos-rpi/movian-go-mgos-rpi-*.img.xz
+mgos-rpi-image:
+	./scripts/make_mgos_rpi_image.sh
+
 # Self-contained Linux build — dataroot resources (skins, fonts, lang,
 # res/) embedded via the bundle variant (C: support/dataroot/bundle.c).
 # The binary runs from anywhere; no res/ folder needed next to it.

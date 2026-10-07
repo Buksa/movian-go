@@ -307,6 +307,7 @@ shipped win32; everything is modeled on the osx/linux seams):
 | `make windows` (mingw cross) | `movian-go.exe` (con icona .ico embedded) |
 | `make windows32` | `movian-go32.exe` |
 | `make rpi` | `movian-go-rpi` (armv6, dispmanx+EGL+OMX — needs arm cross + ffmpeg/rpi via `scripts/build_ffmpeg_rpi.sh`) |
+| `make mgos-rpi-image` | `build/mgos-rpi/movian-go-mgos-rpi-*.img.xz` — bootable SD image (Buster Lite armhf base + movian appliance: connman+CEC+autostart, `/mgos` layout, `/boot/dl` updates). Fully unprivileged build (mtools/debugfs/dpkg-deb). Flash: `xz -dc img.xz \| dd of=/dev/sdX` |
 | `make sunxi` | `movian-go-sunxi` (nominale — come rpi, richiede sysroot sunxi) |
 | `make ps3` | `movian-go-ps3` (nominale — vedi `ffmpeg/psl1ght-build.md`) |
 | `make ffmpeg` | vendored FFmpeg for linux |
