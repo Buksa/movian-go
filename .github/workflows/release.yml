@@ -89,7 +89,7 @@ jobs:
       - name: Build + package CEF variant
         run: |
           PKG_CONFIG_PATH=$PWD/third_party/cef/linux64 \
-            go build -tags "glfw x11 bundle webpopup cef" \
+            go build -tags "glfw x11 bundle webpopup cef libcec" \
             -ldflags "-X github.com/czz/movian-go/internal/version.appversion=${GITHUB_REF_NAME}" \
             -o dist/movian-go-linux-amd64-cef/movian-go ./cmd/movian-go
           strip dist/movian-go-linux-amd64-cef/movian-go

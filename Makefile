@@ -474,10 +474,11 @@ rpi:
 # Self-contained Linux build — dataroot resources (skins, fonts, lang,
 # res/) embedded via the bundle variant (C: support/dataroot/bundle.c).
 # The binary runs from anywhere; no res/ folder needed next to it.
+# libcec is dependency-free on linux (pure-Go /dev/cec* UAPI backend).
 linux-bundle: check-ffmpeg
 	@echo "Building Movian Go (embedded-bundle Linux)..."
 	@echo "Version: $(GIT_DESCRIBE)"
-	go build -tags "glfw x11 bundle" -ldflags "$(LDFLAGS)" -o movian-go-bundle ./cmd/movian-go
+	go build -tags "glfw x11 bundle libcec" -ldflags "$(LDFLAGS)" -o movian-go-bundle ./cmd/movian-go
 
 # Build for PS3
 ps3:
