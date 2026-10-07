@@ -245,7 +245,7 @@ jobs:
     strategy:
       matrix:
         include:
-          - { os: macos-13, cefplat: macosx64 }      # Intel amd64
+          - { os: macos-15-intel, cefplat: macosx64 } # Intel amd64 (macos-13 retired Dec 2025)
           - { os: macos-latest, cefplat: macosarm64 } # Apple Silicon arm64
     steps:
       - uses: actions/checkout@v4
