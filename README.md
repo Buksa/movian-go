@@ -99,7 +99,7 @@ plugin API, GLW skinning, metadata pipeline.
 | Linux (GLFW — X11 & Wayland) | Working — primary development target |
 | Linux bundle | Working — self-contained binary, assets embedded (`make linux-bundle`) |
 | Android (arm64-v8a, armeabi-v7a) | Builds — single APK, minSdk 26; device testing ongoing |
-| Raspberry Pi (ARMv6) | Builds — dispmanx + EGL + OpenMAX IL; hardware testing pending |
+| Raspberry Pi (ARMv6) | Builds — dispmanx + EGL + OpenMAX IL; also as a **bootable mgos appliance SD image** (`make mgos-rpi-image`); hardware testing pending |
 | Windows (amd64 / 386) | Builds — static exe with embedded resources |
 | macOS (amd64 / arm64) | Builds — GLFW + VideoToolbox; needs a Mac to verify |
 | PS3 (psl1ght) | Experimental — FFmpeg recipe in `ffmpeg/psl1ght-build.md` |
@@ -116,10 +116,19 @@ GLFW 3.4 selects X11 or Wayland at runtime; pin it with
 `--platform wayland` if needed. A build without the `x11` tag
 (`make build-glfw-only`) drops libX11 entirely — Wayland-only.
 
-Self-contained binary (skin/fonts/lang embedded):
+Self-contained binary (skin/fonts/lang embedded, CEC via `/dev/cec*`):
 
 ```bash
 make linux-bundle  # -> ./movian-go-bundle
+```
+
+Raspberry Pi — two flavors: the app tarball (`make rpi`, needs a Buster
+armhf OS with the legacy `/opt/vc` stack) and the **bootable mgos
+appliance image** with ConnMan networking, CEC and autostart:
+
+```bash
+make mgos-rpi-image  # -> build/mgos-rpi/movian-go-mgos-rpi-*.img.xz
+xz -dc movian-go-mgos-rpi-*.img.xz | sudo dd of=/dev/sdX bs=4M conv=fsync
 ```
 
 System install:
@@ -131,7 +140,8 @@ sudo make install-desktop PREFIX=/usr   # .desktop entry + icon
 ```
 
 Other targets: `make apk` (Android), `make windows`, `make darwin`,
-`make rpi`, `make sunxi`. Full instructions, toolchains and dependency
+`make rpi`, `make sunxi`, `make mgos-rpi-image` (Raspberry Pi appliance
+SD image). Full instructions, toolchains and dependency
 manifest are in [BUILDING.md](BUILDING.md).
 
 ## Documentation

@@ -93,6 +93,13 @@ ships no builds for android or linux-armv6 (RPi) — webpopup is the
 stub there. CEF workers re-exec the movian-go binary itself
 (`--type=...` intercepted by a C constructor before the Go runtime).
 
+`make linux-bundle` embeds skins/fonts/lang into a single
+self-contained binary (`movian-go-bundle`) and includes CEC via the
+dependency-free `/dev/cec*` backend (`-tags "glfw x11 bundle libcec"`).
+The release `linux-cef` variant adds real CEF webpopup on top
+(`webpopup cef libcec`). ConnMan is appliance-only — never in desktop
+builds.
+
 `make check-all-tags` compile-checks every platform/build-tag variant
 with an installed toolchain — linux `x11 glfw` / `glfw`, `webpopup`
 × `cef` (real CEF headers when `cef.pc` is in `PKG_CONFIG_PATH`) ×
@@ -289,7 +296,88 @@ shipped win32; everything is modeled on the osx/linux seams):
   devevent/lirc/stdin ipc → no-op stubs; fontconfig runs
   inside the wasm2go module with `C:/Windows/Fonts` fallback dirs
 
-## 5. Cross-build matrix (quick reference)
+---
+
+## 5. Raspberry Pi (dispmanx + EGL + OpenMAX IL)
+
+Two deliverables: the **binary** (`make rpi`, runs on an existing OS) and
+the **mgos appliance image** (`make mgos-rpi-image`, a bootable SD card
+— the counterpart of upstream STOS).
+
+### 5.1 `make rpi` — application binary
+
+```bash
+# prerequisites (one-off):
+#   apt install gcc-arm-linux-gnueabihf g++-arm-linux-gnueabihf
+./scripts/build_ffmpeg_rpi.sh   # Raspbian sysroot -> third_party/rpi/sysroot
+                              # + FFmpeg armv6 static libs -> ffmpeg/rpi/lib
+make rpi                       # movian-go-rpi (armv6)
+                               # tags: rpi connman mgos webpopup libcec
+```
+
+On-device requirements: 32-bit Raspberry Pi OS **Buster** (or any armhf
+image that still ships the full `/opt/vc` legacy stack — Bullseye/Bookworm
+removed dispmanx/OMX), `gpu_mem=256`, `start_x=1`, vc4 KMS/FKMS overlay
+**off** in config.txt. Renders fullscreen via dispmanx from a bare tty;
+no X11/Wayland needed. Works on Pi 1/Zero/2/3/4 (32-bit userland only —
+the `/opt/vc` libs are 32-bit).
+
+Tags: `connman` talks to ConnMan over D-Bus for the network settings UI;
+`libcec` uses the dependency-free `/dev/cec*` kernel driver (TV remote);
+`webpopup` is the stub here — CEF ships no armv6 build.
+
+### 5.2 `make mgos-rpi-image` — bootable appliance SD image
+
+```bash
+# prerequisites: curl xz unzip fdisk debugfs mtools dpkg-deb
+#                (+ the rpi toolchain/ffmpeg above — builds movian-go-rpi
+#                 automatically if missing)
+make mgos-rpi-image
+# -> build/mgos-rpi/movian-go-mgos-rpi-<version>.img.xz (+ .sha256)
+```
+
+The script (`scripts/make_mgos_rpi_image.sh`) performs surgery on the last
+Buster Lite image (`2021-05-07-raspios-buster-armhf-lite`) **without
+root**: mtools edits the FAT boot partition, dd-split + debugfs edit the
+ext4 rootfs, connman comes from the raspbian buster archive as a deb.
+
+What the image contains:
+
+- `/opt/movian-go/` — binary (stripped) + `glwskins`/`res`/`lang`
+- **connman** enabled in systemd, `dhcpcd` disabled (connman owns every
+  interface; `/etc/resolv.conf` → `/var/run/connman/resolv.conf` via a
+  service drop-in)
+- `movian-go.service` — autostart on boot, `Restart=always`
+- **CEC**: `bcm2835_cec` + `vchiq` in modules-load.d, `dtparam=i2c_vc=on`
+- mgos layout: `/mgos/{cache,persistent,fsinfo,media}`, `/mgosversion`,
+  `/boot/dl` (mgos update download dir — see `internal/upgrade/mgos.go`)
+- USB automount: udev rule + `mgos-media.sh` write/remove fsinfo files in
+  `/mgos/fsinfo/<uuid>`; the app mounts/unmounts itself (C: stos_automount)
+- `config.txt`: gpu_mem=256, start_x=1, vc4 kms overlays commented
+- hostname `movian`, machine-id regenerated on first boot, rootfs
+  auto-expands to fill the SD (stock Buster resize)
+
+Flash:
+
+```bash
+xz -dc movian-go-mgos-rpi-*.img.xz | sudo dd of=/dev/sdX bs=4M status=progress conv=fsync
+```
+
+First boot expands the rootfs and reboots; then connman comes up
+(Ethernet is plug&play, WiFi is configured from Movian's network UI)
+and Movian starts fullscreen on its own.
+
+### 5.3 Desktop bundle vs appliance
+
+| | desktop `linux-bundle` | mgos appliance image |
+|---|---|---|
+| UI | GLFW window (X11/Wayland) | dispmanx fullscreen |
+| Network | distro-owned (no connman) | connman built-in |
+| CEC | `libcec` → `/dev/cec*` | `libcec` → `/dev/cec*` |
+| webpopup | real CEF when `cef.pc` present | stub (no armv6 CEF) |
+| Install | single binary / `make install` | dd image to SD |
+
+## 6. Cross-build matrix (quick reference)
 
 | Command | Output |
 |---|---|
