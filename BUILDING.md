@@ -319,8 +319,14 @@ On-device requirements: 32-bit Raspberry Pi OS **Buster** (or any armhf
 image that still ships the full `/opt/vc` legacy stack — Bullseye/Bookworm
 removed dispmanx/OMX), `gpu_mem=256`, `start_x=1`, vc4 KMS/FKMS overlay
 **off** in config.txt. Renders fullscreen via dispmanx from a bare tty;
-no X11/Wayland needed. Works on Pi 1/Zero/2/3/4 (32-bit userland only —
-the `/opt/vc` libs are 32-bit).
+no X11/Wayland needed.
+
+Supported boards — **not all Pis**: Pi 1 (A/B/A+/B+), Pi Zero/Zero W/
+Zero 2 W, Pi 2 B, Pi 3 B/B+, Pi 4 B (use **HDMI0**, the port nearest
+USB-C — dispmanx drives only the primary output), Pi 400, CM3/CM4.
+**Pi 5 is NOT supported**: Buster never shipped a BCM2712 kernel and
+Raspberry Pi removed the legacy dispmanx/OMX stack entirely on that
+board. 32-bit userland only — the `/opt/vc` libs are 32-bit.
 
 Tags: `connman` talks to ConnMan over D-Bus for the network settings UI;
 `libcec` uses the dependency-free `/dev/cec*` kernel driver (TV remote);

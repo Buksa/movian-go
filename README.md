@@ -1,7 +1,7 @@
 # Movian Go
 
 <p align="center">
-  <img src="glwskins/flat/icons/movian-go-icon.png" width="256" alt="Movian Go mascot">
+  <img src="docs/movian-go-banner.jpg" alt="MovianGo — Media Center built with Go">
 </p>
 
 A Go port of [Movian](https://movian.tv) — the media center formerly
