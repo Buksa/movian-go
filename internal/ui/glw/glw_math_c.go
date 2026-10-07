@@ -44,16 +44,22 @@ func glwPmtxMulVec4I(dst *Vec4, m *PMtx, a *Vec4) {
 	dst[3] = a[3]
 }
 
+// glwMtx4MulVec4 — shared row-major matrix*vec4 multiply for
+// glwPmtxMulVec4/glwMtxTransMulVec4 (C inlines the same math twice).
+func glwMtx4MulVec4(dst *Vec4, m *[4]Vec4, a *Vec4) {
+	dst[0] =
+		m[0][0]*a[0] + m[0][1]*a[1] + m[0][2]*a[2] + m[0][3]*a[3]
+	dst[1] =
+		m[1][0]*a[0] + m[1][1]*a[1] + m[1][2]*a[2] + m[1][3]*a[3]
+	dst[2] =
+		m[2][0]*a[0] + m[2][1]*a[1] + m[2][2]*a[2] + m[2][3]*a[3]
+	dst[3] =
+		m[3][0]*a[0] + m[3][1]*a[1] + m[3][2]*a[2] + m[3][3]*a[3]
+}
+
 // C: static __inline void glw_pmtx_mul_vec4(Vec4 dst, const PMtx *m, const Vec4 a)
 func glwPmtxMulVec4(dst *Vec4, m *PMtx, a *Vec4) {
-	dst[0] =
-		m.c[0][0]*a[0] + m.c[0][1]*a[1] + m.c[0][2]*a[2] + m.c[0][3]*a[3]
-	dst[1] =
-		m.c[1][0]*a[0] + m.c[1][1]*a[1] + m.c[1][2]*a[2] + m.c[1][3]*a[3]
-	dst[2] =
-		m.c[2][0]*a[0] + m.c[2][1]*a[1] + m.c[2][2]*a[2] + m.c[2][3]*a[3]
-	dst[3] =
-		m.c[3][0]*a[0] + m.c[3][1]*a[1] + m.c[3][2]*a[2] + m.c[3][3]*a[3]
+	glwMtx4MulVec4(dst, &m.c, a)
 }
 
 // C: static __inline float glw_vec34_dot(const Vec3 A, const Vec4 B)
@@ -129,10 +135,7 @@ func glwVec3Dot(a *Vec3, b *Vec3) float32 {
 
 // C: static __inline void glw_mtx_trans_mul_vec4(Vec4 dst, const Mtx *m, const Vec4 v)
 func glwMtxTransMulVec4(dst *Vec4, m *Mtx, v *Vec4) {
-	dst[0] = m.r[0][0]*v[0] + m.r[0][1]*v[1] + m.r[0][2]*v[2] + m.r[0][3]*v[3]
-	dst[1] = m.r[1][0]*v[0] + m.r[1][1]*v[1] + m.r[1][2]*v[2] + m.r[1][3]*v[3]
-	dst[2] = m.r[2][0]*v[0] + m.r[2][1]*v[1] + m.r[2][2]*v[2] + m.r[2][3]*v[3]
-	dst[3] = m.r[3][0]*v[0] + m.r[3][1]*v[1] + m.r[3][2]*v[2] + m.r[3][3]*v[3]
+	glwMtx4MulVec4(dst, &m.r, v)
 }
 
 // C: extern int glw_mtx_invert(Mtx *dst, const Mtx *src) — glw.c

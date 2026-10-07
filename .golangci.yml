@@ -17,6 +17,7 @@ linters:
     - copyloopvar
     - govet
     - gomodguard_v2
+    - dupl
     - misspell
     - nakedret
     - nolintlint
@@ -38,6 +39,10 @@ linters:
       - path: pkg/libav/
         linters:
           - gosec
+      # Generated charset lookup tables — structural duplication by design.
+      - path: internal/misc/(codepages|charset_detector|big5|str_utf8|str_url)\.go
+        linters:
+          - dupl
 
 issues:
   max-issues-per-linter: 0

@@ -435,12 +435,12 @@ func setFloat4(ec *glwViewEvalContext, a *tokenAttrib, t *Token) int {
 	return 0
 }
 
-// C: static int set_int16_4(glw_view_eval_context_t *ec,
-// const token_attrib_t *a, struct token *t) (glw_view_attrib.c:877-951)
-func setInt16_4(ec *glwViewEvalContext, a *tokenAttrib, t *Token) int {
-	var v [4]int16
+// tokenToVec4Int16 — shared token→[4]int16 conversion used by
+// setInt16_4/setMargin (C inlines the same switch in both). Returns
+// 0 on success, the glwViewSeterr result on error.
+func tokenToVec4Int16(ec *glwViewEvalContext, a *tokenAttrib, t *Token,
+	v *[4]int16) int {
 	w := ec.w
-
 	switch t.typ {
 	case tokenVectorFloat:
 		switch t.tElements {
@@ -474,6 +474,18 @@ func setInt16_4(ec *glwViewEvalContext, a *tokenAttrib, t *Token) int {
 		return glwViewSeterr(ec.ei, t,
 			"Attribute '%s' expects a vec4, got %s",
 			a.name, token2name(t))
+	}
+	return 0
+}
+
+// C: static int set_int16_4(glw_view_eval_context_t *ec,
+// const token_attrib_t *a, struct token *t) (glw_view_attrib.c:877-951)
+func setInt16_4(ec *glwViewEvalContext, a *tokenAttrib, t *Token) int {
+	var v [4]int16
+	w := ec.w
+
+	if r := tokenToVec4Int16(ec, a, t, &v); r != 0 {
+		return r
 	}
 
 	gc := w.glwClass
@@ -497,39 +509,8 @@ func setMargin(ec *glwViewEvalContext, a *tokenAttrib, t *Token) int {
 	var v [4]int16
 	w := ec.w
 
-	switch t.typ {
-	case tokenVectorFloat:
-		switch t.tElements {
-		case 4:
-			for i := range 4 {
-				v[i] = int16(t.tFloatVector[i])
-			}
-		case 2:
-			v[0] = int16(t.tFloatVector[0])
-			v[1] = int16(t.tFloatVector[1])
-			v[2] = int16(t.tFloatVector[0])
-			v[3] = int16(t.tFloatVector[1])
-		default:
-			return glwViewSeterr(ec.ei, t,
-				"Attribute '%s': invalid vector size %d",
-				a.name, t.tElements)
-		}
-	case tokenEm:
-		ec.dynamicEval |= GLW_VIEW_EVAL_EM
-		f := int16(t.tFloat * float32(w.glwRoot.grCurrentSize))
-		v[0], v[1], v[2], v[3] = f, f, f, f
-	case tokenFloat:
-		f := int16(t.tFloat)
-		v[0], v[1], v[2], v[3] = f, f, f, f
-	case tokenInt:
-		f := int16(t.tInt)
-		v[0], v[1], v[2], v[3] = f, f, f, f
-	case tokenVoid:
-		v[0], v[1], v[2], v[3] = 0, 0, 0, 0
-	default:
-		return glwViewSeterr(ec.ei, t,
-			"Attribute '%s' expects a vec4, got %s",
-			a.name, token2name(t))
+	if r := tokenToVec4Int16(ec, a, t, &v); r != 0 {
+		return r
 	}
 
 	glwSetMargin(w, v[:], nil)
