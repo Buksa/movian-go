@@ -65,7 +65,7 @@ func (p *PlaybackPipeline) SeekToPosition(positionSec int64) error {
 	// mp_set_current_time which receives mb_user_time in container timeline.
 	// This ensures the clock is in the same coordinate system as packet PTS.
 	if p.mediaClock != nil {
-		p.mediaClock.Seek(timestamp + startTime)
+		p.mediaClock.SeekTo(timestamp + startTime)
 	}
 
 	// Set seek target for packet skipping (mirrors C's mq->mq_seektarget).

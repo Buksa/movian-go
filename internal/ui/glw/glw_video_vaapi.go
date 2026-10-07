@@ -311,7 +311,16 @@ glw_egl_node_driver(const char *node, char *out, size_t outsz)
     return;
   buf[n] = '\0';
   base = strrchr(buf, '/');
-  snprintf(out, outsz, "%s", base ? base + 1 : buf);
+  {
+    const char *s = base ? base + 1 : buf;
+    if(outsz) {
+      size_t m = strlen(s);
+      if(m >= outsz)
+        m = outsz - 1;
+      memcpy(out, s, m);
+      out[m] = '\0';
+    }
+  }
 }
 
 // glw_egl_surfaceless_ctx — test support: create + make current a

@@ -185,8 +185,10 @@ func (mc *MediaClock) Resume() {
 	}
 }
 
-// Seek resets the clock to a new position (microseconds).
-func (mc *MediaClock) Seek(posUs int64) {
+// SeekTo resets the clock to a new position (microseconds).
+// (Named SeekTo, not Seek: vet's stdmethods check would complain
+// about the non-io.Seeker signature.)
+func (mc *MediaClock) SeekTo(posUs int64) {
 	mc.mu.Lock()
 	defer mc.mu.Unlock()
 	mc.offset = posUs

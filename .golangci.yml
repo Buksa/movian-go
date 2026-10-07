@@ -73,31 +73,26 @@ linters:
         - name: var-declaration
         - name: var-naming
 
+  exclusions:
+    rules:
+      - path: _test\.go
+        linters:
+          - dupl
+          - gocyclo
+          - gosec
+          - errcheck
+      - path: cmd/movian-go/main\.go
+        linters:
+          - gocyclo
+      - path: pkg/libav/
+        linters:
+          - gosec
+
 issues:
-  exclude-rules:
-    - path: _test\.go
-      linters:
-        - dupl
-        - gocyclo
-        - gosec
-        - errcheck
-    - path: cmd/movian-go/main\.go
-      linters:
-        - gocyclo
-    - path: pkg/libav/
-      linters:
-        - gosec
   max-issues-per-linter: 0
   max-same-issues: 0
-  fix: false
 
 formatters:
   enable:
     - gofmt
     - goimports
-
-output:
-  formats:
-    colored-line-number:
-      - format: colored-line-number
-  sort-results: true
