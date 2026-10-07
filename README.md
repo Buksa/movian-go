@@ -149,6 +149,7 @@ manifest are in [BUILDING.md](BUILDING.md).
 - [USER_GUIDE.md](USER_GUIDE.md) — running, keyboard, sources, settings
 - [PLUGINS.md](PLUGINS.md) — writing and shipping plugins (goja/JS)
 - [BUILDING.md](BUILDING.md) — toolchains and per-platform builds
+- [MGOS_RPI.md](MGOS_RPI.md) — Raspberry Pi appliance SD image: contents, flashing, per-board caveats
 - [FFMPEG_BOUNDARY.md](FFMPEG_BOUNDARY.md) — cgo/FFmpeg ownership rules
 
 ## Layout

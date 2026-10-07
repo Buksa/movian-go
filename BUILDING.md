@@ -371,7 +371,8 @@ xz -dc movian-go-mgos-rpi-*.img.xz | sudo dd of=/dev/sdX bs=4M status=progress c
 
 First boot expands the rootfs and reboots; then connman comes up
 (Ethernet is plug&play, WiFi is configured from Movian's network UI)
-and Movian starts fullscreen on its own.
+and Movian starts fullscreen on its own. Board support, per-model
+caveats and troubleshooting: [MGOS_RPI.md](MGOS_RPI.md).
 
 ### 5.3 Desktop bundle vs appliance
 
