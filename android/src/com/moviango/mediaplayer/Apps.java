@@ -155,14 +155,18 @@ public class Apps {
 
     // openHomeSettings() — bring up the "select home app" UI.
     //
-    // Neither Settings.ACTION_HOME_SETTINGS nor an ACTION_CHOOSER over a
-    // HOME intent is reliable on OEM leanback boxes: on the TIM_BOX the
-    // former resolves to a stubbed EmptyStubActivity and the latter
-    // forwards straight to the current default. What works is changing
-    // the HOME resolve set: PreferredActivity records the components
-    // that matched when the default was picked, so toggling our alias
-    // invalidates the recorded default and the next HOME intent shows
-    // the real picker again.
+    // Fallback chain, from most to least standard:
+    //   1. RoleManager HOME role request (API 29+) — official dialog.
+    //   2. Settings.ACTION_HOME_SETTINGS — the stock "Home app" picker.
+    //      Skipped when it resolves to a do-nothing OEM stub (the TIM
+    //      box points it at an EmptyStubActivity).
+    //   3. createChooser over a HOME intent — forces a picker even when
+    //      a default is recorded.
+    //   4. Bare HOME intent — last resort, resolves to the current
+    //      default on locked firmware.
+    // Note: on operator boxes (e.g. TIM) the stock launcher is a
+    // priv-app whose HOME filter priority always wins and preferred-
+    // activity records are ignored — no app can override it there.
     public static void openHomeSettings() {
         if (ctx == null)
             return;
@@ -203,7 +207,23 @@ public class Apps {
             } catch (Exception ignored) {}
         }
 
-        // Chooser first: a bare HOME intent resolves straight to the
+        // The stock "Home app" settings page — the canonical picker on
+        // standard Android. Skip it when the intent resolves to an OEM
+        // stub that would just flash and finish.
+        try {
+            Intent i = new Intent(Settings.ACTION_HOME_SETTINGS);
+            i.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+            ResolveInfo ri = ctx.getPackageManager().resolveActivity(i, 0);
+            boolean stub = ri != null && ri.activityInfo != null
+                && ri.activityInfo.name != null
+                && ri.activityInfo.name.contains("EmptyStub");
+            if (!stub) {
+                ctx.startActivity(i);
+                return;
+            }
+        } catch (Exception ignored) {}
+
+        // Chooser next: a bare HOME intent resolves straight to the
         // recorded default when one exists (e.g. the OEM-pinned TIM
         // launcher) without ever showing a picker. createChooser forces
         // the "Always / Just once" chooser over the HOME resolve set.
