@@ -195,6 +195,12 @@ public class GLWActivity extends Activity implements VideoRendererProvider {
     public void sysHome() {
         runOnUiThread(new Runnable() {
                 public void run() {
+                    // Launcher mode: Movian IS the home app — firing a
+                    // HOME intent would just switch to the OEM launcher
+                    // (which always wins resolution on locked firmware).
+                    // A real launcher stays put on back-at-root.
+                    if (HomeKeyService.aliasEnabled(GLWActivity.this))
+                        return;
                     Intent startMain = new Intent(Intent.ACTION_MAIN);
                     startMain.addCategory(Intent.CATEGORY_HOME);
                     startMain.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK);

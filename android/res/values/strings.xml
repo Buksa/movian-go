@@ -1,0 +1,4 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+<string name="home_key_service_desc">Lets Movian act as the HOME launcher: pressing HOME brings Movian to the front while launcher mode is enabled.</string>
+</resources>

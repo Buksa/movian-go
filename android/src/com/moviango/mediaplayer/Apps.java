@@ -188,6 +188,28 @@ public class Apps {
                 PackageManager.DONT_KILL_APP);
         } catch (Exception ignored) {}
 
+        // Locked-firmware fallback: if WRITE_SECURE_SETTINGS was granted
+        // (`pm grant com.moviango.mediaplayer android.permission.WRITE_
+        // SECURE_SETTINGS`), self-enable the HOME-key accessibility
+        // service — pressing HOME then brings Movian to the front
+        // regardless of the OEM-pinned stock launcher. The picker chain
+        // below still runs so the official route is used where it works.
+        String svc = ctx.getPackageName() + "/" +
+            ctx.getPackageName() + ".HomeKeyService";
+        try {
+            String cur = Settings.Secure.getString(
+                ctx.getContentResolver(), "enabled_accessibility_services");
+            if (cur == null || !cur.contains(svc)) {
+                cur = (cur == null || cur.isEmpty()) ? svc : cur + ":" + svc;
+                Settings.Secure.putString(ctx.getContentResolver(),
+                    "enabled_accessibility_services", cur);
+            }
+            Settings.Secure.putInt(ctx.getContentResolver(),
+                "accessibility_enabled", 1);
+        } catch (SecurityException ignored) {
+            // WRITE_SECURE_SETTINGS not granted — pickers still run.
+        } catch (Exception ignored) {}
+
         // API 29+: the official "set as default" role dialog. Used via
         // reflection — our compile SDK predates android.app.role.
         if (Build.VERSION.SDK_INT >= 29) {
@@ -208,18 +230,39 @@ public class Apps {
         }
 
         // The stock "Home app" settings page — the canonical picker on
-        // standard Android. Skip it when the intent resolves to an OEM
-        // stub that would just flash and finish.
+        // standard Android. Skipped when the intent resolves to an OEM
+        // do-nothing stub (class name contains "Stub": EmptyStubActivity
+        // on TIM, Stubs$SettingsStub variants elsewhere).
         try {
             Intent i = new Intent(Settings.ACTION_HOME_SETTINGS);
             i.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
             ResolveInfo ri = ctx.getPackageManager().resolveActivity(i, 0);
-            boolean stub = ri != null && ri.activityInfo != null
-                && ri.activityInfo.name != null
-                && ri.activityInfo.name.contains("EmptyStub");
+            boolean stub = ri == null || ri.activityInfo == null
+                || ri.activityInfo.name == null
+                || ri.activityInfo.name.contains("Stub");
             if (!stub) {
                 ctx.startActivity(i);
                 return;
+            }
+        } catch (Exception ignored) {}
+
+        // Accessibility settings — manual path to enable HomeKeyService
+        // when it couldn't self-enable (no WRITE_SECURE_SETTINGS grant)
+        // and the firmware otherwise permits it. Skipped for OEM stubs.
+        try {
+            String en = Settings.Secure.getString(ctx.getContentResolver(),
+                "enabled_accessibility_services");
+            if (en == null || !en.contains(svc)) {
+                Intent i = new Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS);
+                i.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                ResolveInfo ri = ctx.getPackageManager().resolveActivity(i, 0);
+                boolean stub = ri == null || ri.activityInfo == null
+                    || ri.activityInfo.name == null
+                    || ri.activityInfo.name.contains("Stub");
+                if (!stub) {
+                    ctx.startActivity(i);
+                    return;
+                }
             }
         } catch (Exception ignored) {}
 
