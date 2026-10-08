@@ -20,9 +20,10 @@ import android.view.accessibility.AccessibilityEvent;
 // Technique after FTVLaunchX (github.com/codefaktor/FTVLaunchX).
 //
 // Active only while launcher mode is on (the .HomeLauncher alias is
-// enabled). Pass-through rules:
-//   - HOME while Movian is already in foreground → goes to Movian's
-//     own in-app HOME handling.
+// enabled). Behaviour:
+//   - HOME consumed always → Movian navigates to its home page
+//     (page:home); from another app GLWActivity is also brought to
+//     front first. Launcher semantics: HOME takes you home.
 //   - MENU held + HOME → real stock launcher (escape hatch).
 // Wake-from-sleep also re-launches Movian (home app semantics).
 public class HomeKeyService extends AccessibilityService {
@@ -74,10 +75,15 @@ public class HomeKeyService extends AccessibilityService {
             return false;
         }
         if (event.getKeyCode() == KeyEvent.KEYCODE_HOME
-                && aliasEnabled(getApplicationContext()) && !menuDown
-                && !getPackageName().equals(foregroundPkg)) {
-            if (event.getAction() == KeyEvent.ACTION_DOWN)
-                launchHome();
+                && aliasEnabled(getApplicationContext()) && !menuDown) {
+            if (event.getAction() == KeyEvent.ACTION_DOWN) {
+                // Always navigate to the Movian home page — launcher
+                // semantics: HOME takes you home no matter how deep you
+                // are. From another app we also bring Movian to front.
+                if (!getPackageName().equals(foregroundPkg))
+                    launchHome();
+                Core.openUri("page:home");
+            }
             return true;
         }
         return false;
