@@ -101,6 +101,16 @@ public class GLWActivity extends Activity implements VideoRendererProvider {
     }
 
     @Override
+    protected void onNewIntent(Intent intent) {
+        super.onNewIntent(intent);
+        // singleTask: intents delivered to the running instance end up here.
+        // setIntent() lets the onResume handler below pick up the URI
+        // (media open while running, or HOME presses when we are the
+        // default launcher).
+        setIntent(intent);
+    }
+
+    @Override
     protected void onResume() {
         Log.d("Movian", "onResume");
         super.onResume();
@@ -197,7 +207,19 @@ public class GLWActivity extends Activity implements VideoRendererProvider {
     public void askPermission(final String permission) {
         runOnUiThread(new Runnable() {
                 public void run() {
-                    requestPermissions(new String[] {permission}, 1);
+                    // If the activity can no longer host the runtime
+                    // dialog, fail fast — the native caller blocks in
+                    // permissionCond.Wait() and must never be left
+                    // waiting for a result that cannot arrive.
+                    if (isFinishing() || isDestroyed()) {
+                        Core.permissionResult(false);
+                        return;
+                    }
+                    try {
+                        requestPermissions(new String[] {permission}, 1);
+                    } catch (Exception e) {
+                        Core.permissionResult(false);
+                    }
                 }
             });
     }
@@ -206,8 +228,12 @@ public class GLWActivity extends Activity implements VideoRendererProvider {
     public void onRequestPermissionsResult(int requestCode,
                                            String permissions[],
                                            int[] grantResults) {
-        Core.permissionResult(grantResults[0] ==
-                              PackageManager.PERMISSION_GRANTED);
+        if (requestCode != 1)
+            return;
+        // grantResults is empty when the request is cancelled — indexing
+        // it would throw and leave the native wait blocked forever.
+        Core.permissionResult(grantResults.length > 0 &&
+                              grantResults[0] == PackageManager.PERMISSION_GRANTED);
     }
 
     public String getRealPathFromUri(final Uri uri) {

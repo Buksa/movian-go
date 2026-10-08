@@ -17,6 +17,18 @@
   <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE"/>
   <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE"/>
 
+  <!-- Launcher mode: enumerate launchable apps (API 30+ package visibility) -->
+  <queries>
+    <intent>
+      <action android:name="android.intent.action.MAIN" />
+      <category android:name="android.intent.category.LAUNCHER" />
+    </intent>
+    <intent>
+      <action android:name="android.intent.action.MAIN" />
+      <category android:name="android.intent.category.LEANBACK_LAUNCHER" />
+    </intent>
+  </queries>
+
   <application android:label="@@APPNAME@@"
                android:icon="@drawable/ic_launcher"
                android:banner="@drawable/banner"
@@ -26,6 +38,7 @@
 
     <activity android:name=".GLWActivity"
               android:label="@@APPNAME@@"
+              android:launchMode="singleTask"
               android:configChanges="keyboard|keyboardHidden|orientation|screenLayout|uiMode|screenSize|smallestScreenSize">
       <intent-filter>
         <action android:name="android.intent.action.MAIN" />
@@ -386,6 +399,26 @@
       </intent-filter>
 
     </activity>
+
+    <!-- Launcher mode: this alias carries the HOME/DEFAULT filter so
+         Movian is offered as a home-app candidate ONLY while launcher
+         mode is on — the alias stays disabled otherwise. Toggling the
+         component also changes the HOME resolve set, which invalidates
+         the recorded preferred-activity and makes Android re-show the
+         picker (the way to reach it on OEM boxes where
+         ACTION_HOME_SETTINGS is stubbed out). -->
+    <activity-alias android:name=".HomeLauncher"
+                    android:enabled="false"
+                    android:exported="true"
+                    android:label="@@APPNAME@@"
+                    android:icon="@drawable/ic_launcher"
+                    android:targetActivity=".GLWActivity">
+      <intent-filter>
+        <action android:name="android.intent.action.MAIN" />
+        <category android:name="android.intent.category.HOME" />
+        <category android:name="android.intent.category.DEFAULT" />
+      </intent-filter>
+    </activity-alias>
 
   </application>
 </manifest>

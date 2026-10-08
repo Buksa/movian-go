@@ -11,6 +11,7 @@ import (
 	facore "github.com/czz/movian-go/internal/fileaccess"
 	miscpkg "github.com/czz/movian-go/internal/misc"
 	propcore "github.com/czz/movian-go/internal/prop"
+	tracepkg "github.com/czz/movian-go/internal/trace"
 )
 
 // C: token_type_t (glw_view.h:34-102)
@@ -377,6 +378,7 @@ func gcvLoad(gr *glwRoot, gcv *GlwCachedView, mayUnlock int) {
 		}
 		gcv.gcvError = fmt.Sprintf("Unable to open \"%s\" -- %s",
 			miscpkg.RstrGet(file), msg)
+		glwDeps.ts.Trace(tracepkg.TRACE_ERROR, "GLW", "%s", gcv.gcvError)
 		return
 	}
 
@@ -405,6 +407,8 @@ func gcvLoad(gr *glwRoot, gcv *GlwCachedView, mayUnlock int) {
 	gcv.gcvError = ei.error
 	gcv.gcvErrorFile = ei.file
 	gcv.gcvErrorLine = ei.line
+	glwDeps.ts.Trace(tracepkg.TRACE_ERROR, "GLW", "View error in %s:%d: %s",
+		ei.file, ei.line, ei.error)
 }
 
 // C: static void gvlr_destroy(glw_root_t *gr, glw_view_load_request_t *r)

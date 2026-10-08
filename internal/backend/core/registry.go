@@ -439,6 +439,9 @@ func (bs *BackendSystem) Start() {
 	// Register the search backend (handles search: URLs)
 	bs.registerSearchBackend()
 
+	// Platform-specific backends (android: apps: launcher page)
+	bs.registerPlatformBackends()
+
 	// RTMP backend registration is done externally to avoid import cycles
 
 	// Bittorrent backend registration is done externally to avoid import cycles

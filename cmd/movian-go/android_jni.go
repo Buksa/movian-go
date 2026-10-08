@@ -61,6 +61,7 @@ import (
 	navcore "github.com/czz/movian-go/internal/navigator"
 	propcore "github.com/czz/movian-go/internal/prop"
 	"github.com/czz/movian-go/internal/service"
+	settingspkg "github.com/czz/movian-go/internal/settings"
 	"github.com/czz/movian-go/internal/trace"
 	uiglw "github.com/czz/movian-go/internal/ui/glw"
 )
@@ -97,6 +98,13 @@ func Java_com_moviango_mediaplayer_Core_coreInit(
 
 	c := C.ml_jni_find_class(env, C.CString("com/moviango/mediaplayer/Core"))
 	arch.STCore = unsafe.Pointer(C.ml_jni_new_global_ref(env, C.jobject(c)))
+
+	// Cache the Apps jclass as a global ref too — this runs on a
+	// Java thread so FindClass sees the app's classloader (a later
+	// FindClass from a Go thread would use the bootstrap loader and
+	// fail to resolve app classes).
+	ca := C.ml_jni_find_class(env, C.CString("com/moviango/mediaplayer/Apps"))
+	arch.STApps = unsafe.Pointer(C.ml_jni_new_global_ref(env, C.jobject(ca)))
 
 	arch.TraceArch(trace.TRACE_INFO, "Core",
 		"Native core init pid "+itoa(int(C.getpid()))+" SDK:"+itoa(arch.AndroidSDK))
@@ -165,6 +173,66 @@ func Java_com_moviango_mediaplayer_Core_coreInit(
 	ctx.serviceSystem.ServiceCreatep("androidstorage",
 		"Android Storage", "es://", "storage", "", false, true,
 		service.SvcOriginSystem)
+
+	// Applications home-row service — launcher mode. New in Go
+	// (upstream C has no Android launcher feature). The "enabled"
+	// prop controls the home row via the services PropNF filter;
+	// the bool under Settings→Apps binds to it and persists.
+	appsSvc := ctx.serviceSystem.ServiceCreatep("androidapps",
+		"Applications", "apps:", "app", "skin://icons/ic_apps_48px.svg",
+		false, false, service.SvcOriginSystem)
+	if appsSvc != nil && ctx.settingsManager != nil {
+		sm := ctx.settingsManager
+		enProp := ctx.propManager.CreateEx(appsSvc.Root(),
+			"enabled", nil, false, false)
+		sm.CreateSeparatorProp(sm.Apps(), sm.P("Launcher"))
+		sm.SettingCreate(settingspkg.SettingBool, sm.Apps(),
+			settingspkg.SettingsInitialUpdate,
+			settingspkg.SettingTagTitle,
+			sm.P("Launcher mode (installed apps on Home)"),
+			settingspkg.SettingTagValue, 0,
+			settingspkg.SettingTagWriteProp, enProp,
+			settingspkg.SettingTagStore, "android", "launcher_mode")
+		sm.CreateActionProp(sm.Apps(),
+			"Set Movian as default launcher", "android",
+			func(opaque, value any) { arch.AndroidOpenHomeSettings() },
+			nil, 0)
+
+		// The toggle only enables/disables the HOME activity-alias —
+		// whether Movian is a launcher candidate at all — and shows or
+		// hides the home tiles via the "enabled" prop. It must NOT fire
+		// an intent: pushing the picker here would yank Movian to the
+		// background. Choosing the default stays an explicit user
+		// action via "Set Movian as default launcher".
+		// Subscribing after SettingCreate skips the initial store
+		// restore, so this only fires on user toggles — but the alias
+		// state must still track the restored value, so apply it once
+		// explicitly.
+		arch.AndroidSetLauncherAlias(enProp.GetInt() != 0)
+		enProp.Subscribe(func(o any, et propcore.EventType, args ...any) {
+			if et != propcore.EventSetInt || len(args) == 0 {
+				return
+			}
+			if v, ok := args[0].(int); ok {
+				arch.AndroidSetLauncherAlias(v != 0)
+			}
+		}, nil, propcore.SubNoInitialUpdate)
+
+		// Android Settings shortcut — home tile like Plugins, visible
+		// only in launcher mode: its "enabled" prop is linked to the
+		// same launcher-mode flag as the Applications service.
+		// Opens the system Settings app via the androidsettings:
+		// backend; the page self-closes so the user returns to Home.
+		if settingsSvc := ctx.serviceSystem.ServiceCreatep("androidsettings",
+			"Android Settings", "androidsettings:", "setting",
+			"skin://icons/ic_settings_48px.svg", false, false,
+			service.SvcOriginSystem); settingsSvc != nil {
+			ctx.propManager.Link(enProp,
+				ctx.propManager.CreateEx(settingsSvc.Root(),
+					"enabled", nil, false, false),
+				nil, false, false)
+		}
+	}
 
 	// C: android_nav = nav_spawn() (android.c:358)
 	androidNavigator = ctx.navSystem.Spawn(ctx.propManager)

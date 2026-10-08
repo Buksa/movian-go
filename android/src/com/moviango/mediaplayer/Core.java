@@ -95,6 +95,7 @@ public class Core {
     public static void init(CoreService svc) {
 
         mService = svc;
+        Apps.init(svc);
 
         int clock_24hrs = DateFormat.is24HourFormat(svc) ? 1 : 0;
 

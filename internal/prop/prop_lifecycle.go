@@ -163,9 +163,7 @@ func (pm *PropManager) CreateEx(parent *Prop, name string, opaque any, canBeAnon
 
 	if parent != nil {
 		// C: prop_make_dir(parent) — transition parent to DIR if needed
-		if parent.propType != PropTypeDir {
-			parent.propType = PropTypeDir
-		}
+		dirSubs := transitionDirLocked(parent)
 
 		parent.children = append(parent.children, prop)
 		if parent.childIndex == nil {
@@ -196,6 +194,9 @@ func (pm *PropManager) CreateEx(parent *Prop, name string, opaque any, canBeAnon
 
 		parent.mu.Unlock()
 		pm.mu.Unlock()
+
+		// C: prop_make_dir's PROP_SET_DIR precedes prop_insert's PROP_ADD_CHILD
+		notifyDirTransition(dirSubs, parent)
 
 		// Notify parent's subscribers with EventAddChild.
 		// C: prop_create0 → prop_notify_child(parent, PROP_ADD_CHILD, child)
@@ -850,12 +851,11 @@ func (pm *PropManager) SetParentVector(vec *Prop, newParent *Prop, opaque any, n
 		return 0
 	}
 
-	// C: prop_make_dir(parent)
+	// C: prop_make_dir(parent) — transition + SET_DIR notify before children
 	newParent.mu.Lock()
-	if newParent.propType != PropTypeDir {
-		newParent.propType = PropTypeDir
-	}
+	dirSubs := transitionDirLocked(newParent)
 	newParent.mu.Unlock()
+	notifyDirTransition(dirSubs, newParent)
 
 	// Set each child's parent to newParent
 	for _, child := range children {
@@ -1442,10 +1442,8 @@ func (p *Prop) createChildCanonical(name string) *Prop {
 		}
 	}
 
-	// C: prop_make_dir(parent) — if parent not DIR, transition
-	if p.propType != PropTypeDir {
-		p.propType = PropTypeDir
-	}
+	// C: prop_make_dir(parent) — if parent not DIR, transition + SET_DIR notify
+	dirSubs := transitionDirLocked(p)
 
 	child := &Prop{
 		name:       name,
@@ -1482,6 +1480,9 @@ func (p *Prop) createChildCanonical(name string) *Prop {
 	}
 
 	p.mu.Unlock()
+
+	// C: prop_make_dir's PROP_SET_DIR precedes prop_insert's PROP_ADD_CHILD
+	notifyDirTransition(dirSubs, p)
 
 	// C: prop_notify_child(parent, PROP_ADD_CHILD, child)
 	for _, sub := range parentSubs {
@@ -1652,15 +1653,15 @@ func (p *Prop) SetParent(parent *Prop) {
 	if parent != nil {
 		parent.mu.Lock()
 
-		// C: prop_make_dir(parent)
-		if parent.propType != PropTypeDir {
-			parent.propType = PropTypeDir
-		}
+		// C: prop_make_dir(parent) — transition + SET_DIR notify
+		dirSubs := transitionDirLocked(parent)
 
 		// Check for existing child with same name
 		if p.name != "" && parent.childIndex != nil {
 			if existing, ok := parent.childIndex[p.name]; ok && existing != p {
 				parent.mu.Unlock()
+				// C: prop_make_dir already fired SET_DIR before the insert aborted
+				notifyDirTransition(dirSubs, parent)
 				return // don't overwrite existing child
 			}
 		}
@@ -1689,6 +1690,9 @@ func (p *Prop) SetParent(parent *Prop) {
 		newSubs := make([]*Subscription, len(parent.valueSubs))
 		copy(newSubs, parent.valueSubs)
 		parent.mu.Unlock()
+
+		// C: prop_make_dir's PROP_SET_DIR precedes prop_insert's PROP_ADD_CHILD
+		notifyDirTransition(dirSubs, parent)
 
 		// Fire ADD_CHILD to new parent's value subs
 		for _, sub := range newSubs {
