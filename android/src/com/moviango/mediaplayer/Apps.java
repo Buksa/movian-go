@@ -270,6 +270,21 @@ public class Apps {
         // recorded default when one exists (e.g. the OEM-pinned TIM
         // launcher) without ever showing a picker. createChooser forces
         // the "Always / Just once" chooser over the HOME resolve set.
+        // If even the service could not be enabled and every settings
+        // page is stubbed, tell the user the one remaining step instead
+        // of silently landing on the stock launcher.
+        try {
+            String en = Settings.Secure.getString(ctx.getContentResolver(),
+                "enabled_accessibility_services");
+            if (en == null || !en.contains(svc)) {
+                android.widget.Toast.makeText(ctx,
+                    "Launcher mode needs the accessibility service enabled.\n" +
+                    "Via adb: pm grant " + ctx.getPackageName() +
+                    " android.permission.WRITE_SECURE_SETTINGS,\n" +
+                    "then press this button again.",
+                    android.widget.Toast.LENGTH_LONG).show();
+            }
+        } catch (Exception ignored) {}
         try {
             Intent i = new Intent(Intent.ACTION_MAIN);
             i.addCategory(Intent.CATEGORY_HOME);
