@@ -373,9 +373,7 @@ func wireNetwork(ctx *appContext, gc *gconf.T) {
 
 	// C: http_path_add("/api/screenshot", NULL, hc_screenshot, 0) (screenshot.c:298)
 	ctx.screenshotHandler = screenshot.NewScreenshotHandler(ctx.eventManager, persistentPath, "7c79b311d4797ed", traceSystem)
-	ctx.httpServer.HTTPPathAdd("/api/screenshot", nil, func(hc *httpnet.HTTPConnection, remain string, opaque any, method httpnet.HTTPCmd) int {
-		return ctx.screenshotHandler.Screenshot(hc, remain, opaque, method)
-	}, false)
+	ctx.screenshotHandler.Register(ctx.httpServer)
 
 	// GAP-002: Register /api/stpp WebSocket endpoint
 	// C: stpp.c:ws_init calls http_add_websocket("/api/stpp", ...)

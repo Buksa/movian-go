@@ -50,7 +50,7 @@ var glwDeps = struct {
 
 	// runcontrolActivity — C: runcontrol_activity() global
 	runcontrolActivity func()
-	screenshotDeliver  func(pm *imagepkg.Pixmap) // C: screenshot_deliver
+	screenshotDeliver  func(capture *eventpkg.Event, pm *imagepkg.Pixmap) // C: screenshot_deliver
 	// appDataroot — C: app_dataroot() global
 	appDataroot func() string
 	// navCourierPoll — drains the navigator's event courier once per
