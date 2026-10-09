@@ -9,6 +9,7 @@ import (
 
 	eventpkg "github.com/czz/movian-go/internal/event"
 	"github.com/czz/movian-go/internal/misc"
+	"github.com/czz/movian-go/internal/notifications"
 	propcore "github.com/czz/movian-go/internal/prop"
 	settingscore "github.com/czz/movian-go/internal/settings"
 )
@@ -225,14 +226,21 @@ func (pm *PluginManager) pluginEvent(pl *Plugin, sub *propcore.Subscription, eve
 		if ep == nil || ep.Type != eventpkg.EVENT_DYNAMIC_ACTION {
 			return
 		}
+		var err error
+		var op string
 		if install, found := strings.CutPrefix(ep.Payload, "install:"); found {
 			// C: *install ? install : NULL — empty payload → NULL →
 			// plugin_install uses pl->pl_package (InstallPlugin: "" → pl.Package)
-			_ = pm.InstallPlugin(pl, install)
+			op, err = "install", pm.InstallPlugin(pl, install)
 		} else if ep.Payload == "upgrade" {
-			_ = pm.InstallPlugin(pl, "")
+			op, err = "install", pm.InstallPlugin(pl, "")
 		} else if ep.Payload == "uninstall" {
-			_ = pm.RemovePlugin(pl)
+			op, err = "uninstall", pm.RemovePlugin(pl)
+		}
+		if err != nil {
+			pm.ts.Error("plugins", "Unable to %s %s: %v\n", op, pl.FQID, err)
+			pm.notifMgr.NotifyAdd(nil, notifications.NotifyError, "", 10,
+				"Unable to %s %s", op, pl.FQID)
 		}
 	}
 }
