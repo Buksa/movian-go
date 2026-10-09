@@ -4,18 +4,17 @@ package screenshot
 
 import (
 	"bytes"
-	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"image"
 	"image/draw"
-	"io"
+	"mime/multipart"
 	"net/http"
-	"net/url"
 	"os"
 	"path/filepath"
 	"runtime/debug"
 	"sync"
+	"time"
 	"unsafe"
 
 	"github.com/czz/movian-go/internal/event"
@@ -28,32 +27,27 @@ import (
 const (
 	AVCodecIDMjpeg = 7
 	AVCodecIDPng   = 61
-	AVPixFmtRgb32  = 28
 	AVPixFmtRGBA   = 26
 	SwsBilinear    = 2
 )
 
-// ImgurResponse represents the JSON response from Imgur
-type ImgurResponse struct {
-	Success bool `json:"success"`
-	Data    struct {
-		Link  string `json:"link"`
-		Error string `json:"error"`
-	} `json:"data"`
+var imgurClient = http.Client{Timeout: 30 * time.Second}
+
+type screenshotRequest struct {
+	conn       *httpnet.HTTPConnection
+	raw        bool
+	processing bool
+	timeout    *time.Timer
 }
 
-// ScreenshotHandler handles screenshot API requests
 type ScreenshotHandler struct {
 	eventMgr  *event.EventManager
 	cachePath string
 	imgurID   string
 	ts        *trace.TraceSystem
 
-	mu          sync.Mutex
-	active      bool
-	conn        *httpnet.HTTPConnection
-	requestID   int64 // unique ID per request, prevents defer race
-	nextRequest int64 // monotonic counter for request IDs
+	mu      sync.Mutex
+	request *screenshotRequest
 }
 
 // NewScreenshotHandler creates a new screenshot handler
@@ -67,123 +61,133 @@ func NewScreenshotHandler(eventMgr *event.EventManager, cachePath, imgurID strin
 }
 
 // Screenshot handles HTTP screenshot requests
-// This is the Go equivalent of hc_screenshot in C
+// This is the Go equivalent of hc_screenshot in C.
+// /api/screenshot/raw and /api/screenshot?raw=1 return a PNG directly.
 func (h *ScreenshotHandler) Screenshot(hc *httpnet.HTTPConnection, remain string, opaque any, method httpnet.HTTPCmd) int {
-	h.mu.Lock()
-	defer h.mu.Unlock()
+	rawArg := hc.HTTPArgGetReq("raw")
+	raw := remain == "raw" || rawArg == "1" || rawArg == "true"
 
-	if h.active {
-		return 502 // Service Unavailable
+	h.mu.Lock()
+	if h.request != nil {
+		h.mu.Unlock()
+		return 502
 	}
 
-	h.active = true
-	h.conn = hc
-	h.requestID = h.nextRequest
-	h.nextRequest++
+	req := &screenshotRequest{conn: hc, raw: raw}
+	h.request = req
+	if raw {
+		req.timeout = time.AfterFunc(5*time.Second, func() {
+			h.fail(req, http.StatusGatewayTimeout, "Screenshot timed out")
+		})
+	}
+	h.mu.Unlock()
 
-	// C: event_to_ui(event_create(EVENT_MAKE_SCREENSHOT, sizeof(event_t)))
-	// (screenshot.c:56) — the GLW ui.eventSink routes it to glw_dispatch_event
-	// → glw_screenshot → screenshot_deliver → Deliver().
+	// C: event_to_ui(EVENT_MAKE_SCREENSHOT); GLW delivers the captured pixmap.
 	if h.eventMgr != nil {
 		e := h.eventMgr.Create(event.EVENT_MAKE_SCREENSHOT, 0)
+		e.SetConcrete(req)
 		h.eventMgr.EventToUI(e)
 	}
 	return 0
 }
 
-// Pending returns true if there's an active screenshot request.
-// Called from the render loop to check if a screenshot should be captured.
-func (h *ScreenshotHandler) Pending() bool {
-	h.mu.Lock()
-	defer h.mu.Unlock()
-	return h.active
-}
-
-// Deliver delivers a pixmap for screenshot processing
-// This is the Go equivalent of screenshot_deliver in C
-//
-// F-RACE-1 fix: consume the request atomically under h.mu BEFORE spawning
-// process(). This clears h.active so the render loop's Pending() returns
-// false on subsequent frames, guaranteeing exactly one Deliver() → one
-// process() per request, matching C's single-invocation semantics.
-func (h *ScreenshotHandler) Deliver(img image.Image) {
-	h.mu.Lock()
-	h.active = false
-	h.mu.Unlock()
-	go h.process(img)
-}
-
-// process processes the screenshot image
-// This is the Go equivalent of screenshot_process in C
-func (h *ScreenshotHandler) process(img image.Image) {
-	// Capture the request ID and connection atomically so we can:
-	// 1. Avoid clobbering a newer request's state in the defer.
-	// 2. Use the correct connection throughout process() even if a new
-	//    request arrives and overwrites h.conn while we're still running.
-	h.mu.Lock()
-	myRequestID := h.requestID
-	myConn := h.conn
-	h.mu.Unlock()
-
-	// Guarantee that active/conn are reset on ALL exit paths, including
-	// panics from CGO/FFmpeg, HTTP, or file I/O. The requestID check
-	// prevents a slow-exiting goroutine from clobbering a newer request.
-	defer func() {
+// Deliver receives an owned image and the event that requested its capture.
+// Keyboard captures have no HTTP request; expired HTTP captures are discarded.
+func (h *ScreenshotHandler) Deliver(capture *event.Event, img image.Image) {
+	req, isHTTP := capture.Concrete().(*screenshotRequest)
+	if isHTTP {
 		h.mu.Lock()
-		if h.requestID == myRequestID {
-			h.active = false
-			h.conn = nil
+		if h.request != req || req.processing {
+			h.mu.Unlock()
+			return
 		}
+		req.processing = true
 		h.mu.Unlock()
+	} else {
+		req = &screenshotRequest{}
+	}
+	go h.process(req, img)
+}
+
+func (h *ScreenshotHandler) finish(req *screenshotRequest, reply func(*httpnet.HTTPConnection)) {
+	h.mu.Lock()
+	if h.request != req {
+		h.mu.Unlock()
+		return
+	}
+	h.request = nil
+	if req.timeout != nil {
+		req.timeout.Stop()
+	}
+	h.mu.Unlock()
+
+	if reply != nil && req.conn != nil {
+		reply(req.conn)
+	}
+}
+
+func (h *ScreenshotHandler) fail(req *screenshotRequest, status int, format string, args ...any) {
+	message := fmt.Sprintf(format, args...)
+	if req.conn == nil {
+		h.ts.Error("SCREENSHOT", "%s", message)
+		return
+	}
+	h.finish(req, func(conn *httpnet.HTTPConnection) {
+		conn.HTTPError(status, "%s", message)
+	})
+}
+
+func (h *ScreenshotHandler) process(req *screenshotRequest, img image.Image) {
+	defer func() {
 		if r := recover(); r != nil {
 			h.ts.Debug("SCREENSHOT", "panic in process: %v\n%s", r, debug.Stack())
+			h.fail(req, http.StatusInternalServerError, "Screenshot capture failed")
 		}
 	}()
 
 	if img == nil {
-		h.response(myConn, "", "Screenshot not supported on this platform")
+		h.fail(req, http.StatusInternalServerError, "Screenshot not supported on this platform")
 		return
 	}
 
 	h.ts.Trace(trace.TRACE_DEBUG, "Screenshot", "Processing image %d x %d",
 		img.Bounds().Dx(), img.Bounds().Dy())
 
-	// Determine codec ID from the captured connection (not h.conn)
-	useJPEG := myConn != nil
-
 	codecID := AVCodecIDPng
-	if useJPEG {
+	if !req.raw && req.conn != nil {
 		codecID = AVCodecIDMjpeg
 	}
-
-	// Compress using libav
 	data, err := h.compressWithLibav(img, codecID)
 	if err != nil {
-		h.response(myConn, "", fmt.Sprintf("Unable to compress image: %v", err))
+		h.fail(req, http.StatusInternalServerError, "Unable to compress image: %v", err)
 		return
 	}
 
-	// If no HTTP connection, save to file
-	hasConn := myConn != nil
+	if req.raw {
+		h.finish(req, func(conn *httpnet.HTTPConnection) {
+			conn.HTTPSendReply(http.StatusOK, "image/png", "", "", 0, data)
+		})
+		return
+	}
 
-	if !hasConn {
+	if req.conn == nil {
 		savePath := filepath.Join(h.cachePath, "screenshot.png")
-		err := h.saveToFile(data, savePath)
-		if err != nil {
-			h.response(myConn, "", fmt.Sprintf("Unable to save screenshot: %v", err))
+		if err := os.WriteFile(savePath, data, 0644); err != nil {
+			h.fail(req, http.StatusInternalServerError, "Unable to save screenshot: %v", err)
 		} else {
-			h.ts.Trace(trace.TRACE_INFO, "SCREENSHOT", "Written to %s", savePath)
+			h.ts.Trace(trace.TRACE_INFO, "Screenshot", "Written to %s", savePath)
 		}
 		return
 	}
 
-	// Upload to Imgur
 	imgurURL, err := h.uploadToImgur(data)
 	if err != nil {
-		h.response(myConn, "", fmt.Sprintf("Imgur upload failed: %v", err))
-	} else {
-		h.response(myConn, imgurURL, "")
+		h.fail(req, http.StatusInternalServerError, "Imgur upload failed: %v", err)
+		return
 	}
+	h.finish(req, func(conn *httpnet.HTTPConnection) {
+		conn.HTTPRedirect(imgurURL)
+	})
 }
 
 // compressWithLibav compresses the image using libav (FFmpeg 7+)
@@ -217,7 +221,6 @@ func (h *ScreenshotHandler) compressWithLibav(img image.Image, codecID int) ([]b
 	if err := libav.AvcodecOpen2Encoder(ctx, codec, nil); err != nil {
 		return nil, fmt.Errorf("unable to open encoder: %w", err)
 	}
-	defer libav.AvcodecClose(ctx)
 
 	// Allocate output frame
 	oframe := libav.AvFrameAlloc()
@@ -230,19 +233,15 @@ func (h *ScreenshotHandler) compressWithLibav(img image.Image, codecID int) ([]b
 	if err := libav.AvImageAlloc(oframe, width, height, ctx.GetPixFmt(), 1); err != nil {
 		return nil, fmt.Errorf("unable to allocate image: %w", err)
 	}
-	// Convert Go image to RGB32 format for sws_scale
-	rgba := image.NewRGBA(bounds)
-	draw.Draw(rgba, bounds, img, bounds.Min, draw.Src)
-
-	// Setup source data pointer and stride
+	// GLW already delivers an owned, upright NRGBA image. Reuse its pixels
+	// instead of allocating and copying another full frame.
+	rgba, ok := img.(*image.NRGBA)
+	if !ok {
+		rgba = image.NewNRGBA(bounds)
+		draw.Draw(rgba, bounds, img, bounds.Min, draw.Src)
+	}
 	srcPtr := unsafe.Pointer(&rgba.Pix[0])
 	srcStride := rgba.Stride
-
-	// Handle vertical flip if needed
-	if h.needsVerticalFlip(img) {
-		srcPtr = unsafe.Pointer(&rgba.Pix[rgba.Stride*(height-1)])
-		srcStride = -rgba.Stride
-	}
 
 	// Setup sws context for color space conversion (RGB32 → codec format)
 	sws := libav.SwsGetContext(width, height, AVPixFmtRGBA,
@@ -277,112 +276,61 @@ func (h *ScreenshotHandler) compressWithLibav(img image.Image, codecID int) ([]b
 		return nil, fmt.Errorf("avcodec_receive_packet failed: %w", err)
 	}
 
-	// Return encoded data
-	data := pkt.GetData()
-	return data, nil
+	return pkt.GetData(), nil
 }
 
-// PixmapWithFlags is an interface for images that have pixmap flags
-type PixmapWithFlags interface {
-	image.Image
-	PixmapFlags() int
-}
-
-// Pixmap flags
-const (
-	PixmapVflip = 1 << 0
-)
-
-// needsVerticalFlip checks if the image needs vertical flip
-func (h *ScreenshotHandler) needsVerticalFlip(img image.Image) bool {
-	// Check if image implements PixmapWithFlags interface
-	if pm, ok := img.(PixmapWithFlags); ok {
-		return pm.PixmapFlags()&PixmapVflip != 0
-	}
-	return false
-}
-
-// response sends a screenshot response
-// This is the Go equivalent of screenshot_response in C
-//
-// F-RACE-1 fix: accepts the HTTP connection as a parameter (captured
-// atomically in process()) instead of reading h.conn. This prevents
-// a cross-request race where process() from request A could send a
-// response on request B's connection.
-// h.conn/h.active cleanup is handled by process()'s defer.
-func (h *ScreenshotHandler) response(hc *httpnet.HTTPConnection, url, errmsg string) {
-	if hc == nil {
-		return
-	}
-
-	if url != "" {
-		hc.HTTPRedirect(url)
-	} else {
-		msg := errmsg
-		if msg == "" {
-			msg = "Error not specified"
-		}
-		hc.HTTPSendReply(500, "text/plain", "", "", 0, []byte(msg+"\n"))
-	}
-}
-
-// saveToFile saves the image data to a file
-func (h *ScreenshotHandler) saveToFile(data []byte, path string) error {
-	return os.WriteFile(path, data, 0644)
-}
-
-// uploadToImgur uploads the image to Imgur
+// uploadToImgur sends the JPEG as binary multipart data, avoiding base64
+// expansion and URL-encoding copies.
 func (h *ScreenshotHandler) uploadToImgur(data []byte) (string, error) {
-	// Encode image as base64
-	encoded := base64.StdEncoding.EncodeToString(data)
-
-	// Build form data
-	formData := url.Values{}
-	formData.Set("image", encoded)
-
-	// Create HTTP request
-	clientID := h.imgurID
-	if clientID == "" {
-	}
-
-	req, err := http.NewRequest("POST", "https://api.imgur.com/3/upload", bytes.NewReader([]byte(formData.Encode())))
+	var body bytes.Buffer
+	body.Grow(len(data) + 512) // JPEG plus the fixed multipart headers/boundaries.
+	form := multipart.NewWriter(&body)
+	part, err := form.CreateFormFile("image", "screenshot.jpg")
 	if err != nil {
 		return "", err
 	}
+	if _, err := part.Write(data); err != nil {
+		return "", err
+	}
+	if err := form.Close(); err != nil {
+		return "", err
+	}
+	req, err := http.NewRequest(http.MethodPost, "https://api.imgur.com/3/upload", &body)
+	if err != nil {
+		return "", err
+	}
+	req.Header.Set("Authorization", "Client-ID "+h.imgurID)
+	req.Header.Set("Content-Type", form.FormDataContentType())
 
-	req.Header.Set("Authorization", "Client-ID "+clientID)
-	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
-
-	client := &http.Client{}
-	resp, err := client.Do(req)
+	resp, err := imgurClient.Do(req)
 	if err != nil {
 		return "", err
 	}
 	defer resp.Body.Close()
 
-	body, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return "", err
+	var result struct {
+		Success bool `json:"success"`
+		Data    struct {
+			ID    string          `json:"id"`
+			Error json.RawMessage `json:"error"`
+		} `json:"data"`
 	}
-
-	// Parse JSON response
-	var imgurResp ImgurResponse
-	if err := json.Unmarshal(body, &imgurResp); err != nil {
-		return "", fmt.Errorf("unable to parse imgur response: %w", err)
+	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+		return "", fmt.Errorf("imgur HTTP %d: invalid JSON response: %w", resp.StatusCode, err)
 	}
-
-	if !imgurResp.Success {
-		if imgurResp.Data.Error != "" {
-			return "", fmt.Errorf("imgur error: %s", imgurResp.Data.Error)
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 || !result.Success {
+		message := http.StatusText(resp.StatusCode)
+		if len(result.Data.Error) != 0 {
+			if err := json.Unmarshal(result.Data.Error, &message); err != nil {
+				message = string(result.Data.Error)
+			}
 		}
-		return "", fmt.Errorf("unknown imgur error")
+		return "", fmt.Errorf("imgur HTTP %d: %s", resp.StatusCode, message)
 	}
-
-	if imgurResp.Data.Link == "" {
-		return "", fmt.Errorf("no link in imgur response")
+	if result.Data.ID == "" {
+		return "", fmt.Errorf("imgur HTTP %d: no image ID in successful response", resp.StatusCode)
 	}
-
-	return imgurResp.Data.Link, nil
+	return "https://imgur.com/" + result.Data.ID, nil
 }
 
 // Register registers the screenshot handler with the HTTP server

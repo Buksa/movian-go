@@ -6,6 +6,7 @@ import (
 	"image"
 
 	"github.com/czz/movian-go/internal/app"
+	"github.com/czz/movian-go/internal/event"
 	imagepkg "github.com/czz/movian-go/internal/image"
 	navcore "github.com/czz/movian-go/internal/navigator"
 	propcore "github.com/czz/movian-go/internal/prop"
@@ -52,11 +53,11 @@ func glwFrontendEarlyStart(ctx *appContext, settingsManager *settingscore.Settin
 
 	// C: screenshot_deliver (src/api/screenshot.c:285) — pixmap based.
 	// Lazy closure: ctx.screenshotHandler is created later in init.
-	uiglw.GlwSetScreenshotDeliver(func(pm *imagepkg.Pixmap) {
+	uiglw.GlwSetScreenshotDeliver(func(capture *event.Event, pm *imagepkg.Pixmap) {
 		if ctx.screenshotHandler == nil {
 			return
 		}
-		ctx.screenshotHandler.Deliver(pixmapToImage(pm))
+		ctx.screenshotHandler.Deliver(capture, pixmapToImage(pm))
 	})
 
 	// C: glw_settings_init deps — settings manager, fileaccess (custom

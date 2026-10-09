@@ -13,6 +13,7 @@ import (
 	"strings"
 	"unsafe"
 
+	eventpkg "github.com/czz/movian-go/internal/event"
 	imagepkg "github.com/czz/movian-go/internal/image"
 	miscpkg "github.com/czz/movian-go/internal/misc"
 	propcore "github.com/czz/movian-go/internal/prop"
@@ -364,24 +365,22 @@ func glwRetireChild(w *Glw) {
 }
 
 // C: static void glw_screenshot (glw.c:2375-2385)
-func glwScreenshot(gr *glwRoot) {
+func glwScreenshot(gr *glwRoot, capture *eventpkg.Event) {
 	if gr.grBrReadPixels == nil {
-		glwDeps.screenshotDeliver(nil)
+		glwDeps.screenshotDeliver(capture, nil)
 		return
 	}
 
 	pm := gr.grBrReadPixels(gr)
-	glwDeps.screenshotDeliver(pm)
+	glwDeps.screenshotDeliver(capture, pm)
 	if pm != nil {
 		imagepkg.PixmapRelease(pm)
 	}
 }
 
-// screenshotDeliver — C: screenshot_deliver (src/api/screenshot.c:285).
-// Wired at init to the screenshot HTTP handler (pixmap → image adapter).
-// GlwSetScreenshotDeliver wires the C screenshot_deliver() seam
-// (src/api/screenshot.c:285 — pixmap → image adapter).
-func GlwSetScreenshotDeliver(fn func(pm *imagepkg.Pixmap)) {
+// GlwSetScreenshotDeliver wires screenshot delivery with the originating
+// event, so a timed-out HTTP capture cannot complete a newer request.
+func GlwSetScreenshotDeliver(fn func(capture *eventpkg.Event, pm *imagepkg.Pixmap)) {
 	glwDeps.screenshotDeliver = fn
 }
 
