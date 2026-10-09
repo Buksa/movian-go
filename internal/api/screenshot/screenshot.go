@@ -311,7 +311,7 @@ func (h *ScreenshotHandler) uploadToImgur(data []byte) (string, error) {
 	var result struct {
 		Success bool `json:"success"`
 		Data    struct {
-			Link  string          `json:"link"`
+			ID    string          `json:"id"`
 			Error json.RawMessage `json:"error"`
 		} `json:"data"`
 	}
@@ -327,10 +327,10 @@ func (h *ScreenshotHandler) uploadToImgur(data []byte) (string, error) {
 		}
 		return "", fmt.Errorf("imgur HTTP %d: %s", resp.StatusCode, message)
 	}
-	if result.Data.Link == "" {
-		return "", fmt.Errorf("imgur HTTP %d: no image link in successful response", resp.StatusCode)
+	if result.Data.ID == "" {
+		return "", fmt.Errorf("imgur HTTP %d: no image ID in successful response", resp.StatusCode)
 	}
-	return result.Data.Link, nil
+	return "https://imgur.com/" + result.Data.ID, nil
 }
 
 // Register registers the screenshot handler with the HTTP server
