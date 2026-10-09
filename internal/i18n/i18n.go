@@ -375,10 +375,6 @@ func (i *I18N) nlsSetup(parent *propcore.Prop) {
 		settings.SettingTagWriteInt, &i.gcfg().IgnoreThePrefix,
 	)
 
-	// Add HTTP upload translation support
-	if i.httpServer != nil {
-		i.httpServer.HTTPPathAdd("/api/translation", i, i.uploadTranslationHandler, true)
-	}
 }
 
 // langsToOptionList converts language list to option list
@@ -680,6 +676,10 @@ func (i *I18N) getDataRoot() string {
 // SetHTTPServer sets the HTTP server for upload translation support
 func (i *I18N) SetHTTPServer(server *httpnet.HTTPServer) {
 	i.httpServer = server
+	if server != nil {
+		// Register the endpoint after the HTTP server becomes available.
+		server.HTTPPathAdd("/api/translation", i, i.uploadTranslationHandler, true)
+	}
 }
 
 // uploadTranslationHandler handles HTTP upload of translation files
