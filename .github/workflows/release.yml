@@ -367,6 +367,22 @@ jobs:
           path: dist
           merge-multiple: true
 
+      # Same CI release key as release-tag.yml — signs SHA256SUMS so
+      # every release carries a detached signature over all artifacts.
+      - name: Import release signing key
+        env:
+          GPG_PRIVATE_KEY: ${{ secrets.GPG_PRIVATE_KEY }}
+        run: echo "$GPG_PRIVATE_KEY" | gpg --batch --import
+
+      - name: Checksums + detached signature
+        working-directory: dist
+        run: |
+          sha256sum * > SHA256SUMS
+          KEYID=$(gpg --batch --with-colons --list-secret-keys \
+                   | awk -F: '/^sec/ {print $5; exit}')
+          gpg --batch --yes --detach-sign --armor \
+              --local-user "$KEYID" -o SHA256SUMS.asc SHA256SUMS
+
       - name: Create release
         uses: softprops/action-gh-release@v2
         with:

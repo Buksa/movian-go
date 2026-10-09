@@ -1,0 +1,41 @@
+name: Tag Release
+
+# Creates a signed annotated tag with the dedicated CI release key
+# (GPG_PRIVATE_KEY secret, public half in .github/release-signing-key.asc)
+# and pushes it — release.yml then fires on the tag push. Always the
+# same signer, no local key setup required.
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Tag to create (e.g. 8.1.0)'
+        required: true
+        type: string
+
+permissions:
+  contents: write
+
+jobs:
+  tag:
+    name: Sign + push tag
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Import release signing key
+        env:
+          GPG_PRIVATE_KEY: ${{ secrets.GPG_PRIVATE_KEY }}
+        run: |
+          echo "$GPG_PRIVATE_KEY" | gpg --batch --import
+          KEYID=$(gpg --batch --with-colons --list-secret-keys \
+                   | awk -F: '/^sec/ {print $5; exit}')
+          echo "KEYID=$KEYID" >> "$GITHUB_ENV"
+          git config user.signingkey "$KEYID"
+          git config user.name "movian-go CI"
+          git config user.email "luca.cuzzolin@gmail.com"
+
+      - name: Create signed tag + push
+        run: |
+          git tag -s "${{ inputs.version }}" -m "Movian Go ${{ inputs.version }}"
+          git verify-tag "${{ inputs.version }}"
+          git push origin "${{ inputs.version }}"
