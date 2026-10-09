@@ -106,6 +106,10 @@ func Java_com_moviango_mediaplayer_Core_coreInit(
 	ca := C.ml_jni_find_class(env, C.CString("com/moviango/mediaplayer/Apps"))
 	arch.STApps = unsafe.Pointer(C.ml_jni_new_global_ref(env, C.jobject(ca)))
 
+	// Same for the TIF bridge class.
+	ct := C.ml_jni_find_class(env, C.CString("com/moviango/mediaplayer/Tv"))
+	arch.STTv = unsafe.Pointer(C.ml_jni_new_global_ref(env, C.jobject(ct)))
+
 	arch.TraceArch(trace.TRACE_INFO, "Core",
 		"Native core init pid "+itoa(int(C.getpid()))+" SDK:"+itoa(arch.AndroidSDK))
 
@@ -161,6 +165,10 @@ func Java_com_moviango_mediaplayer_Core_coreInit(
 	// C: main_init() (android.c:353) — the whole init chain.
 	// On android there is no os.Args/parseOpts; gconf was populated
 	// above exactly like the C coreInit does.
+	// glwDeps.gconf defaults to gconf.New() — inject our instance so
+	// gconf fields (DebugGLW, skin, ...) actually reach GLW on Android.
+	uiglw.SetGconf(gc)
+
 	ctx := newAppContext(gc)
 	androidCtx = ctx
 
@@ -232,6 +240,17 @@ func Java_com_moviango_mediaplayer_Core_coreInit(
 					"enabled", nil, false, false),
 				nil, false, false)
 		}
+	}
+
+	// Live TV home service — TIF channels. New in Go (upstream C has
+	// no TIF support). Only registered when the device exposes at
+	// least one TvInputService; the "tvinput:" backend lists the
+	// browsable channels those inputs published.
+	if arch.AndroidTvInputCount() > 0 {
+		ctx.serviceSystem.ServiceCreatep("tvinput",
+			"Live TV", "tvinput:", "tv",
+			"skin://icons/ic_tv_48px.svg", false, true,
+			service.SvcOriginSystem)
 	}
 
 	// C: android_nav = nav_spawn() (android.c:358)
@@ -312,6 +331,34 @@ func Java_com_moviango_mediaplayer_Core_permissionResult(
 	env *C.JNIEnv, obj C.jobject, ok C.jboolean) {
 	// C: permissionResult (android_glw.c:106-114)
 	uiglw.CorePermissionResult(ok != 0)
+}
+
+//export Java_com_moviango_mediaplayer_Core_oskResult
+func Java_com_moviango_mediaplayer_Core_oskResult(
+	env *C.JNIEnv, obj C.jobject, seq C.jint, text C.jstring) {
+	// Extension (no C counterpart): system-IME OSK dialog result.
+	// text == NULL → cancelled. Delivered to the GLW thread by
+	// GlwStep via the pending slot on the android root.
+	if text == 0 {
+		uiglw.GlwOskResult(int32(seq), nil)
+		return
+	}
+	s := C.ml_jni_getstr(env, text)
+	defer C.ml_jni_relstr(env, text, s)
+	str := C.GoString(s)
+	uiglw.GlwOskResult(int32(seq), &str)
+}
+
+//export Java_com_moviango_mediaplayer_Core_oskText
+func Java_com_moviango_mediaplayer_Core_oskText(
+	env *C.JNIEnv, obj C.jobject, seq C.jint, text C.jstring) {
+	// Extension: live echo of IME text into the Movian field.
+	if text == 0 {
+		return
+	}
+	s := C.ml_jni_getstr(env, text)
+	defer C.ml_jni_relstr(env, text, s)
+	uiglw.GlwOskTextUpdate(int32(seq), C.GoString(s))
 }
 
 // --- GLW frontend JNI (android_glw.c) ------------------------------------

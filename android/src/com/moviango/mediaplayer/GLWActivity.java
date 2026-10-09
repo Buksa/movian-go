@@ -19,6 +19,13 @@ import android.content.ServiceConnection;
 import android.content.Context;
 import android.content.ComponentName;
 import android.app.Activity;
+import android.text.Editable;
+import android.text.TextWatcher;
+import android.text.InputType;
+import android.view.inputmethod.EditorInfo;
+import android.view.inputmethod.InputMethodManager;
+import android.widget.EditText;
+import android.widget.TextView;
 import android.view.Menu;
 import android.view.KeyEvent;
 import android.view.SurfaceView;
@@ -49,6 +56,8 @@ public class GLWActivity extends Activity implements VideoRendererProvider {
     GLWView mGLWView;
     FrameLayout mRoot;
     SurfaceView sv;
+    TvView mTvView;
+    private OskEditText mOskEdit;
 
     private void startGLW() {
         // remove title
@@ -149,6 +158,7 @@ public class GLWActivity extends Activity implements VideoRendererProvider {
     @Override
     protected void onDestroy() {
         Log.d("Movian", "onDestroy");
+        closeOskView();
         tvUntune();
         Tv.detach(this);
         super.onDestroy();
@@ -418,6 +428,105 @@ public class GLWActivity extends Activity implements VideoRendererProvider {
                     startActivity(startMain);
                 }
             });
+    }
+
+    // openOsk — called from the GLW thread via JNI (ml_jni_vrp_open_osk)
+    // when the "Use system keyboard" setting is on. No dialog window:
+    // a 1px transparent EditText takes focus, the system IME opens over
+    // the Movian UI, every keystroke is echoed into the Movian text
+    // field via Core.oskText and the IME action key submits through
+    // Core.oskResult(seq, text|null).
+    public void openOsk(final String title, final String text,
+                        final int seq, final int password) {
+        runOnUiThread(new Runnable() {
+                public void run() {
+                    if (isFinishing() || isDestroyed()) {
+                        Core.oskResult(seq, null);
+                        return;
+                    }
+                    closeOskView();
+
+                    final int fseq = seq;
+                    final OskEditText et = new OskEditText(GLWActivity.this, seq);
+                    et.setSingleLine(true);
+                    et.setAlpha(0f);
+                    et.setInputType(password != 0
+                        ? InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_VARIATION_PASSWORD
+                        : InputType.TYPE_CLASS_TEXT);
+                    et.setImeOptions(EditorInfo.IME_ACTION_DONE);
+                    if (text != null)
+                        et.setText(text);
+
+                    et.addTextChangedListener(new TextWatcher() {
+                            public void beforeTextChanged(CharSequence s, int st, int c, int a) {}
+                            public void onTextChanged(CharSequence s, int st, int b, int c) {}
+                            public void afterTextChanged(Editable s) {
+                                Core.oskText(fseq, s.toString());
+                            }
+                        });
+
+                    et.setOnEditorActionListener(new TextView.OnEditorActionListener() {
+                            public boolean onEditorAction(TextView v, int actionId, KeyEvent ev) {
+                                if (actionId == EditorInfo.IME_ACTION_DONE
+                                    || (ev != null && ev.getKeyCode() == KeyEvent.KEYCODE_ENTER
+                                        && ev.getAction() == KeyEvent.ACTION_UP)) {
+                                    finishOsk(fseq, et.getText().toString());
+                                    return true;
+                                }
+                                return false;
+                            }
+                        });
+
+                    et.setLayoutParams(new FrameLayout.LayoutParams(1, 1));
+                    mRoot.addView(et);
+                    mOskEdit = et;
+                    et.requestFocus();
+                    InputMethodManager imm = (InputMethodManager)
+                        getSystemService(Context.INPUT_METHOD_SERVICE);
+                    if (imm != null)
+                        imm.showSoftInput(et, InputMethodManager.SHOW_IMPLICIT);
+                }
+            });
+    }
+
+    // finishOsk — detach the hidden editor, hide the IME and report
+    // the outcome to the native side.
+    private void finishOsk(int seq, String text) {
+        closeOskView();
+        Core.oskResult(seq, text);
+    }
+
+    private void closeOskView() {
+        if (mOskEdit == null)
+            return;
+        InputMethodManager imm = (InputMethodManager)
+            getSystemService(Context.INPUT_METHOD_SERVICE);
+        if (imm != null)
+            imm.hideSoftInputFromWindow(mOskEdit.getWindowToken(), 0);
+        mRoot.removeView(mOskEdit);
+        mOskEdit = null;
+    }
+
+    // OskEditText — invisible input sink for the system IME. BACK is
+    // intercepted before the IME sees it so it cancels the Movian
+    // input instead of just hiding the keyboard.
+    private class OskEditText extends EditText {
+        private final int mSeq;
+
+        OskEditText(Context ctx, int seq) {
+            super(ctx);
+            mSeq = seq;
+        }
+
+        @Override
+        public boolean onKeyPreIme(int keyCode, KeyEvent event) {
+            if (keyCode == KeyEvent.KEYCODE_BACK) {
+                if (event.getAction() == KeyEvent.ACTION_DOWN)
+                    finishOsk(mSeq, null);
+                return true;
+            }
+            return super.onKeyPreIme(keyCode, event);
+        }
     }
 
     @Override

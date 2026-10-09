@@ -75,6 +75,12 @@ public class Core {
 
     public static native void permissionResult(boolean ok);
 
+    // System-IME OSK callbacks: seq matches the openOsk request.
+    // oskText = live echo of the current input; oskResult = final
+    // outcome (text == null means cancelled).
+    public static native void oskText(int seq, String text);
+    public static native void oskResult(int seq, String text);
+
     // Create / Destroy subscriptions
 
     public static native int subValue(int prop, String path, ValueSubscription.Callback cb);
@@ -96,6 +102,7 @@ public class Core {
 
         mService = svc;
         Apps.init(svc);
+        Tv.init(svc);
 
         int clock_24hrs = DateFormat.is24HourFormat(svc) ? 1 : 0;
 

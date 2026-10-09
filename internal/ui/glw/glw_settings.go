@@ -27,6 +27,7 @@ type glwSettingsT struct {
 	gsUnderscanV          int
 	gsWrap                int
 	gsMapMouseWheelToKeys int
+	gsSystemOsk           int // Android only: route OSK to the system IME
 
 	gsScreensaverDelay int
 	gsBingImage        int
@@ -36,6 +37,7 @@ type glwSettingsT struct {
 	gsSettingUnderscanH       *settingscore.Setting
 	gsSettingWrap             *settingscore.Setting
 	gsSettingWheelMapping     *settingscore.Setting
+	gsSettingSystemOsk        *settingscore.Setting // Android only (extension)
 	gsSettingCustomBg         *settingscore.Setting
 	gsSettingSkin             *settingscore.Setting // extension, no C counterpart
 	gsSettingScreensaverTimer *settingscore.Setting
@@ -449,6 +451,10 @@ func GlwSettingsStart() {
 		settingscore.SettingTagStore, "glw", "map_mouse_wheel_to_keys",
 		settingscore.SettingTagWriteInt, &glwDeps.settings.gsMapMouseWheelToKeys)
 
+	// Platform-specific OSK toggle: real implementation on Android
+	// (system IME), no-op elsewhere.
+	glwPlatformOskSetting(sm, s)
+
 	// Extension (no C counterpart — upstream had only --skin): runtime
 	// skin multiopt. Options = glwScanSkins() ("default" = flat);
 	// selection is applied live via ACTION_RELOAD_UI and persisted.
@@ -558,6 +564,7 @@ func GlwSettingsFini() {
 	sm.Destroy(glwDeps.settings.gsSettingSize)
 	sm.Destroy(glwDeps.settings.gsSettingWrap)
 	sm.Destroy(glwDeps.settings.gsSettingWheelMapping)
+	sm.Destroy(glwDeps.settings.gsSettingSystemOsk)
 	sm.Destroy(glwDeps.settings.gsSettingSkin)
 	sm.Destroy(glwDeps.settings.gsSettingCustomBg)
 	glwDeps.pm.Destroy(glwDeps.settings.gsSettings)
