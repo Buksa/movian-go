@@ -6,6 +6,8 @@
 
   <uses-feature android:name="android.software.leanback"
                 android:required="false"/>
+  <uses-feature android:name="android.software.live_tv"
+                android:required="false"/>
   <uses-feature android:name="android.hardware.touchscreen"
                 android:required="false"/>
   <uses-feature android:glEsVersion="0x00020000"
@@ -20,6 +22,12 @@
        its HOME-key accessibility service (launcher mode on locked
        firmware). Denied by default, app works without it. -->
   <uses-permission android:name="android.permission.WRITE_SECURE_SETTINGS"/>
+
+  <!-- TV Input Framework: read the system channel/program guide
+       populated by the device's TV input apps (tuner, IPTV). Needed
+       for the "Live TV" service to list and tune channels. -->
+  <uses-permission android:name="com.android.providers.tv.permission.READ_EPG_DATA"/>
+  <uses-permission android:name="com.android.providers.tv.permission.ACCESS_ALL_EPG_DATA"/>
 
   <!-- Launcher mode: enumerate launchable apps (API 30+ package visibility) -->
   <queries>

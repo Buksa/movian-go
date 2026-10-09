@@ -33,13 +33,15 @@ widget(container_x, {
 
           InfoLine(_("Video bitrate"),
                    fmt("%d kb/s", $core.media.current.video.bitrate),
-                   isVoid($core.media.current.video.codec));
+                   isVoid($core.media.current.video.bitrate));
 
           InfoLine(_("Audio codec"),
-                   $core.media.current.audio.codec);
+                   $core.media.current.audio.codec,
+                   isVoid($core.media.current.audio.codec));
 
           InfoLine(_("Audio bitrate"),
-                   fmt("%d kb/s", $core.media.current.audio.bitrate));
+                   fmt("%d kb/s", $core.media.current.audio.bitrate),
+                   isVoid($core.media.current.audio.bitrate));
 
           InfoLine(_("A/V diff"),
                    translate($core.media.current.avdiffError,
@@ -55,17 +57,20 @@ widget(container_x, {
 
           InfoBar(_("Buffer usage"),
                   $core.media.current.buffer.current /
-                  $core.media.current.buffer.limit);
+                  $core.media.current.buffer.limit,
+                  isVoid($core.media.current.buffer.limit));
 
           InfoLine(_("Remaining buffer"),
-                   fmt("%ds", $core.media.current.buffer.delay));
+                   fmt("%ds", $core.media.current.buffer.delay),
+                   isVoid($core.media.current.buffer.delay));
 
           InfoLine(_("Video packets"),
                    $core.media.current.video.dqlen,
-                   isVoid($core.media.current.video.codec));
+                   isVoid($core.media.current.video.dqlen));
 
           InfoLine(_("Audio packets"),
-                   $core.media.current.audio.dqlen);
+                   $core.media.current.audio.dqlen,
+                   isVoid($core.media.current.audio.dqlen));
 
           cloner($core.media.current.io.infoNodes, container_z, {
             InfoLine($self.title, $self.info);

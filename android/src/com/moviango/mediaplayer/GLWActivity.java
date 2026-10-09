@@ -36,6 +36,12 @@ import android.database.Cursor;
 
 import android.widget.FrameLayout;
 
+import android.media.tv.TvContract;
+import android.media.tv.TvView;
+import android.media.tv.TvContentRating;
+import android.media.tv.TvTrackInfo;
+import java.util.List;
+
 import android.util.Log;
 
 public class GLWActivity extends Activity implements VideoRendererProvider {
@@ -82,6 +88,7 @@ public class GLWActivity extends Activity implements VideoRendererProvider {
         requestWindowFeature(Window.FEATURE_NO_TITLE);
         getWindow().addFlags(WindowManager.LayoutParams.FLAG_FULLSCREEN);
 
+        Tv.attach(this);
         startService(new Intent(this, CoreService.class));
     }
 
@@ -142,7 +149,211 @@ public class GLWActivity extends Activity implements VideoRendererProvider {
     @Override
     protected void onDestroy() {
         Log.d("Movian", "onDestroy");
+        tvUntune();
+        Tv.detach(this);
         super.onDestroy();
+    }
+
+    // ---- TIF playback (Tv.* statics dispatch onto the UI thread) ----
+    // The TvView renders on the normal media surface layer — under the
+    // translucent media-overlay GLSurfaceView, like VideoRenderer — so
+    // GLW pages/OSD draw on top of the picture.
+
+    public void tvTune(String inputId, long channelId) {
+        tvTuneUri(inputId, TvContract.buildChannelUri(channelId));
+    }
+
+    // tvTuneUri — tune by raw channel URI. Vendor inputs may accept
+    // non-TvContract URIs (e.g. dvb://<onid>.<tsid>.<sid> triplets).
+    public void tvTuneUri(String inputId, Uri channelUri) {
+        if (mRoot == null)
+            return;
+        if (mTvView == null) {
+            mTvView = new TvView(this) {
+                @Override
+                public boolean dispatchKeyEvent(KeyEvent event) {
+                    // CH+/CH- would be consumed by the vendor session
+                    // (it zaps on its own lineup, desyncing our OSD) —
+                    // route them to GLW so our zap order applies.
+                    int kc = event.getKeyCode();
+                    if(kc == KeyEvent.KEYCODE_CHANNEL_UP
+                            || kc == KeyEvent.KEYCODE_CHANNEL_DOWN) {
+                        if(event.getAction() == KeyEvent.ACTION_DOWN) {
+                            if(mGLWView != null)
+                                mGLWView.keyDown(kc, event);
+                        } else if(event.getAction() == KeyEvent.ACTION_UP) {
+                            if(mGLWView != null)
+                                mGLWView.keyUp(kc, event);
+                        }
+                        return true;
+                    }
+                    return super.dispatchKeyEvent(event);
+                }
+            };
+            // The TvView subtree must never take focus — DPAD keys have
+            // to bubble up to GLWActivity.onKeyDown() so GLW sees them.
+            mTvView.setFocusable(false);
+            mTvView.setDescendantFocusability(
+                android.view.ViewGroup.FOCUS_BLOCK_DESCENDANTS);
+            mTvView.setTimeShiftPositionCallback(
+                new TvView.TimeShiftPositionCallback() {
+                    @Override
+                    public void onTimeShiftStartPositionChanged(
+                            String inputId, long timeMs) {
+                        mTsStartMs = timeMs;
+                    }
+                    @Override
+                    public void onTimeShiftCurrentPositionChanged(
+                            String inputId, long timeMs) {
+                        mTsCurMs = timeMs;
+                    }
+                });
+            mTvView.setCallback(new TvView.TvInputCallback() {
+                @Override
+                public void onConnectionFailed(String inputId) {
+                    Log.e("Movian", "TvView connection failed: " + inputId);
+                }
+                @Override
+                public void onVideoAvailable(String inputId) {
+                    Log.d("Movian", "TvView video available: " + inputId);
+                }
+                @Override
+                public void onVideoUnavailable(String inputId, int reason) {
+                    Log.d("Movian", "TvView video unavailable: " + inputId
+                        + " reason=" + reason);
+                }
+                @Override
+                public void onContentBlocked(String inputId,
+                                             TvContentRating rating) {
+                    Log.d("Movian", "TvView content blocked: " + inputId);
+                }
+                @Override
+                public void onTrackSelected(String inputId, int type,
+                                            String trackId) {}
+                @Override
+                public void onTracksChanged(String inputId,
+                                            List<TvTrackInfo> tracks) {}
+            });
+            FrameLayout.LayoutParams lp = new FrameLayout.LayoutParams(
+                FrameLayout.LayoutParams.MATCH_PARENT,
+                FrameLayout.LayoutParams.MATCH_PARENT);
+            mRoot.addView(mTvView, 0, lp);
+            applyTvRect();
+        }
+        mTsStartMs = mTsCurMs = -1;
+        mTvView.tune(inputId, channelUri);
+    }
+
+    // mTvRect — last rect requested by the backend (pixels, empty =
+    // fullscreen). Stored so it also applies to a TvView created
+    // later by tvTuneUri.
+    private final android.graphics.Rect mTvRect =
+        new android.graphics.Rect(0, 0, -1, -1);
+
+    public void tvSetVideoRect(int l, int t, int r, int b) {
+        mTvRect.set(l, t, r, b);
+        applyTvRect();
+    }
+
+    private void applyTvRect() {
+        if (mTvView == null)
+            return;
+        FrameLayout.LayoutParams lp;
+        if (mTvRect.width() <= 0 || mTvRect.height() <= 0) {
+            lp = new FrameLayout.LayoutParams(
+                FrameLayout.LayoutParams.MATCH_PARENT,
+                FrameLayout.LayoutParams.MATCH_PARENT);
+        } else {
+            lp = new FrameLayout.LayoutParams(
+                mTvRect.width(), mTvRect.height());
+            lp.leftMargin = mTvRect.left;
+            lp.topMargin = mTvRect.top;
+        }
+        mTvView.setLayoutParams(lp);
+    }
+
+    public boolean tvIsTuned() {
+        return mTvView != null;
+    }
+
+    public void tvUntune() {
+        if (mTvView == null)
+            return;
+        mTvView.reset();
+        mRoot.removeView(mTvView);
+        mTvView = null;
+    }
+
+    // Timeshift controls — vendor sessions expose a rolling buffer;
+    // positions are wall-clock milliseconds.
+    public void tvPause(boolean paused) {
+        if (mTvView == null)
+            return;
+        if (paused)
+            mTvView.timeShiftPause();
+        else
+            mTvView.timeShiftResume();
+    }
+
+    public void tvSeekTo(long ms) {
+        if (mTvView != null)
+            mTvView.timeShiftSeekTo(ms);
+    }
+
+    // "start;cur" — buffer start and current playback position. The
+    // TvView polls the session when a TimeShiftPositionCallback is
+    // registered and pushes updates here.
+    private long mTsStartMs = -1, mTsCurMs = -1;
+
+    public String tvTimeshift() {
+        if (mTvView == null || mTsStartMs < 0 || mTsCurMs < 0)
+            return "";
+        return mTsStartMs + ";" + mTsCurMs;
+    }
+
+    // Track list as JSON: [{type,id,lang,selected}]. Types follow
+    // TvTrackInfo (0=video, 1=audio, 2=subtitle).
+    public String tvTracks() {
+        if (mTvView == null)
+            return "[]";
+        org.json.JSONArray arr = new org.json.JSONArray();
+        int[] types = { TvTrackInfo.TYPE_VIDEO, TvTrackInfo.TYPE_AUDIO,
+                        TvTrackInfo.TYPE_SUBTITLE };
+        for (int type : types) {
+            java.util.List<TvTrackInfo> tracks = mTvView.getTracks(type);
+            if (tracks == null)
+                continue;
+            String sel = mTvView.getSelectedTrack(type);
+            for (TvTrackInfo t : tracks) {
+                org.json.JSONObject o = new org.json.JSONObject();
+                try {
+                    o.put("type", type);
+                    o.put("id", t.getId());
+                    CharSequence d = t.getDescription();
+                    String lang = t.getLanguage();
+                    o.put("lang", lang != null ? lang : "");
+                    o.put("desc", d != null ? d.toString() : "");
+                    o.put("selected", t.getId().equals(sel));
+                    if (type == TvTrackInfo.TYPE_VIDEO) {
+                        o.put("w", t.getVideoWidth());
+                        o.put("h", t.getVideoHeight());
+                        o.put("fps",
+                              (double) t.getVideoFrameRate());
+                    }
+                    if (type == TvTrackInfo.TYPE_AUDIO) {
+                        o.put("ch", t.getAudioChannelCount());
+                        o.put("sr", t.getAudioSampleRate());
+                    }
+                } catch (org.json.JSONException e) {}
+                arr.put(o);
+            }
+        }
+        return arr.toString();
+    }
+
+    public void tvSelectTrack(int type, String id) {
+        if (mTvView != null)
+            mTvView.selectTrack(type, id == null || id.isEmpty() ? null : id);
     }
 
     // These does not execute on the main ui thread so we need to dispatch

@@ -1,0 +1,170 @@
+#import "skin://theme.view"
+#import "skin://styles/style_list.view"
+
+// Live TV channel list — fullscreen TV page (model.type "tvchannels").
+// Left: browsable channel list. Right: live PiP video on top (the
+// TvView surface sits behind the GLW layer and shows through the
+// transparent area), the focused channel's EPG below it.
+//
+// Keep geometry in sync with platform_tv_android.go (tvListWem=18,
+// tvVidHem=21): the backend places the TvView at
+// (18em*ui.size, 0, ui.width, 21em*ui.size).
+
+// Live video is on screen — like tvplay: make the global theme
+// background transparent (it would cover the TvView) and keep the
+// screensaver off while the page is visible.
+delta($ui.fullwindow, isVisible());
+delta($ui.disableScreensaver, isVisible());
+
+widget(container_z, {
+
+  widget(container_x, {
+
+    // ---- left column: channels ----
+    widget(container_z, {
+      width: 18em;
+
+      widget(quad, {
+        color: 0;
+        alpha: 0.92;
+      });
+
+      widget(container_y, {
+        widget(label, {
+          caption: _("Live TV");
+          size: 1.5em;
+          height: 3em;
+          align: center;
+        });
+
+        widget(list_y, {
+          id: "chanlist";
+          navWrap: true;
+          chaseFocus: true;
+          filterConstraintY: true;
+
+          // Focused channel — the right EPG column binds to its
+          // metadata.events; the debounced index goes back to the
+          // backend so the PiP retunes after a ~0.7s dwell.
+          $view.focused <- focusedChild();
+          set($self.model.focusIdx, delay(focusedIndex(), 0.7, 0.3));
+
+          cloner($self.model.nodes, container_z, {
+            height: 2.4em;
+            focusable: true;
+            ListItemBevel();
+            ListItemHighlight();
+
+            onEvent(activate,
+                    navOpen($self.url, void, $self,
+                            $parent.model, void, $parent.url));
+
+            // Right arrow jumps into the EPG list.
+            onEvent(right, { focus("epglist"); });
+
+            widget(container_x, {
+              widget(icon, {
+                source: $self.metadata.icon ??
+                        "skin://icons/ic_tv_48px.svg";
+                width: 2em;
+                align: center;
+                size: 1.4em;
+              });
+              widget(label, {
+                caption: $self.metadata.title;
+                padding: [0.6em, 0.4em];
+                filterConstraintX: true;
+                ellipsize: true;
+              });
+            });
+          });
+        });
+      });
+    });
+
+    // ---- right column: PiP video (top) + EPG (bottom) ----
+    widget(container_y, {
+
+      // Video area — no background drawn here: the TvView surface
+      // renders below GLW and must stay visible.
+      widget(container_z, {
+        height: 21em;
+      });
+
+      // EPG panel for the channel focused in the left list.
+      widget(container_z, {
+        widget(quad, {
+          color: 0.04;
+          alpha: 0.92;
+        });
+
+        widget(container_y, {
+          widget(label, {
+            caption: $view.focused.metadata.title;
+            size: 1.4em;
+            height: 2.6em;
+            align: center;
+            filterConstraintX: true;
+            ellipsize: true;
+          });
+
+          widget(label, {
+            hidden: count($view.focused.metadata.events.list) > 0;
+            caption: _("No program information available");
+            align: center;
+            padding: [1em, 2em];
+          });
+
+          widget(list_y, {
+            id: "epglist";
+            filterConstraintY: true;
+            navWrap: true;
+
+            cloner($view.focused.metadata.events.list, container_z, {
+              focusable: true;
+              alpha: select(isVoid($self.metadata.isCurrent), 0.65, 1);
+              ListItemHighlight();
+
+              // Left arrow returns to the channel list; OK opens
+              // the focused channel in the play page.
+              onEvent(left, { focus("chanlist"); });
+
+              onEvent(activate,
+                      navOpen($view.focused.url, void, $view.focused,
+                              $parent.model, void, $parent.url));
+
+              widget(container_y, {
+                padding: [0, 0.4em];
+
+                widget(container_x, {
+                  spacing: 0.6em;
+                  widget(label, {
+                    caption: fmt("%s-%s",
+                                 strftime($self.metadata.start, "%H:%M"),
+                                 strftime($self.metadata.stop, "%H:%M"));
+                    style: "ListItemLabelDimmed";
+                  });
+                  widget(label, {
+                    caption: $self.metadata.title;
+                    style: "ListItemLabel";
+                    filterConstraintX: true;
+                    ellipsize: true;
+                  });
+                });
+
+                widget(label, {
+                  hidden: isVoid($self.metadata.description);
+                  caption: $self.metadata.description;
+                  style: "ListItemLabelDimmed";
+                  filterConstraintX: true;
+                  size: 0.8em;
+                  ellipsize: true;
+                });
+              });
+            });
+          });
+        });
+      });
+    });
+  });
+});

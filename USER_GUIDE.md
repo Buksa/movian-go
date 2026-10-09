@@ -51,6 +51,8 @@ automatically. Built-in sources include:
 
 - **Local storage** — browse filesystem folders
 - **UPnP/DLNA** — servers discovered on the LAN
+- **Live TV** — integrated DVB tuner (Linux/MGOS) and Android TV
+  Input Framework playback — see [LIVE_TV.md](LIVE_TV.md)
 - **HTSP** — Tvheadend live TV / recordings
 - **YouTube** — search and playback with quality selection
 - **BitTorrent** — torrents/magnets stream directly

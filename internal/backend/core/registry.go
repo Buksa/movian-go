@@ -115,11 +115,15 @@ type BackendSystem struct {
 
 	// File access manager for file:// URL handling
 	fileAccessManager *fileaccesscore.FileAccessManager
-	playQueue         *playqueue.PlayQueue      // C: playqueue singleton — injected via SetPlayQueue
-	keyring           *keyring.Keyring          // C: implicit global keyring
-	kvstore           *kvstore.KVStore          // C: global kvstore_* funcs
-	calloutSystem     *callout.CalloutSystem    // C: callout_* globals
-	metadata          *metadata.MetadataManager // C: implicit default manager
+	playQueue         *playqueue.PlayQueue // C: playqueue singleton — injected via SetPlayQueue
+	keyring           *keyring.Keyring     // C: implicit global keyring
+	kvstore           *kvstore.KVStore     // C: global kvstore_* funcs
+
+	// dvb — native Linux DVB live TV state. Set on linux && !android by
+	// registerDVBLinux when /dev/dvb adapters exist (platform_dvb_linux.go).
+	dvb           *dvbService
+	calloutSystem *callout.CalloutSystem    // C: callout_* globals
+	metadata      *metadata.MetadataManager // C: implicit default manager
 
 	// FileBackend instance (for setting playqueue callbacks after creation)
 	fileBackend *fileaccesscore.FileBackend

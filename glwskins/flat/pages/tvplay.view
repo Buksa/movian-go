@@ -1,0 +1,698 @@
+#import "skin://theme.view"
+#import "skin://styles/style_list.view"
+#import "skin://styles/style_sidebar.view"
+
+// TV Input playback page — the picture itself is a TvView surface
+// rendering below this translucent GLW layer; this page carries the
+// channel banner, the Movian-style playdeck (timeshift bar + button
+// row) and the left OSD sidebar (channels / audio / subtitles).
+// BACK pops the page, which untunes the session.
+
+#define PLAYDECK_BUTTON(ICON, TITLE, EVENT, ENABLED, ID) {
+
+  widget(container_z, {
+    id: ID;
+    onEvent(activate, EVENT);
+    focusable: ENABLED;
+
+    widget(quad, {
+      additive: true;
+      alpha: 0.1 * isHovered() + 0.6 * isNavFocused();
+    });
+    widget(icon, {
+      size: 2em;
+      source: ICON;
+      alpha: 0.7 * iir(ENABLED, 8) + 0.3;
+    });
+  });
+}
+
+
+// Like video.view: fullscreen video pages suppress the opaque theme
+// background (background.view alpha tracks ui.fullwindow) so the TvView
+// surface below the translucent GLW layer shows through.
+delta($ui.fullwindow, isVisible());
+delta($ui.disableScreensaver, isVisible());
+delta($ui.hideClock, isVisible());
+
+$clone.osdpage = 0;        // 0 none · 1 channels · 2 audio · 3 subtitles
+$clone.showPlaydeck = 0;
+
+// BACK closes the topmost OSD layer first, then pops the page.
+onEvent(back, {
+  $clone.showPlaydeck = 0;
+}, $clone.showPlaydeck && !$clone.osdpage);
+
+onEvent(back, {
+  $clone.osdpage = 0;
+  focus("pause-btn");
+}, $clone.osdpage);
+
+// Channel pick from the sidebar bubbles here as dynamic "tvpicked".
+onEvent(tvpicked, {
+  $clone.osdpage = 0;
+  $clone.showPlaydeck = 0;
+  focus("zaproot");
+});
+
+// MENU toggles the channel sidebar (like video.view's settings page).
+onEvent(menu, {
+  $clone.osdpage = 1;
+  $clone.showPlaydeck = 1;
+  focus("chanlist");
+}, !$clone.osdpage);
+
+onEvent(menu, {
+  $clone.osdpage = 0;
+  $clone.showPlaydeck = 0;
+  focus("zaproot");
+}, $clone.osdpage);
+
+onInactivity(select($clone.showPlaydeck && $clone.osdpage == 0, 5, 0), {
+  $clone.showPlaydeck = 0;
+});
+
+// Remote keys that work regardless of focus position (page-level
+// handlers always sit in the event ascent path): CH+/CH- zap unless a
+// sidebar is open, PLAY/PAUSE toggles timeshift anywhere.
+onEvent("Channel+", deliverEvent($self.model.eventSink, "Channel+"),
+        !$clone.osdpage);
+onEvent("Channel-", deliverEvent($self.model.eventSink, "Channel-"),
+        !$clone.osdpage);
+onEvent("PlayPause", deliverEvent($self.model.eventSink, "PlayPause"));
+
+
+widget(container_z, {
+  clickable: true;
+  onEvent(activate, {
+    toggle($clone.showPlaydeck);
+    focus("pause-btn");
+  }, !$clone.osdpage);
+
+  // Root focus holder — arrow events only reach handlers on focusable
+  // widgets (same idiom as the slideshow deck). Left/right zap only
+  // when no OSD layer is open.
+  widget(container_z, {
+    id: "zaproot";
+    focusable: true;
+
+    onEvent(right, deliverEvent($self.model.eventSink, "Channel+"),
+            !$clone.showPlaydeck && !$clone.osdpage);
+    onEvent(left,  deliverEvent($self.model.eventSink, "Channel-"),
+            !$clone.showPlaydeck && !$clone.osdpage);
+  });
+
+  // Left OSD sidebar — displacement+scale animation like video.view.
+  // hidden gates on the iir tail so focus can't reach it while closed.
+  // The bottom spacer keeps the sidebar above the playdeck zone.
+  widget(container_y, {
+
+    widget(container_x, {
+      filterConstraintY: true;
+
+      // Sidebar first child = anchored to the LEFT edge; the dummy
+      // after it is the flexible filler (also click-to-close).
+      widget(displacement, {
+        hidden: iir($clone.osdpage > 0 && $clone.osdpage < 4, 3) < 0.01;
+        width: 22em;
+        scaling: [1.2 - iir($clone.osdpage > 0 && $clone.osdpage < 4, 3) * 0.2,
+                  1.2 - iir($clone.osdpage > 0 && $clone.osdpage < 4, 3) * 0.2,
+                  1];
+
+      widget(container_z, {
+
+        onEvent(left, {
+          $clone.osdpage = 0;
+          focus("pause-btn");
+        }, true, false);
+
+        widget(quad, {
+          color: 0;
+          alpha: iir($clone.osdpage > 0 && $clone.osdpage < 4, 4) * 0.8;
+        });
+
+        widget(layer, {
+
+          // --- channels ---
+          widget(container_y, {
+            hidden: $clone.osdpage != 1;
+            widget(label, {
+              caption: _("Channels");
+              size: 1.5em;
+              height: 3em;
+              align: center;
+            });
+            widget(list_y, {
+              id: "chanlist";
+              navWrap: true;
+              chaseFocus: true;
+              filterConstraintY: true;
+
+              // Focused channel node — the right EPG panel binds to
+              // its metadata.events and follows the selection.
+              $view.focused <- focusedChild();
+
+              cloner($self.model.channels, container_z, {
+                height: 2.4em;
+                focusable: true;
+                ListItemBevel();
+                ListItemHighlight();
+
+                onEvent(activate, {
+                  // deliverEvent() returns a gem token — bare calls
+                  // inside blocks never fire, it must go through
+                  // fireEvent().
+                  fireEvent(deliverEvent($parent.model.eventSink,
+                                         fmt("tune:%d", $self.zapIdx)));
+                  fireEvent(event("tvpicked"));
+                });
+
+                // Right arrow jumps into the companion EPG panel
+                // (id resolves at delivery time — the panel lives in
+                // a sibling subtree, plain directional stepping
+                // can't cross it).
+                onEvent(right, { focus("epglist"); });
+
+                widget(container_x, {
+                  widget(icon, {
+                    source: "skin://icons/ic_check_48px.svg";
+                    alpha: iir($self.zapIdx == $parent.model.curIdx, 4);
+                    width: 2em;
+                    align: center;
+                    size: 1.4em;
+                  });
+                  widget(label, {
+                    caption: $self.metadata.title;
+                    padding: [0.8em, 0.5em];
+                    filterConstraintX: true;
+                    ellipsize: true;
+                  });
+                });
+              });
+            });
+          });
+
+          // --- audio tracks ---
+          widget(container_y, {
+            hidden: $clone.osdpage != 2;
+            widget(label, {
+              caption: _("Audio");
+              size: 1.5em;
+              height: 3em;
+              align: center;
+            });
+            widget(list_y, {
+              id: "audiolist";
+              navWrap: true;
+              chaseFocus: true;
+              filterConstraintY: true;
+
+              cloner($self.model.audioTracks, container_z, {
+                height: 2.4em;
+                focusable: true;
+                ListItemBevel();
+                ListItemHighlight();
+
+                onEvent(activate, {
+                  fireEvent(deliverEvent($parent.model.eventSink,
+                                         fmt("selaudio:%s",
+                                             $self.trackId)));
+                });
+
+                widget(container_x, {
+                  widget(icon, {
+                    source: "skin://icons/ic_check_48px.svg";
+                    alpha: iir($self.sel, 4);
+                    width: 2em;
+                    align: center;
+                    size: 1.4em;
+                  });
+                  widget(label, {
+                    caption: $self.title;
+                    padding: [0.8em, 0.5em];
+                    filterConstraintX: true;
+                    ellipsize: true;
+                  });
+                });
+              });
+            });
+          });
+
+          // --- subtitles ---
+          widget(container_y, {
+            hidden: $clone.osdpage != 3;
+            widget(label, {
+              caption: _("Subtitles");
+              size: 1.5em;
+              height: 3em;
+              align: center;
+            });
+            widget(list_y, {
+              id: "sublist";
+              navWrap: true;
+              chaseFocus: true;
+              filterConstraintY: true;
+
+              cloner($self.model.subTracks, container_z, {
+                height: 2.4em;
+                focusable: true;
+                ListItemBevel();
+                ListItemHighlight();
+
+                onEvent(activate, {
+                  fireEvent(deliverEvent($parent.model.eventSink,
+                                         fmt("selsub:%s",
+                                             $self.trackId)));
+                });
+
+                widget(container_x, {
+                  widget(icon, {
+                    source: "skin://icons/ic_check_48px.svg";
+                    alpha: iir($self.sel, 4);
+                    width: 2em;
+                    align: center;
+                    size: 1.4em;
+                  });
+                  widget(label, {
+                    caption: $self.title;
+                    padding: [0.8em, 0.5em];
+                    filterConstraintX: true;
+                    ellipsize: true;
+                  });
+                });
+              });
+            });
+          });
+
+        });
+      });
+    });
+
+    // Flexible filler — covers the middle, click/OK closes the OSD.
+    widget(dummy, {
+      clickable: true;
+      hidden: !$clone.osdpage;
+      onEvent(activate, {
+        $clone.osdpage = 0;
+      });
+    });
+    });
+
+    // Spacer — keeps the sidebar's bottom edge above the playdeck
+    // zone (timeshift strip + button row ≈ 5em).
+    widget(container_z, {
+      height: 5em;
+    });
+  });
+
+  // Right EPG panel — companion of the channels sidebar (osdpage 1):
+  // follows the list focus via $view.focused and shows that channel's
+  // day schedule (metadata.events filled by the backend). Display-only
+  // so focus stays in the channel list and scrolls the EPG live.
+  widget(container_y, {
+    widget(container_x, {
+      filterConstraintY: true;
+      space(1);
+
+      widget(displacement, {
+        hidden: iir($clone.osdpage == 1, 3) < 0.01;
+        width: 30em;
+        scaling: [1.2 - iir($clone.osdpage == 1, 3) * 0.2,
+                  1.2 - iir($clone.osdpage == 1, 3) * 0.2,
+                  1];
+
+        widget(container_z, {
+          widget(quad, {
+            color: 0;
+            alpha: iir($clone.osdpage == 1, 4) * 0.8;
+          });
+
+          widget(container_y, {
+            padding: [1em, 1em];
+
+            widget(label, {
+              caption: $view.focused.metadata.title;
+              size: 1.4em;
+              align: center;
+              filterConstraintX: true;
+              ellipsize: true;
+            });
+
+            widget(label, {
+              hidden: count($view.focused.metadata.events.list) > 0;
+              caption: _("No program information available");
+              align: center;
+              padding: [1em, 2em];
+            });
+
+            widget(list_y, {
+              id: "epglist";
+              filterConstraintY: true;
+              navWrap: true;
+
+              cloner($view.focused.metadata.events.list, container_z, {
+                focusable: true;
+                alpha: select(isVoid($self.metadata.isCurrent),
+                              0.65, 1);
+                ListItemHighlight();
+
+                // Back to the channel list; OK tunes the channel
+                // currently focused there ($view.focused survives
+                // focus leaving chanlist — glwFocused is sticky).
+                onEvent(left, { focus("chanlist"); });
+
+                onEvent(activate, {
+                  fireEvent(deliverEvent($parent.model.eventSink,
+                      fmt("tune:%d", $view.focused.zapIdx)));
+                  fireEvent(event("tvpicked"));
+                });
+
+                widget(container_y, {
+                  padding: [0, 0.4em];
+
+                  widget(container_x, {
+                    spacing: 0.6em;
+                    widget(label, {
+                      caption: fmt("%s-%s",
+                                   strftime($self.metadata.start, "%H:%M"),
+                                   strftime($self.metadata.stop, "%H:%M"));
+                      style: "ListItemLabelDimmed";
+                    });
+                    widget(label, {
+                      caption: $self.metadata.title;
+                      style: "ListItemLabel";
+                      filterConstraintX: true;
+                      ellipsize: true;
+                    });
+                  });
+
+                  widget(label, {
+                    hidden: isVoid($self.metadata.description);
+                    caption: $self.metadata.description;
+                    style: "ListItemLabelDimmed";
+                    filterConstraintX: true;
+                    size: 0.8em;
+                  });
+                });
+              });
+            });
+          });
+        });
+      });
+    });
+
+
+    widget(container_z, {
+      height: 5em;
+    });
+  });
+
+  // Movian system menu — right side (osdpage 5), video.view
+  // convention: the row is Y-flexible (filterConstraintY) so the
+  // panel fills the screen height; the flexible dummy pushes the
+  // fixed 22em displacement to the right edge. Kept a direct
+  // child of the root z-stack — nesting it inside another
+  // column would pin it to content height.
+  widget(container_y, {
+    widget(container_x, {
+      filterConstraintY: true;
+
+      widget(dummy, {
+        clickable: $clone.osdpage == 5;
+        onEvent(activate, {
+          $clone.osdpage = 0;
+        });
+        widget(quad, {
+          color: 0;
+          alpha: iir($clone.osdpage == 5, 4) * 0.4;
+        });
+      });
+
+      widget(displacement, {
+        hidden: iir($clone.osdpage == 5, 3) < 0.01;
+        width: 22em;
+        scaling: [1.2 - iir($clone.osdpage == 5, 3) * 0.2,
+                  1.2 - iir($clone.osdpage == 5, 3) * 0.2,
+                  1];
+
+        widget(container_z, {
+
+          onEvent(left, {
+            $clone.osdpage = 0;
+          }, true, false);
+
+          widget(quad, {
+            color: 0;
+            alpha: iir($clone.osdpage == 5, 4) * 0.8;
+          });
+
+          widget(layer, {
+#import "skin://styles/style_sidebar.view"
+
+            widget(loader, {
+              autohide: true;
+              alpha: iir($clone.osdpage == 5, 4);
+              source: select($clone.osdpage == 5,
+                             "skin://osd/osd_tv.view", "");
+            });
+          });
+        });
+      });
+    });
+
+    // Keep the panel above the playdeck zone.
+    widget(container_z, {
+      height: 5em;
+    });
+  });
+
+  // Bottom stack — channel banner + timeshift strip + playdeck.
+  widget(container_y, {
+    align: bottom;
+
+    // Channel banner — sits directly above the timeshift/playdeck
+    // rows; fades a few seconds after tune/zap, stays up with the
+    // playdeck, hides while the channels sidebar or the EPG panel is
+    // open. Shows now/next from metadata.events when available.
+    widget(container_x, {
+      hidden: iir((changed($self.model.metadata.title, 6, true) ||
+                   $clone.showPlaydeck) &&
+                  !($clone.osdpage == 1 || $clone.osdpage == 5),
+                  8) < 0.01;
+
+      widget(container_z, {
+        widget(quad, {
+          color: 0;
+          alpha: 0.6;
+        });
+        widget(container_y, {
+          padding: [1em, 1.4em];
+
+          widget(label, {
+            caption: $self.model.metadata.title +
+                     select($self.model.paused, "  ‖", "");
+            size: 1.8em;
+            shadow: true;
+          });
+
+          widget(container_x, {
+            hidden: isVoid($self.model.metadata.events.current.metadata.start);
+            spacing: 0.6em;
+            widget(label, {
+              caption: strftime(
+                $self.model.metadata.events.current.metadata.start,
+                "%H:%M");
+            });
+            widget(label, {
+              caption: $self.model.metadata.events.current.metadata.title;
+              filterConstraintX: true;
+              ellipsize: true;
+            });
+          });
+
+          widget(container_x, {
+            hidden: isVoid($self.model.metadata.events.next.metadata.start);
+            spacing: 0.6em;
+            alpha: 0.7;
+            widget(label, {
+              caption: strftime(
+                $self.model.metadata.events.next.metadata.start,
+                "%H:%M");
+            });
+            widget(label, {
+              caption: $self.model.metadata.events.next.metadata.title;
+              filterConstraintX: true;
+              ellipsize: true;
+            });
+          });
+        });
+      });
+
+      space(1);
+    });
+
+    // Timeshift strip — visible with the playdeck and while paused;
+    // slider is a passive position display (remote seeks via ±30s
+    // are on the buttons, pointer users can drag the bound prop).
+    widget(container_z, {
+      hidden: !($clone.showPlaydeck || $self.model.paused);
+      alpha: iir($clone.showPlaydeck || $self.model.paused, 8);
+      height: 2em;
+
+      widget(quad, {
+        alpha: 0.8;
+        color: 0;
+      });
+
+      widget(container_x, {
+        spacing: 0.5em;
+        padding: [1em, 0, 0, 0];
+
+        widget(label, {
+          width: 4em;
+          caption: value2duration($self.model.tsPos);
+          align: right;
+        });
+
+        widget(container_z, {
+          widget(container_y, {
+            align: center;
+            widget(container_z, {
+              height: 3;
+              widget(container_y, {
+                padding: 1;
+                widget(quad, {
+                  alpha: 0.3;
+                  additive: true;
+                });
+              });
+            });
+          });
+
+          widget(slider_x, {
+            knobOverEdges: true;
+            clickable: true;
+            bind($self.model.tsPos);
+            max: $self.model.tsBuf;
+            widget(icon, {
+              source: "skin://icons/dot.png";
+            });
+            widget(container_y, {
+              space(1);
+              widget(quad, {
+                height: 3;
+                alpha: 0.9;
+                additive: true;
+              });
+              space(1);
+            });
+            widget(container_y, {
+              space(1);
+              widget(quad, {
+                height: 3;
+                alpha: 0.5;
+                additive: true;
+              });
+              space(1);
+            });
+          });
+        });
+
+        widget(label, {
+          caption: $self.model.tsText;
+        });
+      });
+    });
+
+    // Playdeck — icon button row, video.view style.
+    widget(container_z, {
+      hidden: !$clone.showPlaydeck;
+      alpha: iir($clone.showPlaydeck, 8);
+      height: 2.6em;
+
+      onEvent(up, {
+        $clone.osdpage = 0;
+        $clone.showPlaydeck = 0;
+        focus("zaproot");
+      }, $clone.osdpage == 0);
+
+      widget(quad, {
+        alpha: 0.8;
+        color: 0;
+      });
+
+      widget(container_x, {
+        spacing: 1em;
+        padding: [1em, 0.1em];
+        align: center;
+
+        PLAYDECK_BUTTON("skin://icons/ic_list_48px.svg",
+                        _("Channels"),
+                        {
+                          $clone.osdpage = select($clone.osdpage == 1,
+                                                  0, 1);
+                          focus(select($clone.osdpage == 1,
+                                       "chanlist", "chan-btn"));
+                        }, true, "chan-btn");
+
+        PLAYDECK_BUTTON("skin://icons/ic_skip_previous_48px.svg",
+                        _("Previous channel"),
+                        deliverEvent($self.model.eventSink, "Channel-"),
+                        true, "prev-btn");
+
+        PLAYDECK_BUTTON(select($self.model.paused,
+                               "skin://icons/ic_play_arrow_48px.svg",
+                               "skin://icons/ic_pause_48px.svg"),
+                        _("Play/Pause"),
+                        deliverEvent($self.model.eventSink, "PlayPause"),
+                        true, "pause-btn");
+
+        PLAYDECK_BUTTON("skin://icons/ic_skip_next_48px.svg",
+                        _("Next channel"),
+                        deliverEvent($self.model.eventSink, "Channel+"),
+                        true, "next-btn");
+
+        PLAYDECK_BUTTON("skin://icons/ic_speaker_48px.svg",
+                        _("Audio tracks"),
+                        {
+                          $clone.osdpage = select($clone.osdpage == 2,
+                                                  0, 2);
+                          focus(select($clone.osdpage == 2,
+                                       "audiolist", "audio-btn"));
+                        },
+                        count($self.model.audioTracks) > 0,
+                        "audio-btn");
+
+        PLAYDECK_BUTTON("skin://icons/ic_subtitles_48px.svg",
+                        _("Subtitles"),
+                        {
+                          $clone.osdpage = select($clone.osdpage == 3,
+                                                  0, 3);
+                          focus(select($clone.osdpage == 3,
+                                       "sublist", "sub-btn"));
+                        },
+                        count($self.model.subTracks) > 0,
+                        "sub-btn");
+
+        PLAYDECK_BUTTON("skin://icons/ic_menu_48px.svg",
+                        _("Settings"),
+                        {
+                          $clone.osdpage = select($clone.osdpage == 5,
+                                                  0, 5);
+                          focus(select($clone.osdpage == 5,
+                                       "osd_main", "menu-btn"));
+                        }, true, "menu-btn");
+      });
+    });
+  });
+
+  widget(container_y, {
+    align: top;
+    widget(container_x, {
+      height: 3em;
+      BackButton($clone.showPlaydeck, {
+        $self.close = 1;
+      });
+    });
+  });
+});
