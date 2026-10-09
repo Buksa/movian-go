@@ -39,3 +39,10 @@ jobs:
           git tag -s "${{ inputs.version }}" -m "Movian Go ${{ inputs.version }}"
           git verify-tag "${{ inputs.version }}"
           git push origin "${{ inputs.version }}"
+
+      # GITHUB_TOKEN pushes never re-trigger tag-push workflows, so the
+      # release build is dispatched explicitly instead.
+      - name: Dispatch release build
+        run: gh workflow run release.yml -f tag="${{ inputs.version }}"
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
