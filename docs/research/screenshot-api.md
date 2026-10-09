@@ -24,7 +24,7 @@ Compared the screenshot implementation against the existing Go implementation, B
 | `GET /api/screenshot/raw` | HTTP 200, PNG bytes, `image/png` | None |
 | `GET /api/screenshot?raw=1` | Same raw behavior | None |
 | `GET /api/screenshot?raw=true` | Same raw behavior | None |
-| `GET /api/screenshot` | Capture JPEG, upload to Imgur, HTTP 302 to `data.link` | Imgur |
+| `GET /api/screenshot` | Capture JPEG, upload to Imgur, HTTP 302 to `https://imgur.com/{id}` using response `data.id` | Imgur |
 
 A raw request has a five-second deadline. If no completed image is available by then, it receives HTTP 504. While an HTTP screenshot request is pending or processing, another HTTP screenshot request receives HTTP 502. These aliases and statuses come from `hc_screenshot`/`hc_screenshot_raw` in [upstream C][c-screenshot] and are implemented in the [Go handler][go-screenshot].
 
@@ -100,11 +100,11 @@ A shared HTTP client bounds the upload transaction to 30 seconds rather than lea
 
 ### Response validation and errors
 
-The legacy endpoint redirects only when the upstream response is HTTP 2xx, `success` is true, and `data.link` is present. A contradictory success envelope on HTTP failure is not treated as a successful upload.
+The legacy endpoint redirects only after an HTTP 2xx response with `success: true` and a non-empty `data.id`; it constructs `https://imgur.com/{id}`. It does not use `data.link`. A success envelope on an HTTP error is rejected.
 
 The parser keeps `data.error` as `json.RawMessage`, so it can report a string or structured error without a string-field decoding failure masking the upstream HTTP status. Invalid/incompatible JSON also reports that status. The caller exposes upload failures through the existing screenshot HTTP-error path; it does not turn a failed upload into a successful empty response. [Source: uploader and `fail`][go-screenshot].
 
-Offline regression cases cover string errors, structured errors, non-JSON HTTP failures, HTTP failure with a success envelope, and a successful envelope with no image link. They use a local TLS server and do not consume Imgur quota.
+The pre-page-redirect offline regression cases cover string errors, structured errors, non-JSON HTTP failures, an HTTP failure with a success envelope, and a successful envelope with no image link. They predate the current `data.id`-based redirect and do not verify that success contract. They use a local TLS server and do not consume Imgur quota.
 
 ### Deliberately not added
 
@@ -132,15 +132,19 @@ The revised application was launched with a fresh profile, X11, and vendored GLF
 
 PNG signature and IHDR dimensions were checked. The captured surface was inspected: the Home screen, title, icons, and folder labels were upright, with correct displayed colors. Different byte counts are from successive frames during UI animation, not a codec/performance comparison.
 
-### Actual legacy upload
+### Historical legacy-upload smoke (before the page-redirect fix)
 
-`GET /api/screenshot` on the revised live application completed the binary-multipart upload and returned:
+A live `GET /api/screenshot` before commit `250cde7` completed the binary-multipart upload and returned:
 
 - HTTP **302**, `Location: https://i.imgur.com/qdUTX8Z.jpeg`, in **1.695 seconds**.
 - An authenticated public image-metadata GET to `https://api.imgur.com/3/image/qdUTX8Z` returned HTTP **200**, `success: true`, ID `qdUTX8Z`, dimensions **1280 × 720**, type **image/jpeg**, and size **52260 bytes**.
 - Fetching the direct file from `i.imgur.com` in the WSL smoke returned HTTP **429**. This was a client/CDN download limitation, not evidence of a failed upload or an inaccessible public Imgur page. No CDN retry loop was used.
 
-The user subsequently confirmed that the public image pages [qdUTX8Z](https://imgur.com/qdUTX8Z) and [tIkS3i7](https://imgur.com/tIkS3i7) are accessible. This is user-reported verification, separate from the automated upload/metadata checks above. The legacy redirect continues to use the API's `data.link`; it does not need to rewrite a direct image URL into an Imgur page URL.
+This run confirms the upload and image metadata, but it does not verify the current page-redirect contract.
+
+The user subsequently confirmed that the public pages [qdUTX8Z](https://imgur.com/qdUTX8Z) and [tIkS3i7](https://imgur.com/tIkS3i7) are accessible. This is user-reported page availability, not a capture of the application's post-fix `Location` header.
+
+The current handler requires a non-empty `data.id` and returns `https://imgur.com/{id}`; it does not use `data.link`. No post-fix live response from the application's legacy endpoint is recorded in this research.
 
 A separate live probe with an invalid Client-ID received `imgur HTTP 429: Too Many Requests`. This proves the uploader reports an actual service failure/status, but does **not** establish the service's invalid-credential response: rate limiting prevented that narrower check. The network-dependent probe was removed afterward.
 

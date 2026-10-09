@@ -35,4 +35,4 @@ Raw pixel/RGBA transport, image-format negotiation, queuing concurrent requests,
 
 ## Verification
 
-Deterministic behavior checks cover the HTTP handler and its screenshot-event delivery seam: both raw aliases, PNG bytes and MIME type, no-frame timeout, competing requests, late-frame isolation, and a successful legacy upload redirect to `https://imgur.com/{id}`. A separate live GUI smoke requests `/api/screenshot/raw` from the built Movian-Go process and verifies the PNG signature and dimensions; mdev’s consumer path is exercised when available.
+Deterministic behavior checks must cover the HTTP handler and its screenshot-event delivery seam: both raw aliases, PNG bytes and MIME type, no-frame timeout, competing requests, late-frame isolation, and a legacy upload redirect constructed from a non-empty `data.id` as `https://imgur.com/{id}` (not `data.link`), with a successful response missing its ID rejected. A separate live GUI smoke should request `/api/screenshot/raw` from the built Movian-Go process and verify the PNG signature and dimensions; exercise mdev’s consumer path when available.
