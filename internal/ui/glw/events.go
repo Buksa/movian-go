@@ -530,7 +530,7 @@ func glwDispatchEvent(gr *glwRoot, e *eventpkg.Event) {
 	}
 
 	if e.Type == eventpkg.EVENT_MAKE_SCREENSHOT {
-		glwScreenshot(gr)
+		glwScreenshot(gr, e)
 		return
 	}
 
