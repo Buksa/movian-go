@@ -131,8 +131,14 @@ func (pm *PluginManager) downloadPlugin(packageURL string) (string, error) {
 	// In real implementation, this would use the file access layer
 	// to download the file with progress reporting
 
-	// Create temp file
-	tempFile, err := os.CreateTemp("", "plugin-*.zip")
+	// Create temp file — os.TempDir() resolves to /tmp which does not
+	// exist on Android; use the app cache dir (gconf.cache_path), with
+	// the persistent path as fallback.
+	dir := pm.gcfg().CachePath
+	if dir == "" {
+		dir = getPersistentPath()
+	}
+	tempFile, err := os.CreateTemp(dir, "plugin-*.zip")
 	if err != nil {
 		return "", err
 	}

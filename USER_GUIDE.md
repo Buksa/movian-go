@@ -51,6 +51,8 @@ automatically. Built-in sources include:
 
 - **Local storage** — browse filesystem folders
 - **UPnP/DLNA** — servers discovered on the LAN
+- **Live TV** — integrated DVB tuner (Linux/MGOS) and Android TV
+  Input Framework playback — see [LIVE_TV.md](LIVE_TV.md)
 - **HTSP** — Tvheadend live TV / recordings
 - **YouTube** — search and playback with quality selection
 - **BitTorrent** — torrents/magnets stream directly
@@ -86,6 +88,58 @@ Developers: see [PLUGINS.md](PLUGINS.md).
 - *Settings → Appearance* — skin, language (`lang/` is shipped)
 - *Settings → System* — usage statistics (off by default unless
   enabled; reports to the project Matomo portal)
+
+## Android TV — launcher mode
+
+On Android TV, Movian can act as the device launcher. Enable it in
+*Settings → Global settings → Launcher*:
+
+- **Launcher mode** — shows installed apps on the home page and makes
+  BACK stay inside Movian instead of exiting to the stock launcher.
+- **Set Movian as default launcher** — makes the remote's HOME button
+  open Movian. The button tries, in order: the system "Home app"
+  picker, the default-apps chooser, and — as an automatic fallback
+  for firmware that locks the normal picker (operator-branded boxes)
+  — a HOME-key interception service.
+
+### The HOME-key interception service
+
+The fallback is an Android accessibility service
+(`HomeKeyService`) that intercepts the physical HOME key before the
+system resolves it. Once enabled: HOME opens Movian from anywhere,
+HOME inside Movian navigates to the Movian home page from any depth,
+and turning *Launcher mode* off hands HOME back to the stock
+launcher.
+
+Android does not let a normal app enable an accessibility service by
+itself — the service can intercept all input, so the user must
+consent. Two ways, either one works:
+
+- **Via adb, once** (recommended on locked firmware):
+
+  ```bash
+  adb shell pm grant com.moviango.mediaplayer \
+      android.permission.WRITE_SECURE_SETTINGS
+  ```
+
+  The grant persists across reinstalls and updates on the same
+  device. With it, *Set Movian as default launcher* enables the
+  service automatically — no further steps needed.
+- **Manually**: Android Settings → Accessibility → Movian → On.
+  Then HOME works without any permission grant. (Some operator
+  boxes stub the accessibility settings page — on those, the adb
+  route above is the only way.)
+
+If neither is possible, the button shows the adb instructions on
+screen.
+
+### Remote compatibility
+
+No configuration is needed per remote. The service intercepts the
+Android-level `KEYCODE_HOME` event *after* the device keylayout has
+mapped the remote's scan code — so any remote whose HOME button
+performs the HOME action is handled automatically, whatever physical
+code the button emits.
 
 ## Logs & troubleshooting
 

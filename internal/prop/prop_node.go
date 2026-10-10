@@ -298,6 +298,34 @@ func (p *Prop) GetChild(name string) *Prop {
 	return nil
 }
 
+// transitionDirLocked transitions p to DIR if it is not already a directory,
+// returning a snapshot of the value subscribers that must be notified with
+// EventSetDir once the caller releases p.mu.
+// C: prop_make_dir (prop_core.c:1873-1886) — sets hp_type = PROP_DIR and
+// calls prop_notify_value(p) which dispatches PROP_SET_DIR to all value subs.
+// Callers must fire the returned notifications before any subsequent
+// ADD_CHILD for the same parent: in C prop_make_dir always runs before
+// prop_insert, so subscribers see SET_DIR before the children — the GLW
+// cloner depends on this ordering to arm itself.
+// Must be called with p.mu held.
+func transitionDirLocked(p *Prop) []*Subscription {
+	if p.propType == PropTypeDir {
+		return nil
+	}
+	p.propType = PropTypeDir
+	subs := make([]*Subscription, len(p.valueSubs))
+	copy(subs, p.valueSubs)
+	return subs
+}
+
+// notifyDirTransition fires EventSetDir to subscriptions captured by
+// transitionDirLocked. C: prop_notify_value on a DIR prop → PROP_SET_DIR.
+func notifyDirTransition(dirSubs []*Subscription, p *Prop) {
+	for _, sub := range dirSubs {
+		notifySub(sub, EventSetDir, p, nil)
+	}
+}
+
 // AddChild adds a child property
 // AddChild adds a child property to this prop.
 // C: prop_insert(hp, parent, NULL, skipme) — adds child to parent's
@@ -317,9 +345,7 @@ func (p *Prop) AddChild(child *Prop) {
 	}
 
 	// C: prop_make_dir(parent) — transition parent to DIR if needed
-	if p.propType != PropTypeDir {
-		p.propType = PropTypeDir
-	}
+	dirSubs := transitionDirLocked(p)
 
 	child.parent = p
 	if child.manager == nil {
@@ -343,6 +369,9 @@ func (p *Prop) AddChild(child *Prop) {
 	copy(parentSubs, p.valueSubs)
 
 	p.mu.Unlock()
+
+	// C: prop_make_dir's PROP_SET_DIR precedes prop_insert's PROP_ADD_CHILD
+	notifyDirTransition(dirSubs, p)
 
 	// C: prop_notify_child(parent, PROP_ADD_CHILD, child)
 	// Fire outside lock to avoid deadlock in direct dispatch mode

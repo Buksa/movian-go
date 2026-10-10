@@ -61,7 +61,9 @@ ml_jni_detach(JavaVM *vm)
 static jclass
 ml_jni_find_class(JNIEnv *env, const char *name)
 {
-  return (*env)->FindClass(env, name);
+  jclass r = (*env)->FindClass(env, name);
+  ml_aexc_report(env);
+  return r;
 }
 
 static jclass
@@ -81,8 +83,11 @@ static jmethodID
 ml_jni_get_static_method(JNIEnv *env, jclass cls, const char *name,
                          const char *sig)
 {
+  jmethodID r;
   ml_aexc_setctx(name);
-  return (*env)->GetStaticMethodID(env, cls, name, sig);
+  r = (*env)->GetStaticMethodID(env, cls, name, sig);
+  ml_aexc_report(env);
+  return r;
 }
 
 static jfieldID
@@ -252,6 +257,86 @@ ml_jni_call_static_obj_str_ii(JNIEnv *env, jclass cls, jmethodID mid,
   return r;
 }
 
+static jobject
+ml_jni_call_static_obj0(JNIEnv *env, jclass cls, jmethodID mid)
+{
+  jobject r = (*env)->CallStaticObjectMethod(env, cls, mid);
+  ml_jni_exc_report(env);
+  return r;
+}
+
+static jint
+ml_jni_call_static_int0(JNIEnv *env, jclass cls, jmethodID mid)
+{
+  jint r = (*env)->CallStaticIntMethod(env, cls, mid);
+  ml_jni_exc_report(env);
+  return r;
+}
+
+static jobject
+ml_jni_call_static_obj_long(JNIEnv *env, jclass cls, jmethodID mid,
+                            jlong a0)
+{
+  jobject r = (*env)->CallStaticObjectMethod(env, cls, mid, a0);
+  ml_jni_exc_report(env);
+  return r;
+}
+
+static void
+ml_jni_call_static_void_str_long(JNIEnv *env, jclass cls, jmethodID mid,
+                                 jstring s, jlong v)
+{
+  (*env)->CallStaticVoidMethod(env, cls, mid, s, v);
+  ml_jni_exc_report(env);
+}
+
+static void
+ml_jni_call_static_void_str_str(JNIEnv *env, jclass cls, jmethodID mid,
+                                jstring a0, jstring a1)
+{
+  (*env)->CallStaticVoidMethod(env, cls, mid, a0, a1);
+  ml_jni_exc_report(env);
+}
+
+static void
+ml_jni_call_static_void0(JNIEnv *env, jclass cls, jmethodID mid)
+{
+  (*env)->CallStaticVoidMethod(env, cls, mid);
+  ml_jni_exc_report(env);
+}
+
+static void
+ml_jni_call_static_void_int(JNIEnv *env, jclass cls, jmethodID mid,
+                            jint a0)
+{
+  (*env)->CallStaticVoidMethod(env, cls, mid, a0);
+  ml_jni_exc_report(env);
+}
+
+static void
+ml_jni_call_static_void_iiii(JNIEnv *env, jclass cls, jmethodID mid,
+                             jint a0, jint a1, jint a2, jint a3)
+{
+  (*env)->CallStaticVoidMethod(env, cls, mid, a0, a1, a2, a3);
+  ml_jni_exc_report(env);
+}
+
+static void
+ml_jni_call_static_void_long(JNIEnv *env, jclass cls, jmethodID mid,
+                             jlong a0)
+{
+  (*env)->CallStaticVoidMethod(env, cls, mid, a0);
+  ml_jni_exc_report(env);
+}
+
+static void
+ml_jni_call_static_void_int_str(JNIEnv *env, jclass cls, jmethodID mid,
+                                jint a0, jstring a1)
+{
+  (*env)->CallStaticVoidMethod(env, cls, mid, a0, a1);
+  ml_jni_exc_report(env);
+}
+
 static void
 ml_jni_call_static_void_obj_int(JNIEnv *env, jclass cls, jmethodID mid,
                                 jobject a0, jint a1)
@@ -354,6 +439,16 @@ func jniExcDrain() {
 // unsafe.Pointer so callers from other cgo packages can convert.
 var STCore unsafe.Pointer
 
+// STApps — global ref to com/moviango/mediaplayer/Apps. Set by
+// Core.coreInit alongside STCore: FindClass works there because it
+// runs on a Java thread; a later FindClass from a Go thread would use
+// the bootstrap classloader and fail with NoClassDefFoundError.
+var STApps unsafe.Pointer
+
+// STTv — global ref to com/moviango/mediaplayer/Tv (TIF bridge).
+// Cached in coreInit for the same FindClass reason as STApps.
+var STTv unsafe.Pointer
+
 // AndroidNav — C: prop_t *android_nav (android.c:57). The single
 // navigator root on android — set by coreInit via nav_spawn.
 var AndroidNav unsafe.Pointer
@@ -445,6 +540,14 @@ func JNIOnLoad(vm unsafe.Pointer) int {
 	AndroidVersion = syspropGet("ro.build.version.release")
 	AndroidSerialno = syspropGet("ro.serialno")
 	AndroidSDK = atoiOrZero(syspropGet("ro.build.version.sdk"))
+	// Android never exports TZ to native code, so Go's time.Local
+	// stays UTC — persist.sys.timezone carries the Java zone id
+	// (e.g. "Europe/Rome"). LoadLocation reads bionic's zoneinfo.
+	if tz := syspropGet("persist.sys.timezone"); tz != "" {
+		if loc, err := time.LoadLocation(tz); err == nil {
+			time.Local = loc
+		}
+	}
 	return C.JNI_VERSION_1_6
 }
 
@@ -538,4 +641,537 @@ func AndroidBitmapCreate(env unsafe.Pointer, width, height int) unsafe.Pointer {
 	obj := C.ml_jni_call_static_obj_ii(e, C.jclass(STCore), mid,
 		C.jint(width), C.jint(height))
 	return unsafe.Pointer(C.ml_jni_new_global_ref(e, obj))
+}
+
+// ---- launcher support (Apps.java) -------------------------------------------
+// New in Go — upstream C has no app-launcher feature.
+
+// appsClass returns the Apps jclass (global ref cached in coreInit)
+// or nil if not initialized.
+func appsClass(env *C.JNIEnv) C.jclass {
+	return C.jclass(STApps)
+}
+
+// AndroidAppsList — Apps.list() → JSON array of {pkg,label,icon}.
+// Returns "" on failure.
+func AndroidAppsList() string {
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
+	env := JNIEnv()
+	if env == nil {
+		return ""
+	}
+	cls := appsClass(env)
+	if unsafe.Pointer(cls) == nil {
+		return ""
+	}
+	name := C.CString("list")
+	sig := C.CString("()Ljava/lang/String;")
+	defer C.free(unsafe.Pointer(name))
+	defer C.free(unsafe.Pointer(sig))
+	mid := C.ml_jni_get_static_method(env, cls, name, sig)
+	if mid == nil {
+		return ""
+	}
+	obj := C.ml_jni_call_static_obj0(env, cls, mid)
+	if unsafe.Pointer(obj) == nil {
+		return ""
+	}
+	defer C.ml_jni_del_local_ref(env, obj)
+	s := C.jstring(obj)
+	chars := C.ml_jni_get_string_chars(env, s)
+	if chars == nil {
+		return ""
+	}
+	defer C.ml_jni_release_string_chars(env, s, chars)
+	return C.GoString(chars)
+}
+
+// AndroidAppLaunch — Apps.launch(pkg) → true when the activity started.
+func AndroidAppLaunch(pkg string) bool {
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
+	env := JNIEnv()
+	if env == nil {
+		TraceArch(1, "APPS", "launch "+pkg+": no env")
+		return false
+	}
+	cls := appsClass(env)
+	if unsafe.Pointer(cls) == nil {
+		TraceArch(1, "APPS", "launch "+pkg+": no class")
+		return false
+	}
+	name := C.CString("launch")
+	sig := C.CString("(Ljava/lang/String;)Z")
+	cpkg := C.CString(pkg)
+	defer C.free(unsafe.Pointer(name))
+	defer C.free(unsafe.Pointer(sig))
+	defer C.free(unsafe.Pointer(cpkg))
+	mid := C.ml_jni_get_static_method(env, cls, name, sig)
+	if mid == nil {
+		return false
+	}
+	jpkg := C.ml_jni_new_string(env, cpkg)
+	defer C.ml_jni_del_local_ref(env, C.jobject(jpkg))
+	ok := C.ml_jni_call_static_bool_str(env, cls, mid, jpkg) != 0
+	TraceArch(1, "APPS", "launch "+pkg)
+	return ok
+}
+
+// AndroidOpenHomeSettings — Apps.openHomeSettings(): system "default home
+// app" screen (or the launcher chooser as a fallback).
+func AndroidOpenHomeSettings() {
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
+	env := JNIEnv()
+	if env == nil {
+		TraceArch(1, "APPS", "openHomeSettings: no jni env")
+		return
+	}
+	cls := appsClass(env)
+	if unsafe.Pointer(cls) == nil {
+		TraceArch(1, "APPS", "openHomeSettings: no Apps class")
+		return
+	}
+	name := C.CString("openHomeSettings")
+	sig := C.CString("()V")
+	defer C.free(unsafe.Pointer(name))
+	defer C.free(unsafe.Pointer(sig))
+	mid := C.ml_jni_get_static_method(env, cls, name, sig)
+	if mid == nil {
+		TraceArch(1, "APPS", "openHomeSettings: no method")
+		return
+	}
+	TraceArch(3, "APPS", "openHomeSettings: firing intent")
+	C.ml_jni_call_static_void0(env, cls, mid)
+}
+
+// AndroidSetLauncherAlias — Apps.setLauncherAlias(int): enable or
+// disable the HOME activity-alias, i.e. whether Movian is offered as
+// a launcher candidate at all. This only changes component state —
+// it never fires an intent or moves us to the background.
+func AndroidSetLauncherAlias(on bool) {
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
+	env := JNIEnv()
+	if env == nil {
+		return
+	}
+	cls := appsClass(env)
+	if unsafe.Pointer(cls) == nil {
+		return
+	}
+	name := C.CString("setLauncherAlias")
+	sig := C.CString("(I)V")
+	defer C.free(unsafe.Pointer(name))
+	defer C.free(unsafe.Pointer(sig))
+	mid := C.ml_jni_get_static_method(env, cls, name, sig)
+	if mid == nil {
+		return
+	}
+	v := C.jint(0)
+	if on {
+		v = 1
+	}
+	C.ml_jni_call_static_void_int(env, cls, mid, v)
+}
+
+// ---- TV Input Framework bridge (Tv.java) -----------------------------------
+// New in Go — upstream C has no TIF support. Tv.java exposes the
+// system TvProvider channel list and tunes a TvView owned by
+// GLWActivity.
+
+// tvClass returns the Tv jclass (global ref cached in coreInit) or nil.
+func tvClass(env *C.JNIEnv) C.jclass {
+	return C.jclass(STTv)
+}
+
+// AndroidTvInputCount — Tv.inputCount(): >0 when the device exposes
+// any TvInputService (tuner, IPTV, streaming).
+func AndroidTvInputCount() int {
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
+	env := JNIEnv()
+	if env == nil {
+		return 0
+	}
+	cls := tvClass(env)
+	if unsafe.Pointer(cls) == nil {
+		return 0
+	}
+	name := C.CString("inputCount")
+	sig := C.CString("()I")
+	defer C.free(unsafe.Pointer(name))
+	defer C.free(unsafe.Pointer(sig))
+	mid := C.ml_jni_get_static_method(env, cls, name, sig)
+	if mid == nil {
+		return 0
+	}
+	return int(C.ml_jni_call_static_int0(env, cls, mid))
+}
+
+// AndroidTvListInputs — Tv.listInputs() → JSON array.
+func AndroidTvListInputs() string {
+	return tvCallStaticString("listInputs")
+}
+
+// AndroidTvListChannels — Tv.listChannels() → JSON array.
+func AndroidTvListChannels() string {
+	return tvCallStaticString("listChannels")
+}
+
+// tvCallStaticString — shared helper for the no-arg JSON getters.
+func tvCallStaticString(method string) string {
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
+	env := JNIEnv()
+	if env == nil {
+		return ""
+	}
+	cls := tvClass(env)
+	if unsafe.Pointer(cls) == nil {
+		return ""
+	}
+	name := C.CString(method)
+	sig := C.CString("()Ljava/lang/String;")
+	defer C.free(unsafe.Pointer(name))
+	defer C.free(unsafe.Pointer(sig))
+	mid := C.ml_jni_get_static_method(env, cls, name, sig)
+	if mid == nil {
+		return ""
+	}
+	obj := C.ml_jni_call_static_obj0(env, cls, mid)
+	if unsafe.Pointer(obj) == nil {
+		return ""
+	}
+	defer C.ml_jni_del_local_ref(env, obj)
+	s := C.jstring(obj)
+	chars := C.ml_jni_get_string_chars(env, s)
+	if chars == nil {
+		return ""
+	}
+	defer C.ml_jni_release_string_chars(env, s, chars)
+	return C.GoString(chars)
+}
+
+// AndroidTvTune — Tv.tune(inputId, channelId): tune the TvView to a
+// TvProvider channel.
+func AndroidTvTune(inputID string, channelID int64) {
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
+	env := JNIEnv()
+	if env == nil {
+		return
+	}
+	cls := tvClass(env)
+	if unsafe.Pointer(cls) == nil {
+		return
+	}
+	name := C.CString("tune")
+	sig := C.CString("(Ljava/lang/String;J)V")
+	cid := C.CString(inputID)
+	defer C.free(unsafe.Pointer(name))
+	defer C.free(unsafe.Pointer(sig))
+	defer C.free(unsafe.Pointer(cid))
+	mid := C.ml_jni_get_static_method(env, cls, name, sig)
+	if mid == nil {
+		return
+	}
+	jid := C.ml_jni_new_string(env, cid)
+	defer C.ml_jni_del_local_ref(env, C.jobject(jid))
+	C.ml_jni_call_static_void_str_long(env, cls, mid, jid, C.jlong(channelID))
+}
+
+// AndroidTvTuneUri — Tv.tuneUri(inputId, uri): tune by raw URI string.
+// Vendor inputs may accept non-TvContract URIs (e.g. dvb:// triplet).
+func AndroidTvTuneUri(inputID, uri string) {
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
+	env := JNIEnv()
+	if env == nil {
+		return
+	}
+	cls := tvClass(env)
+	if unsafe.Pointer(cls) == nil {
+		return
+	}
+	name := C.CString("tuneUri")
+	sig := C.CString("(Ljava/lang/String;Ljava/lang/String;)V")
+	cid := C.CString(inputID)
+	curi := C.CString(uri)
+	defer C.free(unsafe.Pointer(name))
+	defer C.free(unsafe.Pointer(sig))
+	defer C.free(unsafe.Pointer(cid))
+	defer C.free(unsafe.Pointer(curi))
+	mid := C.ml_jni_get_static_method(env, cls, name, sig)
+	if mid == nil {
+		return
+	}
+	jid := C.ml_jni_new_string(env, cid)
+	defer C.ml_jni_del_local_ref(env, C.jobject(jid))
+	juri := C.ml_jni_new_string(env, curi)
+	defer C.ml_jni_del_local_ref(env, C.jobject(juri))
+	C.ml_jni_call_static_void_str_str(env, cls, mid, jid, juri)
+}
+
+// AndroidTvUntune — Tv.untune(): release the TvView session.
+func AndroidTvUntune() {
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
+	env := JNIEnv()
+	if env == nil {
+		return
+	}
+	cls := tvClass(env)
+	if unsafe.Pointer(cls) == nil {
+		return
+	}
+	name := C.CString("untune")
+	sig := C.CString("()V")
+	defer C.free(unsafe.Pointer(name))
+	defer C.free(unsafe.Pointer(sig))
+	mid := C.ml_jni_get_static_method(env, cls, name, sig)
+	if mid == nil {
+		return
+	}
+	C.ml_jni_call_static_void0(env, cls, mid)
+}
+
+// AndroidTvSetVideoRect — Tv.setVideoRect(l,t,r,b): place the TvView
+// surface in pixels. An empty/negative rect restores fullscreen;
+// the rect persists across retunes so the channel-list PiP survives.
+func AndroidTvSetVideoRect(l, t, r, b int) {
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
+	env := JNIEnv()
+	if env == nil {
+		return
+	}
+	cls := tvClass(env)
+	if unsafe.Pointer(cls) == nil {
+		return
+	}
+	name := C.CString("setVideoRect")
+	sig := C.CString("(IIII)V")
+	defer C.free(unsafe.Pointer(name))
+	defer C.free(unsafe.Pointer(sig))
+	mid := C.ml_jni_get_static_method(env, cls, name, sig)
+	if mid == nil {
+		return
+	}
+	C.ml_jni_call_static_void_iiii(env, cls, mid,
+		C.jint(l), C.jint(t), C.jint(r), C.jint(b))
+}
+
+// AndroidTvIsTuned — Tv.isTuned(): a TvView session is alive.
+func AndroidTvIsTuned() bool {
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
+	env := JNIEnv()
+	if env == nil {
+		return false
+	}
+	cls := tvClass(env)
+	if unsafe.Pointer(cls) == nil {
+		return false
+	}
+	name := C.CString("isTuned")
+	sig := C.CString("()I")
+	defer C.free(unsafe.Pointer(name))
+	defer C.free(unsafe.Pointer(sig))
+	mid := C.ml_jni_get_static_method(env, cls, name, sig)
+	if mid == nil {
+		return false
+	}
+	return C.ml_jni_call_static_int0(env, cls, mid) != 0
+}
+
+// AndroidTvSetup — Tv.openSetup(inputId): launch the input's setup
+// activity (e.g. channel scan). Returns false when the input has none.
+func AndroidTvSetup(inputID string) bool {
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
+	env := JNIEnv()
+	if env == nil {
+		return false
+	}
+	cls := tvClass(env)
+	if unsafe.Pointer(cls) == nil {
+		return false
+	}
+	name := C.CString("openSetup")
+	sig := C.CString("(Ljava/lang/String;)Z")
+	cid := C.CString(inputID)
+	defer C.free(unsafe.Pointer(name))
+	defer C.free(unsafe.Pointer(sig))
+	defer C.free(unsafe.Pointer(cid))
+	mid := C.ml_jni_get_static_method(env, cls, name, sig)
+	if mid == nil {
+		return false
+	}
+	jid := C.ml_jni_new_string(env, cid)
+	defer C.ml_jni_del_local_ref(env, C.jobject(jid))
+	return C.ml_jni_call_static_bool_str(env, cls, mid, jid) != 0
+}
+
+// AndroidTvPause — Tv.pause(paused): timeshift pause/resume.
+func AndroidTvPause(paused bool) {
+	tvCallVoidInt("pause", "(Z)V", boolToInt32(paused))
+}
+
+// AndroidTvSeekTo — Tv.seekTo(ms): absolute wall-clock position in the
+// timeshift buffer.
+func AndroidTvSeekTo(ms int64) {
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
+	env := JNIEnv()
+	if env == nil {
+		return
+	}
+	cls := tvClass(env)
+	if unsafe.Pointer(cls) == nil {
+		return
+	}
+	name := C.CString("seekTo")
+	sig := C.CString("(J)V")
+	defer C.free(unsafe.Pointer(name))
+	defer C.free(unsafe.Pointer(sig))
+	mid := C.ml_jni_get_static_method(env, cls, name, sig)
+	if mid == nil {
+		return
+	}
+	C.ml_jni_call_static_void_long(env, cls, mid, C.jlong(ms))
+}
+
+// AndroidTvTimeshift — Tv.timeshift(): "start;cur" wall-clock ms.
+func AndroidTvTimeshift() string {
+	return tvCallStaticString("timeshift")
+}
+
+// AndroidTvTracks — Tv.tracks(): JSON array of audio/subtitle tracks.
+func AndroidTvTracks() string {
+	return tvCallStaticString("tracks")
+}
+
+// AndroidTvPrograms — Tv.programs(channelId): JSON now/next EPG rows
+// (empty when the provider data isn't readable for this channel).
+func AndroidTvPrograms(channelID int64) string {
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
+	env := JNIEnv()
+	if env == nil {
+		return ""
+	}
+	cls := tvClass(env)
+	if unsafe.Pointer(cls) == nil {
+		return ""
+	}
+	name := C.CString("programs")
+	sig := C.CString("(J)Ljava/lang/String;")
+	defer C.free(unsafe.Pointer(name))
+	defer C.free(unsafe.Pointer(sig))
+	mid := C.ml_jni_get_static_method(env, cls, name, sig)
+	if mid == nil {
+		return ""
+	}
+	obj := C.ml_jni_call_static_obj_long(env, cls, mid, C.jlong(channelID))
+	if unsafe.Pointer(obj) == nil {
+		return ""
+	}
+	defer C.ml_jni_del_local_ref(env, obj)
+	s := C.jstring(obj)
+	chars := C.ml_jni_get_string_chars(env, s)
+	if chars == nil {
+		return ""
+	}
+	defer C.ml_jni_release_string_chars(env, s, chars)
+	return C.GoString(chars)
+}
+
+// AndroidTvEpgURL — Tv.epgUrl(): XMLTV feed URL from the discovered
+// channels sidecar JSON, "" when unset.
+func AndroidTvEpgURL() string {
+	return tvCallStaticString("epgUrl")
+}
+
+// AndroidTvSelectTrack — Tv.selectTrack(type, id).
+func AndroidTvSelectTrack(trackType int, id string) {
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
+	env := JNIEnv()
+	if env == nil {
+		return
+	}
+	cls := tvClass(env)
+	if unsafe.Pointer(cls) == nil {
+		return
+	}
+	name := C.CString("selectTrack")
+	sig := C.CString("(ILjava/lang/String;)V")
+	cid := C.CString(id)
+	defer C.free(unsafe.Pointer(name))
+	defer C.free(unsafe.Pointer(sig))
+	defer C.free(unsafe.Pointer(cid))
+	mid := C.ml_jni_get_static_method(env, cls, name, sig)
+	if mid == nil {
+		return
+	}
+	jid := C.ml_jni_new_string(env, cid)
+	defer C.ml_jni_del_local_ref(env, C.jobject(jid))
+	C.ml_jni_call_static_void_int_str(env, cls, mid,
+		C.jint(trackType), jid)
+}
+
+// tvCallVoidInt — shared helper for single-int Tv statics.
+func tvCallVoidInt(method, sig string, v int32) {
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
+	env := JNIEnv()
+	if env == nil {
+		return
+	}
+	cls := tvClass(env)
+	if unsafe.Pointer(cls) == nil {
+		return
+	}
+	name := C.CString(method)
+	csig := C.CString(sig)
+	defer C.free(unsafe.Pointer(name))
+	defer C.free(unsafe.Pointer(csig))
+	mid := C.ml_jni_get_static_method(env, cls, name, csig)
+	if mid == nil {
+		return
+	}
+	C.ml_jni_call_static_void_int(env, cls, mid, C.jint(v))
+}
+
+func boolToInt32(b bool) int32 {
+	if b {
+		return 1
+	}
+	return 0
+}
+
+// AndroidOpenSettings — Apps.openSettings(): the Android system
+// Settings app.
+func AndroidOpenSettings() {
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
+	env := JNIEnv()
+	if env == nil {
+		return
+	}
+	cls := appsClass(env)
+	if unsafe.Pointer(cls) == nil {
+		return
+	}
+	name := C.CString("openSettings")
+	sig := C.CString("()V")
+	defer C.free(unsafe.Pointer(name))
+	defer C.free(unsafe.Pointer(sig))
+	mid := C.ml_jni_get_static_method(env, cls, name, sig)
+	if mid == nil {
+		return
+	}
+	C.ml_jni_call_static_void0(env, cls, mid)
 }

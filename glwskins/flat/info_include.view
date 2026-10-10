@@ -24,10 +24,11 @@
   });
 }
 
-#define InfoBar(TITLE, VAL) {
+#define InfoBar(TITLE, VAL, HIDDEN=false) {
   widget(container_x, {
     spacing: 1em;
     tableMode: true;
+    hidden: HIDDEN;
     widget(label, {
       InfoLabel();
       align: right;

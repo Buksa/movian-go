@@ -121,6 +121,8 @@ extern void Java_com_moviango_mediaplayer_Core_coreInit(JNIEnv* env, jobject obj
 extern void Java_com_moviango_mediaplayer_Core_openUri(JNIEnv* env, jobject obj, jstring jURI);
 extern void Java_com_moviango_mediaplayer_Core_networkStatusChanged(JNIEnv* env, jobject obj);
 extern void Java_com_moviango_mediaplayer_Core_permissionResult(JNIEnv* env, jobject obj, jboolean ok);
+extern void Java_com_moviango_mediaplayer_Core_oskResult(JNIEnv* env, jobject obj, jint seq, jstring text);
+extern void Java_com_moviango_mediaplayer_Core_oskText(JNIEnv* env, jobject obj, jint seq, jstring text);
 extern jint Java_com_moviango_mediaplayer_Core_glwCreate(JNIEnv* env, jobject obj, jobject vrp);
 extern void Java_com_moviango_mediaplayer_Core_glwInit(JNIEnv* env, jobject obj, jint id);
 extern void Java_com_moviango_mediaplayer_Core_glwFini(JNIEnv* env, jobject obj, jint id);

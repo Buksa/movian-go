@@ -1,0 +1,89 @@
+#import "skin://theme.view"
+#import "skin://menu/sidebar_include.view"
+
+// TV play OSD menu — tvinput variant of osd_main.view. The media
+// settings sub-pages (subs/audio/video settings, qualities) are
+// omitted: on a TvView session they control Movian's internal media
+// pipeline which isn't in the loop. The remaining entries are the
+// global ones (volume, media/system info, log, sleep, suspend, exit)
+// that work on every page. Keeps id "osd_main" so focus("osd_main")
+// and osdpage bookkeeping behave like in video.view.
+
+widget(container_y, {
+  width: 22em;
+  id: "osd_main";
+  padding: [0, 3em, 0, 0];
+
+  widget(list_y, {
+
+    id: "sidebar";
+    navWrap: true;
+
+    SIDEBAR_INTEGER(_("Master volume"),
+                    "skin://icons/ic_speaker_48px.svg",
+                    -75, 12, 1,
+                    $core.audio.mastervolume, _("dB"));
+
+    widget(dummy, {
+      height: 1em;
+    });
+
+    SIDEBAR_ACTION(select($ui.mediainfo,
+                          _("Hide media info"),
+                          _("Show media info")),
+                   select($ui.mediainfo,
+                          "skin://icons/ic_info_48px.svg",
+                          "skin://icons/ic_info_outline_48px.svg"),
+                   {
+                     toggle($ui.mediainfo);
+                   });
+
+    SIDEBAR_ACTION(select($ui.sysinfo,
+                          _("Hide system info"),
+                          _("Show system info")),
+                   select($ui.sysinfo,
+                          "skin://icons/ic_info_48px.svg",
+                          "skin://icons/ic_info_outline_48px.svg"),
+                   {
+                     toggle($ui.sysinfo);
+                   });
+
+    SIDEBAR_ACTION(_("View log"),
+                   "skin://icons/ic_my_library_books_48px.svg", {
+                     $ui.logwindow = true;
+                   });
+
+    widget(dummy, {
+      height: 1em;
+    });
+
+    SIDEBAR_INTEGER(_("Time until sleep"),
+                    void,
+                    0,
+                    $core.runcontrol.sleepTimeMax,
+                    $core.runcontrol.sleepTimeStep,
+                    $core.runcontrol.sleepTime,
+                    _("min"),
+                    !$core.runcontrol.sleepTimer);
+
+    SIDEBAR_ACTION(select($core.runcontrol.sleepTimer,
+                          _("Disable sleep timer"),
+                          _("Activate sleep timer")),
+                   select($core.runcontrol.sleepTimer,
+                          "skin://icons/ic_alarm_off_48px.svg",
+                          "skin://icons/ic_alarm_add_48px.svg"),
+                   {
+                     toggle($core.runcontrol.sleepTimer);
+                   }, !$core.runcontrol.canStandby);
+
+    SIDEBAR_ACTION(_("Suspend"),
+                   "skin://icons/ic_power_settings_new_48px.svg",
+                   deliverEvent($core.eventSink, "Standby"),
+                   !$core.runcontrol.canStandby);
+
+    SIDEBAR_ACTION(fmt(_("Exit %s"), $core.app.name),
+                   "skin://icons/ic_exit_to_app_48px.svg",
+                   deliverEvent($core.eventSink, "Quit"),
+                   !$core.runcontrol.canExit);
+  });
+});

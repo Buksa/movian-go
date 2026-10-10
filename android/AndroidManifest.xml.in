@@ -6,6 +6,8 @@
 
   <uses-feature android:name="android.software.leanback"
                 android:required="false"/>
+  <uses-feature android:name="android.software.live_tv"
+                android:required="false"/>
   <uses-feature android:name="android.hardware.touchscreen"
                 android:required="false"/>
   <uses-feature android:glEsVersion="0x00020000"
@@ -16,6 +18,28 @@
   <uses-permission android:name="android.permission.INTERNET"/>
   <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE"/>
   <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE"/>
+  <!-- Optional: when granted via `pm grant`, lets the app self-enable
+       its HOME-key accessibility service (launcher mode on locked
+       firmware). Denied by default, app works without it. -->
+  <uses-permission android:name="android.permission.WRITE_SECURE_SETTINGS"/>
+
+  <!-- TV Input Framework: read the system channel/program guide
+       populated by the device's TV input apps (tuner, IPTV). Needed
+       for the "Live TV" service to list and tune channels. -->
+  <uses-permission android:name="com.android.providers.tv.permission.READ_EPG_DATA"/>
+  <uses-permission android:name="com.android.providers.tv.permission.ACCESS_ALL_EPG_DATA"/>
+
+  <!-- Launcher mode: enumerate launchable apps (API 30+ package visibility) -->
+  <queries>
+    <intent>
+      <action android:name="android.intent.action.MAIN" />
+      <category android:name="android.intent.category.LAUNCHER" />
+    </intent>
+    <intent>
+      <action android:name="android.intent.action.MAIN" />
+      <category android:name="android.intent.category.LEANBACK_LAUNCHER" />
+    </intent>
+  </queries>
 
   <application android:label="@@APPNAME@@"
                android:icon="@drawable/ic_launcher"
@@ -26,6 +50,7 @@
 
     <activity android:name=".GLWActivity"
               android:label="@@APPNAME@@"
+              android:launchMode="singleTask"
               android:configChanges="keyboard|keyboardHidden|orientation|screenLayout|uiMode|screenSize|smallestScreenSize">
       <intent-filter>
         <action android:name="android.intent.action.MAIN" />
@@ -386,6 +411,43 @@
       </intent-filter>
 
     </activity>
+
+    <!-- Launcher mode: this alias carries the HOME/DEFAULT filter so
+         Movian is offered as a home-app candidate ONLY while launcher
+         mode is on — the alias stays disabled otherwise.
+         priority=10: out-ranks typical OEM home filters (e.g. the TIM
+         launcher pins itself at priority=2). Positive priorities are
+         only honoured for system/priv apps — AOSP clamps them to 0 for
+         third-party packages — so this helps when Movian is installed
+         as a system app (e.g. appliance builds); on locked operator
+         firmware no third-party app can win HOME anyway. -->
+    <activity-alias android:name=".HomeLauncher"
+                    android:enabled="false"
+                    android:exported="true"
+                    android:label="@@APPNAME@@"
+                    android:icon="@drawable/ic_launcher"
+                    android:targetActivity=".GLWActivity">
+      <intent-filter android:priority="10">
+        <action android:name="android.intent.action.MAIN" />
+        <category android:name="android.intent.category.HOME" />
+        <category android:name="android.intent.category.DEFAULT" />
+      </intent-filter>
+    </activity-alias>
+
+    <!-- Launcher mode on locked firmware: accessibility service that
+         consumes the HOME key before the system resolves it and brings
+         GLWActivity to front. Enabled via Settings > Accessibility, or
+         automatically when WRITE_SECURE_SETTINGS was granted via
+         `pm grant`. Inert while the .HomeLauncher alias is disabled. -->
+    <service android:name=".HomeKeyService"
+             android:permission="android.permission.BIND_ACCESSIBILITY_SERVICE"
+             android:exported="true">
+      <intent-filter>
+        <action android:name="android.accessibilityservice.AccessibilityService" />
+      </intent-filter>
+      <meta-data android:name="android.accessibilityservice"
+                 android:resource="@xml/accessibility_service_config" />
+    </service>
 
   </application>
 </manifest>

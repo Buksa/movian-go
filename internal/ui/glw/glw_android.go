@@ -54,6 +54,32 @@ ml_jni_vrp_ask_permission(JNIEnv *env, jobject vrp, jstring perm)
     ml_exc_report(env);
 }
 
+// openOsk — extension (no C counterpart): asks the Java
+// VideoRendererProvider to present a system-IME text dialog. Returns 0
+// when the method cannot be invoked so the caller falls back to the
+// GLW on-screen keyboard.
+static jboolean
+ml_jni_vrp_open_osk(JNIEnv *env, jobject vrp, jstring title, jstring text,
+                    jint seq, jint password)
+{
+  jclass cls;
+  jmethodID mid;
+  ml_exc_setctx("openOsk");
+  cls = (*env)->GetObjectClass(env, vrp);
+  mid = (*env)->GetMethodID(env, cls, "openOsk",
+                            "(Ljava/lang/String;Ljava/lang/String;II)V");
+  if(mid == NULL || (*env)->ExceptionCheck(env)) {
+    ml_exc_report(env);
+    return 0;
+  }
+  (*env)->CallVoidMethod(env, vrp, mid, title, text, seq, password);
+  if((*env)->ExceptionCheck(env)) {
+    ml_exc_report(env);
+    return 0;
+  }
+  return 1;
+}
+
 // C: STCore.checkPermission (android_glw.c:62-65)
 static jboolean
 ml_jni_check_permission(JNIEnv *env, jclass stcore, jstring perm)
@@ -102,6 +128,7 @@ import (
 	"github.com/czz/movian-go/internal/arch"
 	eventpkg "github.com/czz/movian-go/internal/event"
 	propcore "github.com/czz/movian-go/internal/prop"
+	settingscore "github.com/czz/movian-go/internal/settings"
 	tracepkg "github.com/czz/movian-go/internal/trace"
 )
 
@@ -119,6 +146,17 @@ type androidGlwRoot struct {
 
 	disableScreensaverSub *propcore.Subscription // C: agr_disable_screensaver_sub
 	navEventsinkSub       *propcore.Subscription // C: agr_nav_eventsink_sub
+
+	// System-IME OSK bridge (extension, no C counterpart): pending
+	// result produced by the Java UI thread, consumed by GlwStep on
+	// the GLW thread.
+	oskMu          sync.Mutex
+	oskSeq         int32
+	oskPending     bool
+	oskText        string
+	oskSubmit      int
+	oskLivePending bool
+	oskLiveText    string
 }
 
 // lpHelper — C: lphelper_t (ui/longpress.h:25-29).
@@ -319,6 +357,12 @@ func GlwCreate(envP, vrpP unsafe.Pointer) int32 {
 	permissionGlwRoot = agr
 	permissionMutex.Unlock()
 
+	// Extension (no C counterpart): when the "System keyboard" setting
+	// is on, route OSK requests to the Android IME via the vrp.
+	agr.gr.grOpenOsk = func(gr *glwRoot, title, input string, w *Glw, pw int) {
+		androidOskOpen(agr, title, input, w, pw)
+	}
+
 	glwLoadUniverse(&agr.gr)
 	return int32(cgo.NewHandle(agr))
 }
@@ -454,6 +498,27 @@ func GlwStep(id int32) {
 	var zmax int
 
 	glwLock(gr)
+
+	// Deliver queued system-IME OSK traffic on the GLW thread
+	// (extension, no C counterpart): live text echo first, then a
+	// pending result so the final state is applied atomically.
+	agr.oskMu.Lock()
+	oskLivePending, oskLiveText := agr.oskLivePending, agr.oskLiveText
+	agr.oskLivePending = false
+	oskPending := agr.oskPending
+	oskText, oskSubmit := agr.oskText, agr.oskSubmit
+	agr.oskPending = false
+	agr.oskMu.Unlock()
+	if oskLivePending {
+		glwOskText(gr, oskLiveText)
+	}
+	if oskPending {
+		if oskSubmit != 0 {
+			glwOskText(gr, oskText)
+		}
+		glwOskDone(gr, oskSubmit)
+	}
+
 	C.glViewport(0, 0, C.GLsizei(gr.grWidth), C.GLsizei(gr.grHeight))
 	C.glClear(C.GL_COLOR_BUFFER_BIT | C.GL_STENCIL_BUFFER_BIT)
 	C.glEnable(C.GL_STENCIL_TEST)
@@ -554,7 +619,9 @@ const (
 	akeycodeMediaFastForward = 90
 	akeycodeEnter            = 66
 	akeycodeButtonMode       = 110
-	endOfAKEYCODE            = akeycodeButtonMode + 1
+	akeycodeChannelUp        = 166
+	akeycodeChannelDown      = 167
+	endOfAKEYCODE            = akeycodeChannelDown + 1
 )
 
 // btnToAction — C: btn_to_action[] (android_glw.c:414-427).
@@ -576,6 +643,8 @@ func init() {
 	btnToAction[akeycodeMediaPlayPause] = []eventpkg.ActionType{eventpkg.ACTION_PLAYPAUSE}
 	btnToAction[akeycodeEnter] = []eventpkg.ActionType{eventpkg.ACTION_ACTIVATE}
 	btnToAction[akeycodeDel] = []eventpkg.ActionType{eventpkg.ACTION_NAV_BACK, eventpkg.ACTION_BS}
+	btnToAction[akeycodeChannelUp] = []eventpkg.ActionType{eventpkg.ACTION_NEXT_CHANNEL}
+	btnToAction[akeycodeChannelDown] = []eventpkg.ActionType{eventpkg.ACTION_PREV_CHANNEL}
 
 	shiftBtnToAction[akeycodeDpadLeft] = []eventpkg.ActionType{eventpkg.ACTION_MOVE_LEFT}
 	shiftBtnToAction[akeycodeDpadUp] = []eventpkg.ActionType{eventpkg.ACTION_MOVE_UP}
@@ -645,4 +714,101 @@ func GlwKeyUp(id, keycode int32) bool {
 		return true
 	}
 	return false
+}
+
+// --- System-IME OSK bridge (extension, no C counterpart) ------------
+
+// oskOwnerAgr — the androidGlwRoot with a system-IME dialog
+// outstanding. Set on a successful openOsk call, cleared once the
+// result is accepted.
+var oskOwnerAgr atomic.Pointer[androidGlwRoot]
+
+// androidOskOpen — gr_open_osk override installed by GlwCreate. When
+// the "Use system keyboard" setting is on it asks the Java
+// VideoRendererProvider to present an IME dialog; the asynchronous
+// answer comes back through GlwOskResult and is delivered on the GLW
+// thread by GlwStep. Any failure falls back to the GLW on-screen
+// keyboard so text input keeps working.
+func androidOskOpen(agr *androidGlwRoot, title, input string, w *Glw, password int) {
+	if glwDeps.settings.gsSystemOsk == 0 {
+		glwOskOpenDefault(&agr.gr, title, input, w, password)
+		return
+	}
+	env := jniEnv()
+	if env == nil {
+		glwOskOpenDefault(&agr.gr, title, input, w, password)
+		return
+	}
+	agr.oskMu.Lock()
+	agr.oskSeq++
+	agr.oskPending = false
+	seq := agr.oskSeq
+	agr.oskMu.Unlock()
+
+	ctitle := C.CString(title)
+	ctext := C.CString(input)
+	ok := C.ml_jni_vrp_open_osk(env, agr.vrp,
+		C.ml_jni_new_string(env, ctitle),
+		C.ml_jni_new_string(env, ctext),
+		C.jint(seq), C.jint(password))
+	C.free(unsafe.Pointer(ctitle))
+	C.free(unsafe.Pointer(ctext))
+	if ok == 0 {
+		glwOskOpenDefault(&agr.gr, title, input, w, password)
+		return
+	}
+	oskOwnerAgr.Store(agr)
+}
+
+// GlwOskResult — called on the Java UI thread via Core.oskResult.
+// text == nil means the dialog was cancelled. Queues the outcome on
+// the owning root for GlwStep to consume; a stale seq (result for an
+// earlier dialog) is dropped so it cannot clobber the current field.
+func GlwOskResult(seq int32, text *string) {
+	agr := oskOwnerAgr.Load()
+	if agr == nil {
+		return
+	}
+	agr.oskMu.Lock()
+	if seq != agr.oskSeq {
+		agr.oskMu.Unlock()
+		return
+	}
+	agr.oskPending = true
+	agr.oskSubmit = 0
+	if text != nil {
+		agr.oskText = *text
+		agr.oskSubmit = 1
+	}
+	agr.oskMu.Unlock()
+	oskOwnerAgr.Store(nil)
+}
+
+// GlwOskTextUpdate — called on the Java UI thread via Core.oskText for
+// every IME text change; the newest value is echoed into the focused
+// GLW text widget by the next GlwStep so the Movian field shows live
+// input while the system keyboard is open.
+func GlwOskTextUpdate(seq int32, text string) {
+	agr := oskOwnerAgr.Load()
+	if agr == nil {
+		return
+	}
+	agr.oskMu.Lock()
+	if seq == agr.oskSeq {
+		agr.oskLivePending = true
+		agr.oskLiveText = text
+	}
+	agr.oskMu.Unlock()
+}
+
+// glwPlatformOskSetting — creates the "Use system keyboard" toggle in
+// Look & feel settings. Android only: non-Android builds provide a
+// no-op (glw_osk_stub.go).
+func glwPlatformOskSetting(sm *settingscore.SettingsManager, s *propcore.Prop) {
+	glwDeps.settings.gsSettingSystemOsk = sm.SettingCreate(settingscore.SettingBool, s,
+		settingscore.SettingsInitialUpdate,
+		settingscore.SettingTagTitle, sm.P("Use system keyboard"),
+		settingscore.SettingTagValue, 0,
+		settingscore.SettingTagWriteInt, &glwDeps.settings.gsSystemOsk,
+		settingscore.SettingTagStore, "glw", "system_osk")
 }

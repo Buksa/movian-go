@@ -36,6 +36,8 @@ xcuserdata/
 *.bkp_*
 *.bkp[0-9]*
 *.bkp-*
+*.bak
+__pycache__/
 /cmd/movian/
 .deps/
 

@@ -6,6 +6,15 @@ name: Release
 on:
   push:
     tags: ['*.*.*']
+  # Also dispatchable with an explicit tag — the release-tag workflow
+  # pushes tags via GITHUB_TOKEN, which does NOT re-trigger tag-push
+  # workflows, so it dispatches this one instead.
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Tag to release (e.g. 8.1.0)'
+        required: true
+        type: string
 
 # Re-pushing a tag cancels the previous run for that tag — avoids
 # paying release-build minutes (macOS is 10x) for superseded commits.
@@ -23,6 +32,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
+          ref: ${{ inputs.tag || github.ref_name }}
           fetch-depth: 0
 
       - uses: actions/setup-go@v5
@@ -119,6 +129,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
+          ref: ${{ inputs.tag || github.ref_name }}
           fetch-depth: 0
 
       - uses: actions/setup-go@v5
@@ -216,6 +227,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
+          ref: ${{ inputs.tag || github.ref_name }}
           fetch-depth: 0
 
       - uses: actions/setup-go@v5
@@ -255,6 +267,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
+          ref: ${{ inputs.tag || github.ref_name }}
           fetch-depth: 0
 
       - uses: actions/setup-go@v5
@@ -305,6 +318,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
+          ref: ${{ inputs.tag || github.ref_name }}
           fetch-depth: 0
 
       - uses: actions/setup-go@v5
@@ -367,10 +381,27 @@ jobs:
           path: dist
           merge-multiple: true
 
+      # Same CI release key as release-tag.yml — signs SHA256SUMS so
+      # every release carries a detached signature over all artifacts.
+      - name: Import release signing key
+        env:
+          GPG_PRIVATE_KEY: ${{ secrets.GPG_PRIVATE_KEY }}
+        run: echo "$GPG_PRIVATE_KEY" | gpg --batch --import
+
+      - name: Checksums + detached signature
+        working-directory: dist
+        run: |
+          sha256sum * > SHA256SUMS
+          KEYID=$(gpg --batch --with-colons --list-secret-keys \
+                   | awk -F: '/^sec/ {print $5; exit}')
+          gpg --batch --yes --detach-sign --armor \
+              --local-user "$KEYID" -o SHA256SUMS.asc SHA256SUMS
+
       - name: Create release
         uses: softprops/action-gh-release@v2
         with:
           files: dist/*
-          name: Movian Go ${{ github.ref_name }}
+          tag_name: ${{ inputs.tag || github.ref_name }}
+          name: Movian Go ${{ inputs.tag || github.ref_name }}
           draft: false
           prerelease: false
