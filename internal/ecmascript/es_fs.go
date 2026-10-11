@@ -162,11 +162,13 @@ func esFileRead(ctx *gaftape.Context) int {
 	return 1
 }
 
-// esFileWrite — C: es_file_write (es_fs.c:199-231)
+// esFileWrite — C: es_file_write (es_fs.c:227-259)
 // fd, buffer, offset, length, position
 func esFileWrite(ctx *gaftape.Context) int {
 	efd := esFDGet(ctx, 0)
-	buf := ctx.GetBuffer(1)
+	// C: duk_to_buffer converts strings as well as binary buffers.
+	// Go: ToBuffer preserves that contract for updater JSON string writes.
+	buf := ctx.ToBuffer(1)
 	bufsize := len(buf)
 	var length int
 
@@ -246,6 +248,19 @@ func esFileMkdirs(ctx *gaftape.Context) int {
 	return 0
 }
 
+// esFileUnlink — C: es_file_unlink (es_fs.c:339-351).
+// C: get_filename(..., 1) applies the write ACL before fa_unlink.
+// Go: use the same ACL path when consuming an updater's post-install marker.
+func esFileUnlink(ctx *gaftape.Context) int {
+	ec := EsGet(ctx)
+	filename := getFilename(ctx, 0, ec, 1)
+	if err := facore.Unlink(esEnv.fam, filename); err != nil {
+		ctx.Error(gaftape.GAF_ERR_ERROR, "Unable to remove '%s' -- %s",
+			filename, err.Error())
+	}
+	return 0
+}
+
 // esFileDirname — C: es_file_dirname (es_fs.c:303-316)
 func esFileDirname(ctx *gaftape.Context) int {
 	ec := EsGet(ctx)
@@ -289,7 +304,7 @@ func esFileCopy(ctx *gaftape.Context) int {
 }
 
 // ---------------------------------------------------------------------------
-// fnlist_fs — C: es_fs.c:362-374
+// fnlist_fs — C: fnlist_fs (es_fs.c), including the native unlink entry.
 // ---------------------------------------------------------------------------
 
 var esFnlistFS = []gaftape.FunctionListEntry{
@@ -300,6 +315,7 @@ var esFnlistFS = []gaftape.FunctionListEntry{
 	{Key: "ftrunctae", Value: esFileFtruncate, Nargs: 2},
 	{Key: "rename", Value: esFileRename, Nargs: 2},
 	{Key: "mkdirs", Value: esFileMkdirs, Nargs: 2},
+	{Key: "unlink", Value: esFileUnlink, Nargs: 1},
 	{Key: "dirname", Value: esFileDirname, Nargs: 1},
 	{Key: "basename", Value: esFileBasename, Nargs: 1},
 	{Key: "copyfile", Value: esFileCopy, Nargs: 2},
