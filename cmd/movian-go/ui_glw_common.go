@@ -28,10 +28,14 @@ func glwFrontendEarlyStart(ctx *appContext, settingsManager *settingscore.Settin
 	// C: gconf.* (debug_glw / skin / fullscreen / convert_pointer_to_touch)
 	// are read from gconf.G directly by glw.c readers.
 
-	// C: nav_spawn() — called inside glw_x11_start when no previous UI
-	// handed over a navigator root. Lazy: navSystem is created later.
+	// C: glw_x11_main assigns gr_prop_nav = nav_spawn() (glw_x11.c:1431).
+	// Go: startup already creates the primary navigator; reuse it as GLFW does.
+	// Plugin-native navigation addresses navigators.nodes[0], so a second
+	// navigator here would send updater events away from the visible X11 UI.
 	uiglw.GlwX11NavSpawnFn = func() *propcore.Prop {
-		return ctx.navSystem.Spawn(ctx.propManager).PropRoot()
+		root := ctx.navSystem.DefaultNavigator().PropRoot()
+		ctx.propManager.Select(root)
+		return root
 	}
 
 	uiglw.SetDeps(app.AppDataRoot,
