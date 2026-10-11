@@ -13,6 +13,7 @@ package dvb
 
 import (
 	"encoding/binary"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -513,12 +514,20 @@ func (d *DVR) Close() error {
 // Adapters lists all usable adapters: adapterN with a frontend AND a
 // demux AND a dvr node (frontend alone is useless — e.g. locked-down
 // vendor kernels expose only frontend0).
+// Go: a missing adapter ends enumeration; other directory-stat errors are
+// returned instead of reporting a successful, incomplete device list.
 func Adapters() ([]*Adapter, error) {
 	var out []*Adapter
 	for i := 0; ; i++ {
 		base := fmt.Sprintf("/dev/dvb/adapter%d", i)
 		st, err := os.Stat(base)
-		if err != nil || !st.IsDir() {
+		if errors.Is(err, os.ErrNotExist) {
+			break
+		}
+		if err != nil {
+			return nil, err
+		}
+		if !st.IsDir() {
 			break
 		}
 		if !hasNode(base, "demux0") || !hasNode(base, "dvr0") {
