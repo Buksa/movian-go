@@ -12,8 +12,9 @@ exports.writeFileSync = function(filename, data, opts) {
 }
 
 // C SDK: res/ecmascript/modules/fs.js returns a Duktape.Buffer.
-// Go: use Uint8Array for native reads and return its byte buffer, preserving
-// the SDK's .toString() contract rather than decoding to a string here.
+// Go: use Uint8Array for native reads and return its byte buffer. gaftape's
+// ArrayBuffer.toString shim decodes bytes like Duktape.Buffer; returning the
+// buffer preserves that SDK contract without decoding to a string here.
 exports.readFileSync = function(filename, opts) {
   var fs = require('native/fs');
   var fd = fs.open(filename, 'r');

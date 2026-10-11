@@ -151,6 +151,7 @@ manifest are in [BUILDING.md](BUILDING.md).
 - [BUILDING.md](BUILDING.md) — toolchains and per-platform builds
 - [MGOS_RPI.md](MGOS_RPI.md) — Raspberry Pi appliance SD image: contents, flashing, per-board caveats
 - [FFMPEG_BOUNDARY.md](FFMPEG_BOUNDARY.md) — cgo/FFmpeg ownership rules
+- [CONTRIBUTING.md](CONTRIBUTING.md) — contribution scope, C-to-Go comments, verification, and commits
 
 ## Layout
 
