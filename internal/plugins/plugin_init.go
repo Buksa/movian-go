@@ -156,8 +156,12 @@ func UpgradeCheck(ctx context.Context, pm *PluginManager) (int, error) {
 	return pm.UpdateGlobalState(), nil
 }
 
-// OpenFile opens a plugin package file and prints its title.
-func OpenFile(ctx context.Context, pm *PluginManager, page any, url string) error {
+// OpenFile installs a package opened by the file backend.
+// C: plugin_open_file (plugins.c) resolves the manifest, creates the local plugin,
+// and calls plugin_install without a second installation confirmation.
+// Go: share the URL/archive installer with HTTP Control; return errors to the
+// file-backend callback, which owns the page and calls navigator.OpenError.
+func OpenFile(ctx context.Context, pm *PluginManager, url string) error {
 	select {
 	case <-ctx.Done():
 		return ctx.Err()
@@ -166,13 +170,7 @@ func OpenFile(ctx context.Context, pm *PluginManager, page any, url string) erro
 	if pm == nil {
 		return fmt.Errorf("plugin manager not initialized")
 	}
-	_, err := pm.GetPluginFromZip(url)
-	if err != nil {
-		// Failed to get plugin from file
-		return err
-	}
-	// Opening plugin
-	return nil
+	return pm.InstallPluginFromURL(url)
 }
 
 // Uninstall removes an installed plugin by ID.
