@@ -4,7 +4,7 @@ var store = require('movian/store');
 
 function createSetting(group, type, id, title) {
 
-  var model = group.nodes[id];
+  var model = prop.makeProp(prop.getChild(group.nodes, id));
 
   model.type = type;
   model.enabled = true;
@@ -209,7 +209,7 @@ sp.createAction = function(id, title, callback) {
 sp.createMultiOpt = function(id, title, options, callback, persistent) {
   var group = this;
 
-  var model = group.nodes[id];
+  var model = prop.makeProp(prop.getChild(group.nodes, id));
   model.type = 'multiopt';
   model.enabled = true;
   model.metadata.title = title;
@@ -223,7 +223,10 @@ sp.createMultiOpt = function(id, title, options, callback, persistent) {
     var opt_title = o[1];
     var opt_default = o[2];
 
-    var opt = model.options[opt_id];
+    // Goja passes both options["0"] and options[0] to a Proxy get trap as
+    // the string "0". Option ids are named properties, so bypass the proxy
+    // trap and preserve the original string-key semantics.
+    var opt = prop.makeProp(prop.getChild(model.options, opt_id));
 
     opt.title = opt_title;
 
@@ -235,7 +238,7 @@ sp.createMultiOpt = function(id, title, options, callback, persistent) {
     initial = options[0][0].toString();
 
   if(initial) {
-    var opt = model.options[initial];
+    var opt = prop.makeProp(prop.getChild(model.options, initial));
     prop.select(opt);
     prop.link(opt, model.current);
     model.value = initial;
@@ -273,7 +276,7 @@ exports.globalSettings = function(id, title, icon, desc) {
 
   this.id = id;
 
-  var model = prop.global.settings.apps.nodes[id];
+  var model = prop.makeProp(prop.getChild(prop.global.settings.apps.nodes, id));
 
   prop.unloadDestroy(model);
 
