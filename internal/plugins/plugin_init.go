@@ -72,7 +72,7 @@ func LoadAll(ctx context.Context, pm *PluginManager) error {
 		return fmt.Errorf("plugin manager not initialized")
 	}
 
-	// C: plugin_load_installed() — scans persistent_path/mrp/installed
+	// C: plugin_load_installed() — scans persistent_path/mrp/installed.
 	if err := pm.LoadInstalledPlugins(getPersistentPath()); err != nil {
 		// Warning: Failed to load installed plugins
 	}

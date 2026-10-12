@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"html"
 	"io"
+	"net/url"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -257,6 +258,16 @@ func (h *HTTPControlHandler) Root(hc *httpnet.HTTPConnection, remain string, opa
 	return hc.HTTPSendReply(0, "text/html", "", "", 0, []byte("Static index.html"))
 }
 
+func (h *HTTPControlHandler) pluginInstallLink(hc *httpnet.HTTPConnection) string {
+	link := "/api/plugin/install"
+	token := hc.HTTPArgGetReq("token")
+	if h.authToken != "" && token == h.authToken {
+		query := url.Values{"token": []string{token}}.Encode()
+		link += "?" + query
+	}
+	return html.EscapeString(link)
+}
+
 // rootOld handles old root requests
 // This is the Go equivalent of hc_root_old in C
 func (h *HTTPControlHandler) rootOld(hc *httpnet.HTTPConnection, remain string, opaque any, method httpnet.HTTPCmd) int {
@@ -278,7 +289,7 @@ func (h *HTTPControlHandler) rootOld(hc *httpnet.HTTPConnection, remain string, 
 	body += h.diagHTML()
 	body += "<p><a href=\"/api/screenshot\">Upload screenshot to imgur</a></p>"
 	body += "<p><a href=\"/api/translation\">Upload and test new translation (.lang) file</a></p>"
-	body += "<p><a href=\"/api/plugin/install\">Install a plugin from a URL or ZIP file</a></p>"
+	body += fmt.Sprintf("<p><a href=\"%s\">Install a plugin from a URL or ZIP file</a></p>", h.pluginInstallLink(hc))
 	body += "</body></html>"
 	return hc.HTTPSendReply(httpnet.HTTPStatusOK, "text/html", "", "", 0, []byte(body))
 }
