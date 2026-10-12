@@ -426,10 +426,11 @@ async function installPlugin(event) {
   const buttons = document.querySelectorAll('button[type="submit"]');
   buttons.forEach(button => { button.disabled = true; });
   result.textContent = 'Installing and loading plugin...';
-  const installURL = new URL(form.action, window.location.href);
-  const token = new URLSearchParams(window.location.search).get('token');
-  if (token) installURL.searchParams.set('token', token);
-  const response = await fetch(installURL, { method: 'POST', headers, body });
+  try {
+    const installURL = new URL(form.action, window.location.href);
+    const token = new URLSearchParams(window.location.search).get('token');
+    if (token) installURL.searchParams.set('token', token);
+    const response = await fetch(installURL, { method: 'POST', headers, body });
     const message = await response.text();
     result.textContent = response.ok
       ? 'OK — plugin installed and loaded. Open it in Movian.'
