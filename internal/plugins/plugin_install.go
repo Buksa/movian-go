@@ -272,6 +272,9 @@ func (pm *PluginManager) rollbackPluginInstallLocked(pl *Plugin, previous plugin
 
 // RemovePlugin removes an installed plugin
 func (pm *PluginManager) RemovePlugin(pl *Plugin) error {
+	pm.installMu.Lock()
+	defer pm.installMu.Unlock()
+
 	pm.mu.Lock()
 	defer pm.mu.Unlock()
 
