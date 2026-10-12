@@ -316,6 +316,121 @@ func TestRollbackPreservesPreviouslySelectedPluginView(t *testing.T) {
 	}
 }
 
+
+func TestRollbackRestoresViewOwnedByFailedPlugin(t *testing.T) {
+	pm, dataDir := newArchiveRegressionPluginManager(t)
+	sm := settingscore.NewSettingsManager(pm.GetPropManager())
+	sm.SetGconf(gconf.New())
+	sm.Start()
+	pm.SetSettingsManager(sm)
+	pm.pluginsViewSettingsSetup()
+
+	path := filepath.Join(dataDir, "owner.zip")
+	packageURL := "file://" + filepath.ToSlash(path)
+	writeRegressionPlugin(t, path, "view-owner", "views", "1.0", true)
+	if err := OpenFile(context.Background(), pm, packageURL); err != nil {
+		t.Fatal(err)
+	}
+
+	pl := pm.FindPlugin("view-owner@local")
+	if pl == nil || len(pl.Views) == 0 || pl.Views[0].SettingProp == nil {
+		t.Fatal("original plugin view was not registered")
+	}
+	original := pl.Views[0]
+	pm.SelectView(pl.FQID, original.Filename)
+
+	// View selection can propagate through a settings courier.
+	waitForSelection := func(want *propcore.Prop) {
+		t.Helper()
+		deadline := time.Now().Add(5 * time.Second)
+		for {
+			parent := want.GetParent()
+			if parent != nil && parent.GetSelectedChild() == want {
+				return
+			}
+			if time.Now().After(deadline) {
+				t.Fatalf("selected view did not become %q", want.GetName())
+			}
+			time.Sleep(10 * time.Millisecond)
+		}
+	}
+	waitForSelection(original.TypeProp)
+	waitForSelection(original.SettingProp)
+
+	// Loading this replacement fails after the previous view was unloaded.
+	writeRegressionPlugin(t, path, "view-owner", "unsupported", "2.0", false)
+	if err := OpenFile(context.Background(), pm, packageURL); err == nil {
+		t.Fatal("unsupported replacement unexpectedly installed")
+	}
+	if len(pl.Views) != 1 || pl.Views[0].TypeProp == nil || pl.Views[0].SettingProp == nil {
+		t.Fatalf("rollback did not restore the original view: %#v", pl.Views)
+	}
+	restored := pl.Views[0]
+	waitForSelection(restored.TypeProp)
+	waitForSelection(restored.SettingProp)
+	if pl.InstVer != "1.0" || !pl.Installed || !pl.Loaded {
+		t.Fatalf("plugin state after rollback: %#v", pl)
+	}
+	stored := filepath.Join(dataDir, "mrp", "installed", pl.FQID+".zip")
+	if got := regressionArchiveVersion(t, stored); got != "1.0" {
+		t.Fatalf("rollback archive version = %q, want 1.0", got)
+	}
+}
+
+func TestCopyPluginArchiveBounded(t *testing.T) {
+	for _, tc := range []struct {
+		name string
+		data string
+		want int64
+		tooLarge bool
+	}{
+		{name: "below", data: "abc", want: 3},
+		{name: "exact", data: "abcd", want: 4},
+		{name: "above", data: "abcdef", want: 5, tooLarge: true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			got, err := copyPluginArchiveBounded(io.Discard, strings.NewReader(tc.data), 4)
+			if got != tc.want {
+				t.Fatalf("bytes read = %d, want %d", got, tc.want)
+			}
+			if tc.tooLarge {
+				if err == nil || !strings.Contains(err.Error(), "exceeds") {
+					t.Fatalf("expected package-size error, got %v", err)
+				}
+			} else if err != nil {
+				t.Fatal(err)
+			}
+		})
+	}
+}
+
+func TestOversizedPluginDownloadDoesNotLeaveCacheFile(t *testing.T) {
+	pm, dataDir := newArchiveRegressionPluginManager(t)
+	sourcePath := filepath.Join(dataDir, "oversized-source.zip")
+	f, err := os.Create(sourcePath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := f.Truncate(maxPluginDownloadBytes + 1); err != nil {
+		_ = f.Close()
+		t.Fatal(err)
+	}
+	if err := f.Close(); err != nil {
+		t.Fatal(err)
+	}
+	_, err = pm.downloadPlugin("file://" + filepath.ToSlash(sourcePath))
+	if err == nil || !strings.Contains(err.Error(), "exceeds") {
+		t.Fatalf("oversized download should fail before installation: %v", err)
+	}
+	temps, err := filepath.Glob(filepath.Join(dataDir, "plugin-*.zip"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(temps) != 0 {
+		t.Fatalf("oversized download left temporary files: %v", temps)
+	}
+}
+
 func TestLoadInstalledPluginsRetainsFQIDFromArchiveName(t *testing.T) {
 	pm, dataDir := newArchiveRegressionPluginManager(t)
 	const origin = "fedcba9876543210"

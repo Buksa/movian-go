@@ -57,11 +57,55 @@ func (pm *PluginManager) InstallPlugin(pl *Plugin, packageURL string) error {
 // Go extension: replacement rollback preserves the metadata and runtime flags
 // that this installer changes; the previous archive is backed up separately.
 type pluginInstallState struct {
+	selectedViews    []pluginSelectedView
 	packageURL       string
 	title            string
 	installedVersion string
 	installed        bool
 	loaded           bool
+}
+
+
+type pluginSelectedView struct {
+	uiType   string
+	class    string
+	filename string
+}
+
+// Go extension: preserve selected plugin-owned views across failed replacements.
+// Save stable identities, not property pointers that unloading destroys.
+func (pm *PluginManager) snapshotSelectedPluginViewsLocked(pl *Plugin) []pluginSelectedView {
+	var selected []pluginSelectedView
+	for _, entry := range pl.Views {
+		if entry.View == nil || entry.TypeProp == nil || entry.SettingProp == nil {
+			continue
+		}
+		typeParent := entry.TypeProp.GetParent()
+		settingParent := entry.SettingProp.GetParent()
+		typeSelected := typeParent != nil && typeParent.GetSelectedChild() == entry.TypeProp
+		settingSelected := settingParent != nil && settingParent.GetSelectedChild() == entry.SettingProp
+		if typeSelected || settingSelected {
+			selected = append(selected, pluginSelectedView{
+				uiType: entry.View.UIType, class: entry.View.Class, filename: entry.Filename,
+			})
+		}
+	}
+	return selected
+}
+
+// Caller holds pm.mu. Select the recreated setting option, rather than invoking
+// SelectView (which takes pm.mu again), so the persisted selection is updated.
+func (pm *PluginManager) restoreSelectedPluginViewsLocked(pl *Plugin, selected []pluginSelectedView) {
+	for _, old := range selected {
+		for _, entry := range pl.Views {
+			if entry.View != nil && entry.SettingProp != nil &&
+				entry.View.UIType == old.uiType &&
+				entry.View.Class == old.class && entry.Filename == old.filename {
+				pm.propManager.Select(entry.SettingProp)
+				break
+			}
+		}
+	}
 }
 
 func snapshotPluginInstallState(pl *Plugin) pluginInstallState {
@@ -186,6 +230,7 @@ func (pm *PluginManager) installPluginFromDownloadedArchiveLocked(pl *Plugin, te
 	}
 	hadBackup := backupPath != ""
 
+	previous.selectedViews = pm.snapshotSelectedPluginViewsLocked(pl)
 	pm.unloadPluginInternal(pl)
 	installedArchivePath, err := pm.installToStorage(pl, tempPath)
 	if err != nil {
@@ -266,6 +311,8 @@ func (pm *PluginManager) rollbackPluginInstallLocked(pl *Plugin, previous plugin
 				if rollbackErr == nil {
 					rollbackErr = fmt.Errorf("failed to reload previous plugin: %w", err)
 				}
+			} else {
+				pm.restoreSelectedPluginViewsLocked(pl, previous.selectedViews)
 			}
 		} else if rollbackErr == nil {
 			rollbackErr = fmt.Errorf("previous installed plugin archive is unavailable")
@@ -322,6 +369,22 @@ func (pm *PluginManager) createPluginArchiveFile() (*os.File, error) {
 	return os.CreateTemp(dir, "plugin-*.zip")
 }
 
+// maxPluginDownloadBytes caps untrusted remote packages independent of the HTTP upload limit.
+const maxPluginDownloadBytes int64 = 64 << 20
+
+// copyPluginArchiveBounded reads at most limit+1 bytes to detect oversized
+// packages without copying an unbounded stream into the cache.
+func copyPluginArchiveBounded(dst io.Writer, src io.Reader, limit int64) (int64, error) {
+	n, err := io.Copy(dst, io.LimitReader(src, limit+1))
+	if err != nil {
+		return n, err
+	}
+	if n > limit {
+		return n, fmt.Errorf("plugin ZIP exceeds %d MiB download limit", limit>>20)
+	}
+	return n, nil
+}
+
 // downloadPlugin copies a package through fileaccess.
 // C: plugin_install calls fa_load (plugins.c:1542) for registered URL protocols.
 // Go: stream into a cache file instead of keeping the whole ZIP in memory;
@@ -345,7 +408,7 @@ func (pm *PluginManager) downloadPlugin(packageURL string) (string, error) {
 	}
 	defer handle.Close()
 
-	if _, err := io.Copy(tempFile, handle); err != nil {
+	if _, err := copyPluginArchiveBounded(tempFile, handle, maxPluginDownloadBytes); err != nil {
 		return "", fmt.Errorf("write failed: %w", err)
 	}
 	if err := tempFile.Close(); err != nil {
