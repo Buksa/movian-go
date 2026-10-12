@@ -11,13 +11,16 @@ exports.writeFileSync = function(filename, data, opts) {
   }
 }
 
+// C SDK: res/ecmascript/modules/fs.js returns a Duktape.Buffer.
+// Go: use Uint8Array for native reads and return its byte buffer, preserving
+// the SDK's .toString() contract rather than decoding to a string here.
 exports.readFileSync = function(filename, opts) {
   var fs = require('native/fs');
   var fd = fs.open(filename, 'r');
   try {
-    var buf = Uint8Array.allocPlain(fs.fsize(fd));
-    fs.read(fd, buf.valueOf(), 0, buf.length, 0);
-    return new TextDecoder().decode(buf);
+    var buf = new Uint8Array(fs.fsize(fd));
+    fs.read(fd, buf, 0, buf.length, 0);
+    return buf.buffer;
   } finally {
     Core.resourceDestroy(fd);
   }
