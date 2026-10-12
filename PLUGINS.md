@@ -205,6 +205,26 @@ installation source, or with an empty ZIP upload, returns HTTP 400.
 Download, archive validation, installation, and load failures return HTTP
 500 with an error message.
 
+### Native Movian updater
+
+Plugin updaters do not need the HTTP installer. The
+[public update module](https://github.com/Buksa/movian_module/blob/main/update.md)
+used by HDRezka reads `Plugin.manifest.downloadURL`, saves the ZIP in
+`Core.storagePath/store/updater_package.zip`, and opens its normalized
+`search:file:///...` or platform storage URL through the navigator event sink.
+The updater presents its own confirmation; opening the package installs and
+reloads it automatically, matching Movian's `plugin_open_file`.
+
+Go routes package downloads through the registered fileaccess protocols, so
+native local-package installs and remote downloads share the same validated
+installer with replacement rollback. Installation failures become a native
+error page rather than silently leaving an empty page.
+
+The updater's JSON check state and post-install marker are written as UTF-8.
+`fs.readFileSync` returns the file's byte buffer; use `.toString()` when
+parsing JSON. `native/fs.unlink` consumes the post-install marker within the
+plugin's normal write ACL. On reload the updater returns to `page:home`.
+
 ## Examples
 
 `plugin_examples/` ships working sketches:

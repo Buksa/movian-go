@@ -253,8 +253,14 @@ func Java_com_moviango_mediaplayer_Core_coreInit(
 			service.SvcOriginSystem)
 	}
 
-	// C: android_nav = nav_spawn() (android.c:358)
-	androidNavigator = ctx.navSystem.Spawn(ctx.propManager)
+	// Generic startup creates the default navigator before Android coreInit.
+	// Reuse it so legacy navigators.nodes[0] navigation reaches the visible
+	// Android UI; keep Spawn as a defensive fallback for partial startup.
+	androidNavigator = ctx.navSystem.DefaultNavigator()
+	if androidNavigator == nil {
+		androidNavigator = ctx.navSystem.Spawn(ctx.propManager)
+	}
+	ctx.propManager.Select(androidNavigator.PropRoot())
 	arch.AndroidNav = unsafe.Pointer(androidNavigator.PropRoot())
 
 	// C: nav_open(android_intent, NULL) from glwResize
