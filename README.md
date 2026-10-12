@@ -146,6 +146,7 @@ manifest are in [BUILDING.md](BUILDING.md).
 
 ## Documentation
 
+- [CONTRIBUTING.md](CONTRIBUTING.md) — scope, C-to-Go comments, and verification
 - [USER_GUIDE.md](USER_GUIDE.md) — running, keyboard, sources, settings
 - [PLUGINS.md](PLUGINS.md) — writing and shipping plugins (goja/JS)
 - [BUILDING.md](BUILDING.md) — toolchains and per-platform builds
