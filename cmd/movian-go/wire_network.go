@@ -85,8 +85,12 @@ func wireNetwork(ctx *appContext, gc *gconf.T) {
 			pluginManager.ProbeForAutoInstall(fh, buf, l, url)
 		})
 	// C: plugin_open_file under ENABLE_PLUGINS (fa_backend.c:240)
+	// Go: the backend owns the page; installation errors become a native error
+	// page here instead of coupling the shared installer to a UI property.
 	bs.SetPluginOpenFile(func(page *propcore.Prop, url string) {
-		plugins.OpenFile(context.Background(), pluginManager, page, url)
+		if err := plugins.OpenFile(context.Background(), pluginManager, url); err != nil {
+			navcore.OpenError(ctx.propManager, page, err.Error())
+		}
 	})
 	// C: nav_redirect (navigator.c:972) — file_open_file's redirect dispatch.
 	bs.SetNavRedirect(navcore.Redirect)
