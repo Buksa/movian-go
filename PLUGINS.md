@@ -164,6 +164,47 @@ auto-detects zip plugin archives on browse/install
 (`ProbeForAutoInstall`). Plugins can also be listed in a repository
 JSON served over HTTP(S) and installed from the UI's plugin section.
 
+### HTTP Control API
+
+Open `http://127.0.0.1:42000/api/plugin/install` in a browser, or use the
+device's network address. Submit a remote ZIP URL or select a local ZIP
+file; no installation confirmation is required. The page displays
+progress and the installation result without navigating away.
+
+`/api/plugin/install?id=<fqid>` retains repository-based installation.
+To install a ZIP directly, use
+`/api/plugin/install?url=<URL-encoded-zip-URL>` or POST an
+`application/x-www-form-urlencoded` body with a `url` field. The remote URL
+must return a ZIP containing a Movian `plugin.json` manifest.
+
+By default, HTTP Control commands are open to clients that can reach the HTTP
+port. The application does not configure the handler's optional token checks;
+no device-specific configuration or platform-specific setup is needed.
+
+```sh
+curl --get 'http://127.0.0.1:42000/api/plugin/install' \
+  --data-urlencode 'url=https://example.com/plugin.zip'
+```
+
+To upload a local ZIP, POST its bytes with `Content-Type: application/zip`.
+Uploads use the HTTP server's 16 MiB request-body limit; the browser page
+checks the selected file size before sending it.
+
+```sh
+curl 'http://127.0.0.1:42000/api/plugin/install' \
+  -H 'Content-Type: application/zip' \
+  --data-binary @plugin.zip
+```
+
+HTTP Control uses plain HTTP; limit access to the port to the intended
+clients.
+
+Successful installs are saved under `mrp/installed` and loaded immediately.
+GET without installation parameters displays the page. POST without an
+installation source, or with an empty ZIP upload, returns HTTP 400.
+Download, archive validation, installation, and load failures return HTTP
+500 with an error message.
+
 ## Examples
 
 `plugin_examples/` ships working sketches:
