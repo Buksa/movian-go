@@ -134,6 +134,14 @@ func (pm *PluginManager) installPluginFromArchive(tempPath, packageURL string) e
 }
 
 func (pm *PluginManager) installPluginFromDownloadedArchive(pl *Plugin, tempPath string) error {
+	ctrl, err := pm.readPluginControlFromZip(tempPath)
+	if err != nil {
+		return fmt.Errorf("Failed to validate plugin archive: %w", err)
+	}
+	if ctrl.ID != pluginIDFromFQID(pl.FQID) {
+		return fmt.Errorf("Plugin ID %q does not match target %q", ctrl.ID, pl.FQID)
+	}
+
 	pm.installMu.Lock()
 	defer pm.installMu.Unlock()
 
@@ -244,7 +252,7 @@ func (pm *PluginManager) rollbackPluginInstallLocked(pl *Plugin, previous plugin
 		if hadBackup && archiveRestored {
 			zipPath, err := resolveZipPath(installedPath)
 			if err == nil {
-				flags := PluginLoadForce | PluginLoadByUser
+				flags := PluginLoadForce
 				if previous.installed {
 					flags |= PluginLoadAsInstalled
 				}
@@ -484,6 +492,15 @@ func (pm *PluginManager) readPluginControlFromZip(zipfile string) (PluginControl
 	}
 	return ctrl, nil
 }
+
+func pluginIDFromFQID(fqid string) string {
+	id, _, ok := strings.Cut(fqid, "@")
+	if !ok {
+		return ""
+	}
+	return id
+}
+
 func (pm *PluginManager) setPluginFromZipLocked(pl *Plugin, ctrl PluginControl, packageURL string) {
 	if ctrl.Title != "" {
 		pl.Title = ctrl.Title
