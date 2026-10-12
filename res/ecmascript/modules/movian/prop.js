@@ -39,6 +39,7 @@ var propHandler = {
     }
 
 
+
     return makeProp(np.getChild(obj, name));
   },
 

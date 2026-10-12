@@ -798,7 +798,10 @@ func esPropSendEvent(ctx *gaftape.Context) int {
 		ctx.Error(gaftape.GAF_ERR_ERROR, "Event type %s not understood", typ)
 	}
 
-	esEnv.propPM.SendExtEvent(p, e)
+	// C: prop_send_ext_event(p, e), then event_release(e) (es_prop.c:859-860).
+	// Go: the navigator courier consumes the embedded base event, not the
+	// outer subtype; preserve the same send-before-release ownership order.
+	esEnv.propPM.SendExtEvent(p, event.BaseEvent(e))
 	e.Release()
 	return 0
 }
