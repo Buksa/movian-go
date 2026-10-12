@@ -7,18 +7,20 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"net/http"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync/atomic"
+
+	fileaccesscore "github.com/czz/movian-go/internal/fileaccess"
 )
 
 // InstallPlugin installs a plugin
+// C: plugin_install (plugins.c).
 func (pm *PluginManager) InstallPlugin(pl *Plugin, packageURL string) error {
 	pm.mu.Lock()
-	defer pm.mu.Unlock()
 
-	// C: plugins.c:1517-1519 — usage event before the package fallback;
+	// C: plugin_install's usage_event (plugins.c:1518-1520) precedes the fallback;
 	// "source" is File only when a package path was passed explicitly.
 	source := "Repo"
 	if packageURL != "" {
@@ -34,64 +36,238 @@ func (pm *PluginManager) InstallPlugin(pl *Plugin, packageURL string) error {
 	if packageURL == "" {
 		packageURL = pl.Package
 		if packageURL == "" {
+			pm.mu.Unlock()
 			return fmt.Errorf("No package URL specified")
 		}
 	}
-
-	// Download plugin package — C: plugin_install unlocks plugin_mutex
-	// around fa_load (plugins.c:1536-1540); mirror that so the network
-	// fetch doesn't hold the plugin lock.
 	pm.mu.Unlock()
+
+	// C: plugin_install releases plugin_mutex around fa_load
+	// (plugins.c:1540-1544). Go: keep fileaccess I/O outside pm.mu,
+	// then serialize metadata, stored archive, and runtime loading together.
 	tempPath, err := pm.downloadPlugin(packageURL)
-	pm.mu.Lock()
 	if err != nil {
 		return fmt.Errorf("Failed to download plugin: %w", err)
 	}
 	defer os.Remove(tempPath)
 
-	// Validate the bundle before touching persistent storage — C checks
-	// the PK magic up front and later resolves the zip path on the
-	// installed file.
+	return pm.installPluginFromDownloadedArchive(pl, tempPath)
+}
+
+// Go extension: replacement rollback preserves the metadata and runtime flags
+// that this installer changes; the previous archive is backed up separately.
+type pluginInstallState struct {
+	packageURL       string
+	title            string
+	installedVersion string
+	installed        bool
+	loaded           bool
+}
+
+func snapshotPluginInstallState(pl *Plugin) pluginInstallState {
+	return pluginInstallState{
+		packageURL:       pl.Package,
+		title:            pl.Title,
+		installedVersion: pl.InstVer,
+		installed:        pl.Installed,
+		loaded:           pl.Loaded,
+	}
+}
+
+func (pm *PluginManager) restorePluginInstallStateLocked(pl *Plugin, state pluginInstallState) {
+	pl.Package = state.packageURL
+	pl.Title = state.title
+	pl.InstVer = state.installedVersion
+	pl.Installed = state.installed
+	pl.Loaded = state.loaded
+	pm.UpdateState(pl)
+}
+
+// InstallPluginFromURL downloads, registers, installs, and loads a plugin ZIP.
+// Go extension: native package opening and HTTP ZIP URLs share this entry point.
+func (pm *PluginManager) InstallPluginFromURL(packageURL string) error {
+	if packageURL == "" {
+		return fmt.Errorf("No package URL specified")
+	}
+	tempPath, err := pm.downloadPlugin(packageURL)
+	if err != nil {
+		return fmt.Errorf("Failed to download plugin: %w", err)
+	}
+	defer os.Remove(tempPath)
+
+	return pm.installPluginFromArchive(tempPath, packageURL)
+}
+
+// InstallPluginFromArchive installs and loads a ZIP supplied by the caller.
+// Go extension: HTTP uploads supply a reader; the caller retains its ownership.
+func (pm *PluginManager) InstallPluginFromArchive(archive io.Reader) error {
+	tempFile, err := pm.createPluginArchiveFile()
+	if err != nil {
+		return fmt.Errorf("Failed to create plugin archive: %w", err)
+	}
+	defer os.Remove(tempFile.Name())
+	if _, err := io.Copy(tempFile, archive); err != nil {
+		_ = tempFile.Close()
+		return fmt.Errorf("Failed to read plugin archive: %w", err)
+	}
+	if err := tempFile.Close(); err != nil {
+		return fmt.Errorf("Failed to close plugin archive: %w", err)
+	}
+	return pm.installPluginFromArchive(tempFile.Name(), "")
+}
+
+func (pm *PluginManager) installPluginFromArchive(tempPath, packageURL string) error {
+	ctrl, err := pm.readPluginControlFromZip(tempPath)
+	if err != nil {
+		return fmt.Errorf("Failed to validate plugin archive: %w", err)
+	}
+
+	pm.installMu.Lock()
+	defer pm.installMu.Unlock()
+
+	pm.mu.Lock()
+	defer pm.mu.Unlock()
+	pl := pm.makePluginLocked(ctrl.ID, "local")
+	previous := snapshotPluginInstallState(pl)
+	pm.setPluginFromZipLocked(pl, ctrl, packageURL)
+	return pm.installPluginFromDownloadedArchiveLocked(pl, tempPath, previous)
+}
+
+func (pm *PluginManager) installPluginFromDownloadedArchive(pl *Plugin, tempPath string) error {
+	pm.installMu.Lock()
+	defer pm.installMu.Unlock()
+
+	pm.mu.Lock()
+	defer pm.mu.Unlock()
+	return pm.installPluginFromDownloadedArchiveLocked(pl, tempPath, snapshotPluginInstallState(pl))
+}
+
+// C: plugin_install (plugins.c) unloads, writes installed/<fqid>.zip, then loads
+// with installed flags. Go extension: pm.mu also covers archive backup/rollback
+// so failed replacements can restore the previous archive and loaded runtime.
+func (pm *PluginManager) installPluginFromDownloadedArchiveLocked(pl *Plugin, tempPath string, previous pluginInstallState) error {
 	if _, err := resolveZipPath(tempPath); err != nil {
+		pm.restorePluginInstallStateLocked(pl, previous)
 		return fmt.Errorf("Failed to resolve zip path: %w", err)
 	}
 
-	// C: plugin_unload(pl) (plugins.c:1567) — unload the old instance
-	// before overwriting the installed archive.
-	pm.unloadPluginInternal(pl)
-
-	// Install to persistent storage first — C writes
-	// installed/<fqid>.zip and only then resolves + loads from that
-	// permanent path, so Plugin.path (and assets like the service icon)
-	// keep pointing at a file that still exists after the temp download
-	// is removed.
-	installedPath, err := pm.installToStorage(pl, tempPath)
-	if err != nil {
+	installDir := filepath.Join(getPersistentPath(), pm.storagePrefix, "installed")
+	if err := os.MkdirAll(installDir, 0755); err != nil {
+		pm.restorePluginInstallStateLocked(pl, previous)
 		return fmt.Errorf("Failed to install plugin: %w", err)
 	}
+	installedPath := filepath.Join(installDir, fmt.Sprintf("%s.zip", pl.FQID))
+
+	backupDir := ""
+	backupPath := ""
+	if _, err := os.Stat(installedPath); err == nil {
+		backupDir, err = os.MkdirTemp(installDir, ".plugin-backup-*")
+		if err != nil {
+			pm.restorePluginInstallStateLocked(pl, previous)
+			return fmt.Errorf("Failed to preserve installed plugin: %w", err)
+		}
+		backupPath = filepath.Join(backupDir, filepath.Base(installedPath))
+		if err := os.Rename(installedPath, backupPath); err != nil {
+			_ = os.RemoveAll(backupDir)
+			pm.restorePluginInstallStateLocked(pl, previous)
+			return fmt.Errorf("Failed to preserve installed plugin: %w", err)
+		}
+	} else if !os.IsNotExist(err) {
+		pm.restorePluginInstallStateLocked(pl, previous)
+		return fmt.Errorf("Failed to inspect installed plugin: %w", err)
+	}
+	hadBackup := backupPath != ""
+
+	pm.unloadPluginInternal(pl)
+	installedArchivePath, err := pm.installToStorage(pl, tempPath)
+	if err != nil {
+		return pm.rollbackPluginInstallLocked(pl, previous, installedPath, backupDir, backupPath, hadBackup,
+			fmt.Errorf("Failed to install plugin: %w", err))
+	}
+	installedPath = installedArchivePath
 
 	// C: #ifdef STOS — arch_sync_path(path) after fa_write/fa_close
-	//    (plugins.c:1610-1611). mgosSyncPath is syncfs under -tags mgos.
+	// (plugins.c:1610-1612). Go: mgosSyncPath is syncfs under -tags mgos.
 	mgosSyncPath(installedPath)
 
-	// C: plugin_resolve_zip_path(path) (plugins.c:1612)
+	// C: plugin_resolve_zip_path(path) (plugins.c:1614)
 	zipPath, err := resolveZipPath(installedPath)
 	if err != nil {
-		return fmt.Errorf("Failed to resolve zip path: %w", err)
+		return pm.rollbackPluginInstallLocked(pl, previous, installedPath, backupDir, backupPath, hadBackup,
+			fmt.Errorf("Failed to resolve zip path: %w", err))
 	}
 
 	// C: plugin_load(zippath, ..., PLUGIN_LOAD_FORCE |
-	// PLUGIN_LOAD_AS_INSTALLED | PLUGIN_LOAD_BY_USER) (plugins.c:1621) —
+	// PLUGIN_LOAD_AS_INSTALLED | PLUGIN_LOAD_BY_USER) (plugins.c:1623-1625) —
 	// AS_INSTALLED runs plugin_prop_setup + pl_installed=1 +
 	// autoplugin_set_installed + update_state inside plugin_load.
 	if err := pm.loadPluginLocked(zipPath, pl.Origin,
 		PluginLoadForce|PluginLoadAsInstalled|PluginLoadByUser); err != nil {
-		return fmt.Errorf("Failed to load plugin: %w", err)
+		return pm.rollbackPluginInstallLocked(pl, previous, installedPath, backupDir, backupPath, hadBackup,
+			fmt.Errorf("Failed to load plugin: %w", err))
 	}
 
-	// Save repos configuration — locked variant
+	if backupDir != "" {
+		_ = os.RemoveAll(backupDir)
+	}
 	pm.saveReposLocked()
 	return nil
+}
+
+// Go extension: restore both the persisted package and its runtime after failure;
+// if restoration fails, report it rather than claiming the old plugin is loaded.
+func (pm *PluginManager) rollbackPluginInstallLocked(pl *Plugin, previous pluginInstallState, installedPath, backupDir, backupPath string, hadBackup bool, cause error) error {
+	pm.unloadPluginInternal(pl)
+
+	var rollbackErr error
+	if err := os.Remove(installedPath); err != nil && !os.IsNotExist(err) {
+		rollbackErr = err
+	}
+	archiveRestored := !hadBackup
+	if hadBackup {
+		if err := os.Rename(backupPath, installedPath); err != nil {
+			if rollbackErr == nil {
+				rollbackErr = err
+			}
+		} else {
+			archiveRestored = true
+			if err := os.RemoveAll(backupDir); err != nil && rollbackErr == nil {
+				rollbackErr = err
+			}
+		}
+	}
+
+	pm.restorePluginInstallStateLocked(pl, previous)
+	if previous.loaded {
+		pl.Loaded = false
+		pm.UpdateState(pl)
+		if hadBackup && archiveRestored {
+			zipPath, err := resolveZipPath(installedPath)
+			if err == nil {
+				flags := PluginLoadForce | PluginLoadByUser
+				if previous.installed {
+					flags |= PluginLoadAsInstalled
+				}
+				err = pm.loadPluginLocked(zipPath, pl.Origin, flags)
+			}
+			if err != nil {
+				pm.unloadPluginInternal(pl)
+				pm.restorePluginInstallStateLocked(pl, previous)
+				pl.Loaded = false
+				pm.UpdateState(pl)
+				if rollbackErr == nil {
+					rollbackErr = fmt.Errorf("failed to reload previous plugin: %w", err)
+				}
+			}
+		} else if rollbackErr == nil {
+			rollbackErr = fmt.Errorf("previous installed plugin archive is unavailable")
+		}
+	}
+
+	if rollbackErr != nil {
+		return fmt.Errorf("%w (rollback failed: %w)", cause, rollbackErr)
+	}
+	return cause
 }
 
 // RemovePlugin removes an installed plugin
@@ -126,41 +302,45 @@ func (pm *PluginManager) RemovePlugin(pl *Plugin) error {
 	return nil
 }
 
-// downloadPlugin downloads a plugin package
-func (pm *PluginManager) downloadPlugin(packageURL string) (string, error) {
-	// In real implementation, this would use the file access layer
-	// to download the file with progress reporting
-
-	// Create temp file — os.TempDir() resolves to /tmp which does not
-	// exist on Android; use the app cache dir (gconf.cache_path), with
-	// the persistent path as fallback.
+func (pm *PluginManager) createPluginArchiveFile() (*os.File, error) {
+	// os.TempDir() may not exist on Android; use the configured cache directory.
 	dir := pm.gcfg().CachePath
 	if dir == "" {
 		dir = getPersistentPath()
 	}
-	tempFile, err := os.CreateTemp(dir, "plugin-*.zip")
+	return os.CreateTemp(dir, "plugin-*.zip")
+}
+
+// downloadPlugin copies a package through fileaccess.
+// C: plugin_install calls fa_load (plugins.c:1542) for registered URL protocols.
+// Go: stream into a cache file instead of keeping the whole ZIP in memory;
+// local updater packages and HTTP URLs still use the same fileaccess protocols.
+func (pm *PluginManager) downloadPlugin(packageURL string) (string, error) {
+	tempFile, err := pm.createPluginArchiveFile()
 	if err != nil {
 		return "", err
 	}
+	success := false
+	defer func() {
+		if !success {
+			_ = os.Remove(tempFile.Name())
+		}
+	}()
 	defer tempFile.Close()
 
-	// Download from packageURL
-	resp, err := http.Get(packageURL)
+	handle, err := fileaccesscore.Open(pm.faManager, packageURL)
 	if err != nil {
 		return "", fmt.Errorf("download failed: %w", err)
 	}
-	defer resp.Body.Close()
+	defer handle.Close()
 
-	if resp.StatusCode != http.StatusOK {
-		return "", fmt.Errorf("download failed with status: %d", resp.StatusCode)
-	}
-
-	// Write to temp file
-	_, err = io.Copy(tempFile, resp.Body)
-	if err != nil {
+	if _, err := io.Copy(tempFile, handle); err != nil {
 		return "", fmt.Errorf("write failed: %w", err)
 	}
-
+	if err := tempFile.Close(); err != nil {
+		return "", fmt.Errorf("close failed: %w", err)
+	}
+	success = true
 	return tempFile.Name(), nil
 }
 
@@ -270,47 +450,44 @@ func (pm *PluginManager) SetPluginAutoUpgrade(fqid string, autoUpgrade bool) err
 	return nil
 }
 
-// GetPluginFromZip extracts plugin information from a zip file
-func (pm *PluginManager) GetPluginFromZip(zipfile string) (*Plugin, error) {
-	// Resolve zip path
+// C: plugin_open_file (plugins.c) resolves the ZIP and parses plugin.json before
+// plugin_make(id, "local"). Go: share that validation with reader-based uploads.
+func (pm *PluginManager) readPluginControlFromZip(zipfile string) (PluginControl, error) {
 	zipPath, err := resolveZipPath(zipfile)
 	if err != nil {
-		return nil, fmt.Errorf("Unable to open %s -- Not a valid plugin archive", zipfile)
+		return PluginControl{}, fmt.Errorf("Unable to open %s -- Not a valid plugin archive", zipfile)
 	}
 
-	// Load plugin.json
 	pluginJSONPath := fmt.Sprintf("%s/plugin.json", zipPath)
-	data, err := loadFile(pluginJSONPath)
+	data, err := loadFileWithFA(pluginJSONPath, pm.faManager)
 	if err != nil {
-		return nil, fmt.Errorf("Unable to open %s -- %w", pluginJSONPath, err)
+		return PluginControl{}, fmt.Errorf("Unable to open %s -- %w", pluginJSONPath, err)
 	}
 
-	// Parse control file
 	var ctrl PluginControl
 	if err := json.Unmarshal(data, &ctrl); err != nil {
-		return nil, fmt.Errorf("Unable to parse plugin.json: %w", err)
+		return PluginControl{}, fmt.Errorf("Unable to parse plugin.json: %w", err)
 	}
-
 	if ctrl.ID == "" {
-		return nil, fmt.Errorf("Missing plugin ID")
+		return PluginControl{}, fmt.Errorf("Missing plugin ID")
 	}
-
-	// Create plugin
-	pm.mu.Lock()
-	pl := pm.makePluginLocked(ctrl.ID, "local")
-	pm.mu.Unlock()
-
-	// Set plugin data
+	// Go extension: FQID uses <id>@<origin>; reject its delimiter and path
+	// separators before using the ID in an installed archive filename.
+	if strings.ContainsAny(ctrl.ID, `/\\@`) {
+		return PluginControl{}, fmt.Errorf("Invalid plugin ID %q", ctrl.ID)
+	}
+	if ctrl.Type == "" {
+		return PluginControl{}, fmt.Errorf("Missing plugin type")
+	}
+	return ctrl, nil
+}
+func (pm *PluginManager) setPluginFromZipLocked(pl *Plugin, ctrl PluginControl, packageURL string) {
 	if ctrl.Title != "" {
 		pl.Title = ctrl.Title
 	}
 	pl.InstVer = ctrl.Version
-	pl.Package = zipfile
-
-	// Update state
+	pl.Package = packageURL
 	pm.UpdateState(pl)
-
-	return pl, nil
 }
 
 // ProbeForAutoInstall probes a file for auto-installable plugins

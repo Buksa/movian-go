@@ -231,6 +231,11 @@ type PluginManager struct {
 	gconf *gconf.T // C: gconf_t — injected
 	mu    sync.RWMutex
 
+	// installMu serializes archive replacement and plugin loading. The
+	// plugin loader intentionally releases mu while executing plugin code,
+	// so mu alone does not make an install transaction atomic.
+	installMu sync.Mutex
+
 	ts *trace.TraceSystem // C: trace() global — injected
 
 	usage    *usage.Reporter                    // C: usage_event global (usage.c)
