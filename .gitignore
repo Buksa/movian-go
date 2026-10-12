@@ -69,6 +69,10 @@ cmd/movian-go/*.syso
 /libcore_*.so
 # test files live only in the local working tree
 *_test.go
+# Permanent regression coverage; other *_test.go files remain local-only.
+!internal/prop/settings_multiopt_test.go
+!internal/plugins/plugin_install_regression_test.go
+!internal/api/httpcontrol/plugin_install_link_test.go
 third_party/cef/
 third_party/libxml2/
 third_party/glfw/linux/
