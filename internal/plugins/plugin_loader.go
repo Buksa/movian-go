@@ -289,6 +289,9 @@ func (pm *PluginManager) unloadPluginViews(pl *Plugin) {
 
 // LoadInstalledPlugins loads all installed plugins
 func (pm *PluginManager) LoadInstalledPlugins(persistentPath string) error {
+	pm.installMu.Lock()
+	defer pm.installMu.Unlock()
+
 	installedPath := filepath.Join(persistentPath, pm.storagePrefix, "installed")
 
 	entries, err := scanDirectory(installedPath)

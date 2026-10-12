@@ -164,6 +164,15 @@ auto-detects zip plugin archives on browse/install
 (`ProbeForAutoInstall`). Plugins can also be listed in a repository
 JSON served over HTTP(S) and installed from the UI's plugin section.
 
+Plugin identity is `<plugin-id>@<origin>`. Repository origins are the first
+eight MD5 bytes of the resolved package URL, encoded as 16 lowercase
+hexadecimal characters; local ZIP installs use `local`, and development
+plugins use `dev`. Opening a ZIP is intentionally a local installation and
+does not search for or replace a repository plugin with the same ID.
+Repository install/upgrade actions instead reuse their selected FQID and
+origin.
+
+
 ### HTTP Control API
 
 Open `http://127.0.0.1:42000/api/plugin/install` in a browser, or use the
@@ -177,9 +186,9 @@ To install a ZIP directly, use
 `application/x-www-form-urlencoded` body with a `url` field. The remote URL
 must return a ZIP containing a Movian `plugin.json` manifest.
 
-By default, HTTP Control commands are open to clients that can reach the HTTP
-port. The application does not configure the handler's optional token checks;
-no device-specific configuration or platform-specific setup is needed.
+HTTP Control's ZIP URL and upload endpoints do not require authentication by
+default. This known exposure is deferred, not resolved here; HTTP Control is
+not safe for untrusted networks. Restrict network access to trusted clients.
 
 ```sh
 curl --get 'http://127.0.0.1:42000/api/plugin/install' \
@@ -212,13 +221,21 @@ Plugin updaters do not need the HTTP installer. The
 used by HDRezka reads `Plugin.manifest.downloadURL`, saves the ZIP in
 `Core.storagePath/store/updater_package.zip`, and opens its normalized
 `search:file:///...` or platform storage URL through the navigator event sink.
-The updater presents its own confirmation; opening the package installs and
-reloads it automatically, matching Movian's `plugin_open_file`.
+After its own confirmation, opening the package installs and reloads it
+automatically, matching Movian 6's `plugin_open_file` behavior:
+it creates or reuses `<manifest-id>@local` and does not discover a repository
+plugin by matching its ID. The public updater sends only the ZIP URL through
+the navigator event; that path does not carry the installed plugin's FQID.
+It remains a separate local install and can coexist with a loaded repository
+plugin of the same manifest ID; it does not upgrade that repository instance.
 
 Go routes package downloads through the registered fileaccess protocols, so
-native local-package installs and remote downloads share the same validated
+native local-package installs and remote HTTP installs share the same validated
 installer with replacement rollback. Installation failures become a native
-error page rather than silently leaving an empty page.
+error page rather than silently leaving an empty page. Repository upgrades use
+the repository plugin record directly and preserve its origin; native ZIP
+opening retains `@local` semantics because the updater does not provide a safe
+origin target.
 
 The updater's JSON check state and post-install marker are written as UTF-8.
 `fs.readFileSync` returns the file's byte buffer; use `.toString()` when
