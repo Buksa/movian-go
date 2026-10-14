@@ -611,6 +611,29 @@ func MpBecomePrimary(mp *MediaPipe, pm *propcore.PropManager) {
 	}
 }
 
+// MediaStopPrimary enqueues ACTION_STOP to the current primary pipe —
+// the "stop previous primary" half of MpBecomePrimary for consumers
+// that own no MediaPipe of their own (Android TIF TvView sessions).
+// The pipe clears primary itself via MpUnbecomePrimary on teardown.
+func (ms *MediaSystem) MediaStopPrimary(pm *propcore.PropManager) {
+	ms.Mutex.Lock()
+	defer ms.Mutex.Unlock()
+
+	if ms.primary == nil {
+		return
+	}
+	if pm != nil && ms.primary.PropPrimary != nil {
+		pm.SetIntEx(ms.primary.PropPrimary, nil, 0)
+	}
+	stop := &event.Event{
+		Type:    event.EVENT_ACTION_VECTOR,
+		Actions: []event.ActionType{event.ACTION_STOP},
+	}
+	MpEnqueueEvent(ms.primary, &MediaEvent{
+		Type: int(event.EVENT_ACTION_VECTOR), Data: stop,
+	})
+}
+
 // MpUnbecomePrimary removes this media pipe from primary status.
 // C: mp_unbecome_primary (media.c:532-549) — asserts MP_PRIMABLE, if
 // media_primary == mp, sets primary=0, unlinks, clears media_primary.

@@ -253,6 +253,13 @@ func tvFillChannelEvents(pm *propcore.PropManager, ev []chanEvProps,
 
 // tvTuneChannel — tune, deduplicated by channel key across both pages.
 func (bs *BackendSystem) tvTuneChannel(ch tvChannel) {
+	// The TvView session renders outside the media-pipe system, so no
+	// MpBecomePrimary runs to stop a previous primary (radio/audio
+	// file). Stop it explicitly, exactly like a pipe-based playback
+	// becoming primary would.
+	if bs.mediaSys != nil {
+		bs.mediaSys.MediaStopPrimary(bs.propManager)
+	}
 	key := ch.InputID + "|" + ch.URI
 	if ch.URI == "" {
 		key = fmt.Sprintf("%s|%d", ch.InputID, ch.ID)
