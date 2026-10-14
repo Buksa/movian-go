@@ -1,7 +1,8 @@
 /**
  * Property handling
  *
- * This code interacts tightly with the code in src/ecmascript/es_prop.c
+ * This module mirrors src/ecmascript/es_prop.c; the Go port's native bridge
+ * is implemented in internal/ecmascript/es_prop.go.
  *
  * The general idea is that the native object (those accessed by
  * np.*) are not to be exposed to Javascript code directly.
@@ -10,6 +11,20 @@
  */
 
 var np = require('native/prop');
+
+
+// Goja delivers Proxy trap keys as strings even for numeric literal
+// indexing (Duktape passed a number). Canonical numeric strings map to
+// the native/prop indexed-child path; named numeric children bypass the
+// trap via an explicit prop.getChild call (see movian/settings).
+function propIndexKey(name) {
+  if(typeof name === 'string') {
+    var index = name >>> 0;
+    if(String(index) === name && index !== 0xffffffff)
+      return index;
+  }
+  return name;
+}
 
 
 /**
@@ -29,7 +44,7 @@ var propHandler = {
       return np.getValue(obj);
     }
 
-    return makeProp(np.getChild(obj, name));
+    return makeProp(np.getChild(obj, propIndexKey(name)));
   },
 
   set: function(obj, name, value) {
