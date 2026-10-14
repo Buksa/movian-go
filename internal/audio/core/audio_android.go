@@ -438,10 +438,41 @@ func goSLESPlayerCallback(handle C.uintptr_t, event C.SLuint32) {
 		mp, _ := d.ad.MediaPipe.(*mediacore.MediaPipe)
 		if mp != nil {
 			mp.ClockMutex.Lock()
-			mp.AudioClockEpoch = int64(d.markEpoch)
 			mp.AudioClockAvtime = arch.GetAvtime()
 			mp.AudioClock = d.markTs - int64(d.ad.Delay)
-			mp.RealtimeDelta = mp.AudioClockAvtime - mp.AudioClock
+			newDelta := mp.AudioClockAvtime - mp.AudioClock
+			diff := newDelta - mp.RealtimeDelta
+			if int64(d.markEpoch) != mp.AudioClockEpoch {
+				// new clock domain (start/seek/flush) — snap
+				mp.AudioClockEpoch = int64(d.markEpoch)
+				mp.RealtimeDelta = newDelta
+			} else {
+				// The SLES position is reported in whole
+				// milliseconds and the pipeline delay resolves
+				// to ±1-2 pcm tiles (~20-40ms), so every 100ms
+				// update jitters RealtimeDelta by more than half
+				// a 50Hz vsync. Real audio-vs-wall drift is
+				// ppm-scale; slew-limit each correction to 2ms
+				// so releaseOutputBufferTimed targets stay put.
+				//
+				// But a same-epoch jump far beyond jitter is a
+				// real discontinuity (starvation stall, paused
+				// live stream resuming): snap or the clock would
+				// take minutes to reslew while every video frame
+				// is dropped as late.
+				const maxSlew = 2000
+				const snapThreshold = 200000
+				if diff > snapThreshold || diff < -snapThreshold {
+					mp.RealtimeDelta = newDelta
+				} else {
+					if diff > maxSlew {
+						diff = maxSlew
+					} else if diff < -maxSlew {
+						diff = -maxSlew
+					}
+					mp.RealtimeDelta += diff
+				}
+			}
 			mp.ClockMutex.Unlock()
 		}
 		d.markTs = mediacore.PTSUnset
