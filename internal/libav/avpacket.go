@@ -55,6 +55,25 @@ func (p *AVPacket) GetData() []byte {
 	return p.Data
 }
 
+// Payload returns the packet's encoded data as a Go slice aliasing the
+// C packet buffer (no copy). nil for empty packets.
+// C: pkt->data / pkt->size — the backing store for media_buf's
+// mb_data/mb_size macros.
+func (p *AVPacket) Payload() []byte {
+	if p == nil || p.cPtr == nil {
+		return nil
+	}
+	n := int(C.ml_av_packet_get_size(p.cPtr))
+	if n <= 0 {
+		return nil
+	}
+	d := C.ml_av_packet_get_data(p.cPtr)
+	if d == nil {
+		return nil
+	}
+	return unsafe.Slice((*byte)(d), n)
+}
+
 // avPacketUnref unreferences the packet data
 // FFmpeg 7 API: av_packet_unref is still available and unchanged
 // Uses C wrapper from libav_avio.c

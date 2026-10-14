@@ -281,12 +281,13 @@ func vtbDecode(mc *mediacore.MediaCodec, vdi any,
 
 	vtbd.vd = vd
 
+	data := mb.Payload()
 	var blockBuf C.CMBlockBufferRef
 	var dptr unsafe.Pointer
-	if len(mb.Data) > 0 {
-		dptr = unsafe.Pointer(&mb.Data[0])
+	if len(data) > 0 {
+		dptr = unsafe.Pointer(&data[0])
 	}
-	status := C.vtb_blkbuf(dptr, C.size_t(mb.Size), &blockBuf)
+	status := C.vtb_blkbuf(dptr, C.size_t(len(data)), &blockBuf)
 	if status != 0 {
 		decoderTS.ts.Trace(tracepkg.TRACE_ERROR, "VTB", "Data buffer allocation error %d", int(status))
 		return

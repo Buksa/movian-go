@@ -135,15 +135,16 @@ func cedarDecode(mc *mediacore.MediaCodec, vdi any,
 		C.size_t(unsafe.Sizeof(C.cedar_packet_t{}))))
 
 	// Copy packet to cedar mem
+	data := mb.Payload()
 	GfxmemLock()
 	cp.cp_vsd.data = (*C.u8)(C.tlsf_malloc(sunxi.gfxmem,
-		C.size_t(mb.Size)))
+		C.size_t(len(data))))
 	GfxmemUnlock()
-	if mb.Size > 0 {
+	if len(data) > 0 {
 		C.memcpy(unsafe.Pointer(cp.cp_vsd.data),
-			unsafe.Pointer(&mb.Data[0]), C.size_t(mb.Size))
+			unsafe.Pointer(&data[0]), C.size_t(len(data)))
 	}
-	cp.cp_vsd.length = C.u32(mb.Size)
+	cp.cp_vsd.length = C.u32(len(data))
 
 	cd.meta[cd.metaptr] = *mb
 	cp.cp_vsd.pcr = C.u64(cd.metaptr)

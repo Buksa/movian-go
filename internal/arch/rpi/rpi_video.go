@@ -155,8 +155,8 @@ func rpiCodecDecodeLocked(mc *mediacore.MediaCodec, vd any,
 	mq *mediacore.MediaQueue, mb *mediacore.MediaBuf) int {
 	v := vd.(*decoder.VideoDecoder)
 	rvc := mc.Opaque.(*RpiVideoCodec)
-	data := mb.Data
-	len_ := mb.Size
+	data := mb.Payload()
+	len_ := len(data)
 	isBFrame := false
 
 	oc := rvc.Decoder
@@ -168,20 +168,19 @@ func rpiCodecDecodeLocked(mc *mediacore.MediaCodec, vd any,
 
 	switch mc.CodecID {
 	case mediacore.CodecID(C.AV_CODEC_ID_MPEG4):
-		if mb.Size <= 7 {
+		if len_ <= 7 {
 			return 0
 		}
-		d := mb.Data
 		frameType := 0
-		if d[0] == 0x00 && d[1] == 0x00 && d[2] == 0x01 && d[3] == 0xb6 {
-			frameType = int(d[4]) >> 6
+		if data[0] == 0x00 && data[1] == 0x00 && data[2] == 0x01 && data[3] == 0xb6 {
+			frameType = int(data[4]) >> 6
 		}
 		if frameType == 2 {
 			isBFrame = true
 		}
 
 	case mediacore.CodecID(C.AV_CODEC_ID_H264):
-		rvc.H264Parser.DecodeData(mb.Data)
+		rvc.H264Parser.DecodeData(data)
 		if rvc.H264Parser.SliceTypeNOS == decoder.SliceTypeB {
 			isBFrame = true
 		}

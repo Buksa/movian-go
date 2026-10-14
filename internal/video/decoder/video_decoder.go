@@ -248,7 +248,7 @@ func (vd *VideoDecoder) DeliverFrame(info *mediacore.FrameInfo) int {
 // updateVBitrate — C: update_vbitrate (video_decoder.c:159-182)
 func updateVBitrate(mp *mediacore.MediaPipe, mq *mediacore.MediaQueue,
 	mb *mediacore.MediaBuf, vd *VideoDecoder) {
-	size := mb.Size
+	size := len(mb.Payload())
 	duration := mb.Duration
 	if duration == 0 {
 		duration = vd.EstimatedDuration

@@ -123,8 +123,8 @@ func MediaBufFreeUnlocked(mp *MediaPipe, mb *MediaBuf) {
 // mbBufferedSize is the buffer size charged against mp_buffer_current.
 // C: mb_buffered_size (media_buf.h:156) — MAX(mb->mb_size, 4096)
 func mbBufferedSize(mb *MediaBuf) int {
-	if mb.Size > 4096 {
-		return mb.Size
+	if size := len(mb.Payload()); size > 4096 {
+		return size
 	}
 	return 4096
 }

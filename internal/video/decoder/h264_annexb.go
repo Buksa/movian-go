@@ -362,8 +362,8 @@ func hataDecode(mc *mediacore.MediaCodec, vd any,
 	mq *mediacore.MediaQueue, mb *mediacore.MediaBuf, reqsize int) {
 	hata := mc.Opaque.(*h264AnnexBToAvc)
 
-	d := mb.Data
-	l := mb.Size
+	d := mb.Payload()
+	l := len(d)
 	p := -1 // C: const uint8_t *p = NULL — index into d, -1 = NULL
 
 	i := 0
@@ -428,9 +428,12 @@ func hataDecode(mc *mediacore.MediaCodec, vd any,
 	}
 
 	// C: media_buf_t mb2 = *mb; mb2.mb_data = hata->hata_buffer; ...
+	// (C's mb_data/mb_size are mb_pkt.data/size — Pkt must be cleared
+	// here so Payload() resolves to the converted Data/Size.)
 	mb2 := *mb
 	mb2.Data = hata.Buffer[:hata.BufferLen]
 	mb2.Size = hata.BufferLen
+	mb2.Pkt = nil
 	mb2.Codec = nil
 	mb2.Dtor = nil
 	hata.Decoder.Decode(hata.Decoder, vd, mq, &mb2, reqsize)

@@ -394,6 +394,21 @@ type MediaBuf struct {
 	Pkt *libav.AVPacket
 }
 
+// Payload returns the encoded payload — C: the mb_data/mb_size macros,
+// which resolve to mb_pkt.data/mb_pkt.size. Buffers built from an
+// AVPacket (MediaBufFromAVPkt) carry the payload in Pkt with
+// Data/Size left empty; pool-allocated buffers carry it in Data/Size.
+func (mb *MediaBuf) Payload() []byte {
+	if mb.Pkt != nil {
+		return mb.Pkt.Payload()
+	}
+	d := mb.Data
+	if mb.Size >= 0 && mb.Size < len(d) {
+		d = d[:mb.Size]
+	}
+	return d
+}
+
 // EnqueueWithEvents enqueues the buffer with events
 // C: mb_enqueue_with_events (media_queue.c:203)
 func (mb *MediaBuf) EnqueueWithEvents(mp *MediaPipe, mq *MediaQueue) any {

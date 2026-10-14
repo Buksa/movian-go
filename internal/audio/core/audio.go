@@ -1016,7 +1016,8 @@ func (ad *AudioDecoder) audioDecodeThread() {
 			mb.DataType == int(mediacore.MBAudio) {
 			// C: coded-mode audio delivered under mp_mutex (audio.c:692)
 			if !mb.Flags.Skip && mb.Stream == mq.Stream {
-				r := ad.Class.DeliverCodedLocked(ad, mb.Data, mb.PTS, mb.Epoch)
+				payload := mb.Payload()
+				r := ad.Class.DeliverCodedLocked(ad, payload, mb.PTS, mb.Epoch)
 				if r != 0 {
 					// C: TAILQ_INSERT_HEAD + wait on mq_avail
 					mq.DataQueue = slices.Insert(mq.DataQueue, 0, mb)
@@ -1025,7 +1026,7 @@ func (ad *AudioDecoder) audioDecodeThread() {
 					mq.Avail.Wait()
 					continue
 				}
-				updateABitrate(ad, mp, mq, mb.Size)
+				updateABitrate(ad, mp, mq, len(payload))
 			}
 		} else {
 			// C: hts_mutex_unlock(&mp->mp_mutex) — the switch runs unlocked
@@ -1213,7 +1214,7 @@ func (ad *AudioDecoder) audioProcessAudio(mb *mediacore.MediaBuf) bool {
 				mp.Mutex.Lock()
 				ad.setPassthruMetadata(mp, mq, int(mc.CodecID))
 				if ac != nil && ac.DeliverCodedLocked != nil {
-					ac.DeliverCodedLocked(ad, mb.Data, mb.PTS, mb.Epoch)
+					ac.DeliverCodedLocked(ad, mb.Payload(), mb.PTS, mb.Epoch)
 				}
 				mp.Mutex.Unlock()
 				return false
@@ -1222,14 +1223,15 @@ func (ad *AudioDecoder) audioProcessAudio(mb *mediacore.MediaBuf) bool {
 
 		if ad.SPDIFMuxer != nil {
 			// C: audio.c:437-448 — spdif passthrough
+			payload := mb.Payload()
 			ad.PTS = mb.PTS
 			ad.Epoch = mb.Epoch
-			updateABitrate(ad, mp, mq, mb.Size)
+			updateABitrate(ad, mp, mq, len(payload))
 			mb.PTS = mediacore.PTSUnset
 			mb.DTS = mediacore.PTSUnset
 			// C: av_write_frame + avio_flush — spdif_mux_write appends
 			// to ad->ad_spdif_frame
-			if muxed := ad.SPDIFMuxer.Mux(mb.Data); len(muxed) > 0 {
+			if muxed := ad.SPDIFMuxer.Mux(payload); len(muxed) > 0 {
 				ad.SPDIFFrame = append(ad.SPDIFFrame, muxed...)
 				ad.SPDIFFrameSize = len(ad.SPDIFFrame)
 				ad.SPDIFFrameAlloc = cap(ad.SPDIFFrame)
@@ -1283,7 +1285,7 @@ func (ad *AudioDecoder) audioProcessAudio(mb *mediacore.MediaBuf) bool {
 			return false
 		}
 		// send/receive consumes the whole packet per call
-		r = mb.Size
+		r = len(mb.Payload())
 		updateABitrate(ad, mp, mq, r)
 
 		framePCM = pcm
