@@ -49,7 +49,8 @@ func (c *Context) panicToValue(e any) goja.Value {
 func (c *Context) call(fn, this goja.Value, args []goja.Value) (res goja.Value, err error) {
 	callable, ok := goja.AssertFunction(fn)
 	if !ok {
-		return nil, fmt.Errorf("not callable")
+		err := fmt.Errorf("not callable")
+		return c.panicToValue(err), err
 	}
 	prev := c.h.activeCtx
 	c.h.activeCtx = c
@@ -86,7 +87,8 @@ func (c *Context) PCall(nargs int) int {
 	return GAF_EXEC_SUCCESS
 }
 
-// duk_pcall_method(ctx, nargs) — [.. obj fn arg1..argN] → [.. result]
+// duk_pcall_method(ctx, nargs) — [.. fn obj arg1..argN] → [.. result]
+// C stack order: function first, then the this binding, then args.
 func (c *Context) PCallMethod(nargs int) int {
 	top := len(c.stack)
 	if nargs+2 > top {
@@ -94,8 +96,8 @@ func (c *Context) PCallMethod(nargs int) int {
 		return GAF_EXEC_ERROR
 	}
 	args := append([]goja.Value(nil), c.stack[top-nargs:]...)
-	fn := c.stack[top-nargs-1]
-	this := c.stack[top-nargs-2]
+	this := c.stack[top-nargs-1]
+	fn := c.stack[top-nargs-2]
 	c.stack = c.stack[:top-nargs-2]
 	res, err := c.call(fn, this, args)
 	if err != nil {
@@ -205,12 +207,30 @@ func (c *Context) PCompile(flags int) (ret int) {
 	src := c.SafeToString(-2)
 	c.Pop()
 	c.Pop()
+	vm := c.h.vm
+	if flags&GAF_COMPILE_FUNCTION != 0 {
+		// Function-body compile: evaluating the wrapper expression only
+		// instantiates the function (no side effects); `this` inside the
+		// body is bound by the caller, like a Duktape program invoked
+		// through duk_pcall_method.
+		prog, err := goja.Compile(name, "(function(){\n"+src+"\n})", false)
+		if err != nil {
+			c.push(c.panicToValue(err))
+			return GAF_EXEC_ERROR
+		}
+		v, err := vm.RunProgram(prog)
+		if err != nil {
+			c.push(c.panicToValue(err))
+			return GAF_EXEC_ERROR
+		}
+		c.push(v)
+		return GAF_EXEC_SUCCESS
+	}
 	prog, err := goja.Compile(name, src, false)
 	if err != nil {
 		c.push(c.panicToValue(err))
 		return GAF_EXEC_ERROR
 	}
-	vm := c.h.vm
 	v := vm.ToValue(func(call goja.FunctionCall) goja.Value {
 		res, err := vm.RunProgram(prog)
 		if err != nil {

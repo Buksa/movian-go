@@ -1007,6 +1007,10 @@ func EsGetErrCode(ctx *gaftape.Context) int {
 
 // esLoadAndCompile — C: es_load_and_compile (ecmascript.c:822-848)
 func esLoadAndCompile(ec *ESContext, path string, ctx *gaftape.Context) int {
+	return esLoadAndCompileFlags(ec, path, ctx, 0)
+}
+
+func esLoadAndCompileFlags(ec *ESContext, path string, ctx *gaftape.Context, compileFlags int) int {
 	buf, _ := faLoad(path)
 
 	if buf == nil {
@@ -1018,7 +1022,7 @@ func esLoadAndCompile(ec *ESContext, path string, ctx *gaftape.Context) int {
 	ctx.PushLstring(s, len(s))
 	ctx.PushString(path)
 
-	if ctx.PCompile(0) != 0 {
+	if ctx.PCompile(compileFlags) != 0 {
 		esEnv.tracer.Trace(trace.TRACE_ERROR, ec.ecID, "Unable to compile %s -- %s",
 			path, ctx.SafeToString(-1))
 		ctx.Pop()
@@ -1097,7 +1101,9 @@ func EcmascriptPluginLoad(u *usage.Reporter, id, url string,
 
 		ts2 = archGetTS()
 
-		if esLoadAndCompile(ec, url, ctx) != 0 {
+		// Plugin main runs as a function body so duk_pcall_method's
+		// this-binding reaches the script (api-v1 hands it `plugin`).
+		if esLoadAndCompileFlags(ec, url, ctx, gaftape.GAF_COMPILE_FUNCTION) != 0 {
 			ctx.Pop()
 			goto bad
 		}
