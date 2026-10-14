@@ -6,6 +6,7 @@ package plugins
 import (
 	"archive/zip"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -33,11 +34,13 @@ func (pm *PluginManager) LoadPlugin(url, origin string, flags PluginLoadFlags) e
 	return pm.loadPluginLocked(url, origin, flags)
 }
 
-// loadPluginLocked — C: plugin_load (plugins.c:611). Caller holds
-// pm.mu (C: plugin_mutex): the function unlocks/relocks internally
-// only around the ecmascript load, exactly like C does around
-// ecmascript_plugin_load (plugins.c:725-728).
+// loadPluginLocked requires pm.mu; callers that already own a lifecycle gate
+// use loadPluginLockedMode with lifecycleOwned=true.
 func (pm *PluginManager) loadPluginLocked(url, origin string, flags PluginLoadFlags) error {
+	return pm.loadPluginLockedMode(url, origin, flags, false, false)
+}
+
+func (pm *PluginManager) loadPluginLockedMode(url, origin string, flags PluginLoadFlags, lifecycleOwned, allowStartup bool) error {
 	// Load plugin.json
 	ctrlFile := fmt.Sprintf("%s/plugin.json", url)
 	ctrlData, err := loadFileWithFA(ctrlFile, pm.faManager)
@@ -59,8 +62,21 @@ func (pm *PluginManager) loadPluginLocked(url, origin string, flags PluginLoadFl
 		return &LoadError{Message: fmt.Sprintf("Missing \"id\" element in control file %s", ctrlFile)}
 	}
 
+	if pm.startupLoading && !allowStartup {
+		return ErrPluginLifecycleBusy
+	}
 	// Get or create plugin
 	pl := pm.makePluginLocked(ctrl.ID, origin)
+	if lifecycleOwned {
+		if !pl.lifecycleActive {
+			return fmt.Errorf("%w: %s", ErrPluginLifecycleBusy, pl.FQID)
+		}
+	} else {
+		if err := pm.beginPluginLifecycleLocked(pl, allowStartup); err != nil {
+			return err
+		}
+		defer pm.finishPluginLifecycleLocked(pl)
+	}
 
 	// Check blacklist
 	if ctrl.Version != "" {
@@ -129,21 +145,48 @@ func (pm *PluginManager) loadPluginLocked(url, origin string, flags PluginLoadFl
 	return nil
 }
 
-// unloadPluginInternal unloads a plugin (internal, assumes lock held)
+// unloadPluginInternal unloads a plugin while the caller holds pm.mu.
 func (pm *PluginManager) unloadPluginInternal(pl *Plugin) {
 	if pl.Unload != nil {
-		pl.Unload(pl)
+		unload := pl.Unload
+		pm.mu.Unlock()
+		func() {
+			defer pm.mu.Lock()
+			unload(pl)
+		}()
 		pl.Unload = nil
 	}
-
 	pm.unloadPluginViews(pl)
+	pm.cleanupRollbackArchiveLocked(pl)
 }
 
-// UnloadPlugin unloads a plugin
+func (pm *PluginManager) cleanupRollbackArchiveLocked(pl *Plugin) {
+	if pl.rollbackArchivePath == "" {
+		return
+	}
+	if err := os.Remove(pl.rollbackArchivePath); err != nil && !os.IsNotExist(err) {
+		if pm.ts != nil {
+			pm.ts.Error("plugins", "Unable to remove rollback archive %s: %v\n",
+				pl.rollbackArchivePath, err)
+		}
+		return
+	}
+	pl.rollbackArchivePath = ""
+}
+
+// UnloadPlugin unloads immediately unless another lifecycle transition owns the
+// plugin; in that case the unload is applied when that transition settles.
 func (pm *PluginManager) UnloadPlugin(pl *Plugin) {
 	pm.mu.Lock()
 	defer pm.mu.Unlock()
-
+	if pl.lifecycleActive || pm.startupLoading {
+		pl.unloadRequested = true
+		return
+	}
+	if err := pm.beginPluginLifecycleLocked(pl, false); err != nil {
+		return
+	}
+	defer pm.finishPluginLifecycleLocked(pl)
 	pm.unloadPluginInternal(pl)
 	pl.Loaded = false
 	pm.UpdateState(pl)
@@ -176,6 +219,9 @@ func (pm *PluginManager) loadECMAScriptPlugin(pl *Plugin, url string, ctrl *Plug
 	}
 
 	pm.mu.Unlock()
+	if pm.beforeESPluginLoad != nil {
+		pm.beforeESPluginLoad(pl)
+	}
 	err := pm.esMgr.Load(pl.FQID, fullpath, version, string(ctrlData(ctrl)), pflags)
 	pm.mu.Lock()
 
@@ -287,20 +333,46 @@ func (pm *PluginManager) unloadPluginViews(pl *Plugin) {
 	pl.Views = nil
 }
 
-// LoadInstalledPlugins loads all installed plugins
+// LoadInstalledPlugins loads every usable installed plugin and joins recovery/load errors.
 func (pm *PluginManager) LoadInstalledPlugins(persistentPath string) error {
-	pm.installMu.Lock()
-	defer pm.installMu.Unlock()
-
+	pm.mu.Lock()
+	if pm.startupLoading {
+		pm.mu.Unlock()
+		return ErrPluginLifecycleBusy
+	}
+	for _, pl := range pm.plugins {
+		if pl.lifecycleActive {
+			pm.mu.Unlock()
+			return fmt.Errorf("%w: %s", ErrPluginLifecycleBusy, pl.FQID)
+		}
+	}
+	pm.startupLoading = true
+	pm.mu.Unlock()
+	defer func() {
+		pm.mu.Lock()
+		defer pm.mu.Unlock()
+		defer func() { pm.startupLoading = false }()
+		plugins := append([]*Plugin(nil), pm.plugins...)
+		for _, pl := range plugins {
+			if pl.unloadRequested {
+				pl.lifecycleActive = true
+				pm.finishPluginLifecycleLocked(pl)
+			}
+		}
+	}()
 	installedPath := filepath.Join(persistentPath, pm.storagePrefix, "installed")
+	recoveryErr := pm.recoverInterruptedPluginInstalls(installedPath)
+	if recoveryErr != nil && pm.ts != nil {
+		pm.ts.Error("plugins", "Unable to recover interrupted plugin install: %v\n", recoveryErr)
+	}
 
 	entries, err := scanDirectory(installedPath)
 	if err != nil {
-		return err
+		return errors.Join(recoveryErr, err)
 	}
 
+	var loadErrors []error
 	for _, entry := range entries {
-		// Parse origin from filename
 		origin := ""
 		if idx := strings.Index(entry.Name, "@"); idx >= 0 {
 			origin = entry.Name[idx+1:]
@@ -309,20 +381,29 @@ func (pm *PluginManager) LoadInstalledPlugins(persistentPath string) error {
 			}
 		}
 
-		// Resolve zip path (find plugin.json inside zip)
 		zipPath, err := resolveZipPath(entry.Path)
 		if err != nil {
-			pm.ts.Error("plugins", "Unable to resolve zip %s: %v\n", entry.Path, err)
+			loadErr := fmt.Errorf("resolve installed plugin %s: %w", entry.Path, err)
+			loadErrors = append(loadErrors, loadErr)
+			if pm.ts != nil {
+				pm.ts.Error("plugins", "Unable to resolve zip %s: %v\n", entry.Path, err)
+			}
 			continue
 		}
 
-		if err := pm.LoadPlugin(zipPath, origin, PluginLoadAsInstalled); err != nil {
-			// Log error but continue
-			pm.ts.Error("plugins", "Unable to load %s: %v\n", entry.Path, err)
+		pm.mu.Lock()
+		loadErr := pm.loadPluginLockedMode(zipPath, origin, PluginLoadAsInstalled, false, true)
+		pm.mu.Unlock()
+		if loadErr != nil {
+			err := loadErr
+			loadErrors = append(loadErrors, fmt.Errorf("load installed plugin %s: %w", entry.Path, err))
+			if pm.ts != nil {
+				pm.ts.Error("plugins", "Unable to load %s: %v\n", entry.Path, err)
+			}
 		}
 	}
 
-	return nil
+	return errors.Join(append([]error{recoveryErr}, loadErrors...)...)
 }
 
 // RemovePluginFromManager removes a plugin from the manager (internal)
@@ -334,6 +415,7 @@ func (pm *PluginManager) RemovePluginFromManager(pl *Plugin) {
 	if pl.Loaded {
 		pm.unloadPluginInternal(pl)
 	}
+	pm.cleanupRollbackArchiveLocked(pl)
 
 	// Remove from list
 	for i, p := range pm.plugins {
@@ -431,6 +513,9 @@ func scanDirectory(path string) ([]DirEntry, error) {
 
 	result := make([]DirEntry, 0, len(entries))
 	for _, entry := range entries {
+		if entry.IsDir() {
+			continue
+		}
 		result = append(result, DirEntry{
 			Name: entry.Name(),
 			Path: filepath.Join(path, entry.Name()),

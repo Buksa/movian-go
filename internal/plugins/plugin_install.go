@@ -5,6 +5,7 @@ package plugins
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -17,54 +18,107 @@ import (
 
 // InstallPlugin installs a plugin
 // C: plugin_install (plugins.c).
+// ErrPluginLifecycleBusy reports that another lifecycle transition already owns this FQID.
+var ErrPluginLifecycleBusy = errors.New("plugin lifecycle operation already in progress")
+
+func (pm *PluginManager) beginPluginLifecycleLocked(pl *Plugin, allowStartup bool) error {
+	if pl.lifecycleActive || (pm.startupLoading && !allowStartup) {
+		return fmt.Errorf("%w: %s", ErrPluginLifecycleBusy, pl.FQID)
+	}
+	pl.lifecycleActive = true
+	return nil
+}
+
+func (pm *PluginManager) finishPluginLifecycleLocked(pl *Plugin) {
+	defer func() {
+		pl.lifecycleActive = false
+		pl.unloadRequested = false
+	}()
+	if pl.unloadRequested {
+		pl.unloadRequested = false
+		if pl.Loaded {
+			pm.unloadPluginInternal(pl)
+			pl.Loaded = false
+			pm.UpdateState(pl)
+		}
+	}
+}
+
+// InstallPlugin downloads outside pm.mu and commits under the per-FQID state gate.
 func (pm *PluginManager) InstallPlugin(pl *Plugin, packageURL string) error {
 	pm.mu.Lock()
-
-	// C: plugin_install's usage_event (plugins.c:1518-1520) precedes the fallback;
-	// "source" is File only when a package path was passed explicitly.
 	source := "Repo"
 	if packageURL != "" {
 		source = "File"
+	} else {
+		packageURL = pl.Package
+	}
+	if packageURL == "" {
+		pm.mu.Unlock()
+		return fmt.Errorf("No package URL specified")
+	}
+	if err := pm.beginPluginLifecycleLocked(pl, false); err != nil {
+		pm.mu.Unlock()
+		return err
 	}
 	event := "Plugin install"
 	if pl.CanUpgrade {
 		event = "Plugin upgrade"
 	}
 	pm.usage.Event(event, 1, "plugin", pl.FQID, "source", source)
-
-	// Use plugin's package URL if not provided
-	if packageURL == "" {
-		packageURL = pl.Package
-		if packageURL == "" {
-			pm.mu.Unlock()
-			return fmt.Errorf("No package URL specified")
-		}
-	}
+	previous := snapshotPluginInstallState(pl)
 	pm.mu.Unlock()
+	defer func() {
+		pm.mu.Lock()
+		defer pm.mu.Unlock()
+		pm.finishPluginLifecycleLocked(pl)
+	}()
 
-	// C: plugin_install releases plugin_mutex around fa_load
-	// (plugins.c:1540-1544). Go: keep fileaccess I/O outside pm.mu,
-	// then serialize metadata, stored archive, and runtime loading together.
 	tempPath, err := pm.downloadPlugin(packageURL)
 	if err != nil {
 		return fmt.Errorf("Failed to download plugin: %w", err)
 	}
 	defer os.Remove(tempPath)
+	if previous.loaded && !previous.installed && previous.packageURL != "" &&
+		previous.rollbackArchivePath == "" {
+		previous.rollbackArchivePath, err = pm.downloadPluginWithPattern(
+			previous.packageURL, "plugin-rollback-*.zip")
+		if err != nil {
+			return fmt.Errorf("Failed to prepare rollback plugin: %w", err)
+		}
+		defer func() {
+			pm.mu.Lock()
+			owned := pl.rollbackArchivePath
+			pm.mu.Unlock()
+			if previous.rollbackArchivePath != "" && previous.rollbackArchivePath != owned {
+				_ = os.Remove(previous.rollbackArchivePath)
+			}
+		}()
+	}
 
-	return pm.installPluginFromDownloadedArchive(pl, tempPath)
+	return pm.installPluginFromDownloadedArchive(pl, tempPath, previous)
+}
+
+func (pm *PluginManager) findPluginLocked(fqid string) *Plugin {
+	for _, candidate := range pm.plugins {
+		if candidate.FQID == fqid {
+			return candidate
+		}
+	}
+	return nil
 }
 
 // Go extension: replacement rollback preserves the metadata and runtime flags
 // that this installer changes; the previous archive is backed up separately.
 type pluginInstallState struct {
-	selectedViews    []pluginSelectedView
-	packageURL       string
-	title            string
-	installedVersion string
-	installed        bool
-	loaded           bool
+	selectedViews       []pluginSelectedView
+	packageURL          string
+	title               string
+	installedVersion    string
+	installed           bool
+	loaded              bool
+	rollbackArchivePath string
 }
-
 
 type pluginSelectedView struct {
 	uiType   string
@@ -110,11 +164,12 @@ func (pm *PluginManager) restoreSelectedPluginViewsLocked(pl *Plugin, selected [
 
 func snapshotPluginInstallState(pl *Plugin) pluginInstallState {
 	return pluginInstallState{
-		packageURL:       pl.Package,
-		title:            pl.Title,
-		installedVersion: pl.InstVer,
-		installed:        pl.Installed,
-		loaded:           pl.Loaded,
+		packageURL:          pl.Package,
+		title:               pl.Title,
+		installedVersion:    pl.InstVer,
+		installed:           pl.Installed,
+		loaded:              pl.Loaded,
+		rollbackArchivePath: pl.rollbackArchivePath,
 	}
 }
 
@@ -124,6 +179,7 @@ func (pm *PluginManager) restorePluginInstallStateLocked(pl *Plugin, state plugi
 	pl.InstVer = state.installedVersion
 	pl.Installed = state.installed
 	pl.Loaded = state.loaded
+	pl.rollbackArchivePath = state.rollbackArchivePath
 	pm.UpdateState(pl)
 }
 
@@ -165,19 +221,19 @@ func (pm *PluginManager) installPluginFromArchive(tempPath, packageURL string) e
 	if err != nil {
 		return fmt.Errorf("Failed to validate plugin archive: %w", err)
 	}
-
-	pm.installMu.Lock()
-	defer pm.installMu.Unlock()
-
 	pm.mu.Lock()
 	defer pm.mu.Unlock()
 	pl := pm.makePluginLocked(ctrl.ID, "local")
+	if err := pm.beginPluginLifecycleLocked(pl, false); err != nil {
+		return err
+	}
+	defer pm.finishPluginLifecycleLocked(pl)
 	previous := snapshotPluginInstallState(pl)
 	pm.setPluginFromZipLocked(pl, ctrl, packageURL)
 	return pm.installPluginFromDownloadedArchiveLocked(pl, tempPath, previous)
 }
 
-func (pm *PluginManager) installPluginFromDownloadedArchive(pl *Plugin, tempPath string) error {
+func (pm *PluginManager) installPluginFromDownloadedArchive(pl *Plugin, tempPath string, previous pluginInstallState) error {
 	ctrl, err := pm.readPluginControlFromZip(tempPath)
 	if err != nil {
 		return fmt.Errorf("Failed to validate plugin archive: %w", err)
@@ -186,12 +242,14 @@ func (pm *PluginManager) installPluginFromDownloadedArchive(pl *Plugin, tempPath
 		return fmt.Errorf("Plugin ID %q does not match target %q", ctrl.ID, pl.FQID)
 	}
 
-	pm.installMu.Lock()
-	defer pm.installMu.Unlock()
-
 	pm.mu.Lock()
 	defer pm.mu.Unlock()
-	return pm.installPluginFromDownloadedArchiveLocked(pl, tempPath, snapshotPluginInstallState(pl))
+	if pm.findPluginLocked(pl.FQID) != pl ||
+		pl.Package != previous.packageURL || pl.Loaded != previous.loaded ||
+		pl.Installed != previous.installed {
+		return fmt.Errorf("Plugin %q changed while preparing installation", pl.FQID)
+	}
+	return pm.installPluginFromDownloadedArchiveLocked(pl, tempPath, previous)
 }
 
 // C: plugin_install (plugins.c) unloads, writes installed/<fqid>.zip, then loads
@@ -209,84 +267,116 @@ func (pm *PluginManager) installPluginFromDownloadedArchiveLocked(pl *Plugin, te
 		return fmt.Errorf("Failed to install plugin: %w", err)
 	}
 	installedPath := filepath.Join(installDir, fmt.Sprintf("%s.zip", pl.FQID))
-
-	backupDir := ""
-	backupPath := ""
-	if _, err := os.Stat(installedPath); err == nil {
-		backupDir, err = os.MkdirTemp(installDir, ".plugin-backup-*")
-		if err != nil {
-			pm.restorePluginInstallStateLocked(pl, previous)
-			return fmt.Errorf("Failed to preserve installed plugin: %w", err)
-		}
-		backupPath = filepath.Join(backupDir, filepath.Base(installedPath))
-		if err := os.Rename(installedPath, backupPath); err != nil {
-			_ = os.RemoveAll(backupDir)
-			pm.restorePluginInstallStateLocked(pl, previous)
-			return fmt.Errorf("Failed to preserve installed plugin: %w", err)
-		}
-	} else if !os.IsNotExist(err) {
+	_, statErr := os.Stat(installedPath)
+	hadBackup := statErr == nil
+	if statErr != nil && !os.IsNotExist(statErr) {
 		pm.restorePluginInstallStateLocked(pl, previous)
-		return fmt.Errorf("Failed to inspect installed plugin: %w", err)
+		return fmt.Errorf("Failed to inspect installed plugin: %w", statErr)
 	}
-	hadBackup := backupPath != ""
+
+	txnDir, err := createPluginInstallTransaction(installDir, filepath.Base(installedPath), hadBackup)
+	if err != nil {
+		pm.restorePluginInstallStateLocked(pl, previous)
+		return fmt.Errorf("Failed to prepare plugin installation: %w", err)
+	}
+	backupPath := filepath.Join(txnDir, "backup.zip")
+	if err := writePluginInstallPhase(txnDir, pluginInstallReplacing); err != nil {
+		_ = pm.removeInstallDirectory(txnDir)
+		pm.restorePluginInstallStateLocked(pl, previous)
+		return fmt.Errorf("Failed to persist plugin replacement state: %w", err)
+	}
+	if hadBackup {
+		if err := os.Rename(installedPath, backupPath); err != nil {
+			_ = pm.removeInstallDirectory(txnDir)
+			pm.restorePluginInstallStateLocked(pl, previous)
+			return fmt.Errorf("Failed to preserve installed plugin: %w", err)
+		}
+		if err := syncInstallDirectory(installDir); err != nil {
+			return pm.rollbackPluginInstallLocked(pl, previous, installedPath, txnDir, backupPath, true,
+				fmt.Errorf("sync plugin backup: %w", err))
+		}
+	}
 
 	previous.selectedViews = pm.snapshotSelectedPluginViewsLocked(pl)
+	pl.rollbackArchivePath = ""
 	pm.unloadPluginInternal(pl)
-	installedArchivePath, err := pm.installToStorage(pl, tempPath)
+	installedArchivePath, err := pm.installToStorage(pl, tempPath, txnDir)
 	if err != nil {
-		return pm.rollbackPluginInstallLocked(pl, previous, installedPath, backupDir, backupPath, hadBackup,
+		return pm.rollbackPluginInstallLocked(pl, previous, installedPath, txnDir, backupPath, hadBackup,
 			fmt.Errorf("Failed to install plugin: %w", err))
 	}
 	installedPath = installedArchivePath
-
-	// C: #ifdef STOS — arch_sync_path(path) after fa_write/fa_close
-	// (plugins.c:1610-1612). Go: mgosSyncPath is syncfs under -tags mgos.
 	mgosSyncPath(installedPath)
-
-	// C: plugin_resolve_zip_path(path) (plugins.c:1614)
-	zipPath, err := resolveZipPath(installedPath)
-	if err != nil {
-		return pm.rollbackPluginInstallLocked(pl, previous, installedPath, backupDir, backupPath, hadBackup,
-			fmt.Errorf("Failed to resolve zip path: %w", err))
+	if err := syncInstallDirectory(installDir); err != nil {
+		return pm.rollbackPluginInstallLocked(pl, previous, installedPath, txnDir, backupPath, hadBackup,
+			fmt.Errorf("sync installed plugin archive: %w", err))
 	}
 
-	// C: plugin_load(zippath, ..., PLUGIN_LOAD_FORCE |
-	// PLUGIN_LOAD_AS_INSTALLED | PLUGIN_LOAD_BY_USER) (plugins.c:1623-1625) —
-	// AS_INSTALLED runs plugin_prop_setup + pl_installed=1 +
-	// autoplugin_set_installed + update_state inside plugin_load.
-	if err := pm.loadPluginLocked(zipPath, pl.Origin,
-		PluginLoadForce|PluginLoadAsInstalled|PluginLoadByUser); err != nil {
-		return pm.rollbackPluginInstallLocked(pl, previous, installedPath, backupDir, backupPath, hadBackup,
+	zipPath, err := resolveZipPath(installedPath)
+	if err != nil {
+		return pm.rollbackPluginInstallLocked(pl, previous, installedPath, txnDir, backupPath, hadBackup,
+			fmt.Errorf("Failed to resolve zip path: %w", err))
+	}
+	if err := pm.loadPluginLockedMode(zipPath, pl.Origin,
+		PluginLoadForce|PluginLoadAsInstalled|PluginLoadByUser, true, false); err != nil {
+		return pm.rollbackPluginInstallLocked(pl, previous, installedPath, txnDir, backupPath, hadBackup,
 			fmt.Errorf("Failed to load plugin: %w", err))
 	}
 
-	if backupDir != "" {
-		_ = os.RemoveAll(backupDir)
+	pm.restoreSelectedPluginViewsLocked(pl, previous.selectedViews)
+	if err := writePluginInstallPhase(txnDir, pluginInstallCommitted); err != nil {
+		return pm.rollbackPluginInstallLocked(pl, previous, installedPath, txnDir, backupPath, hadBackup,
+			fmt.Errorf("Failed to persist plugin installation commit: %w", err))
 	}
 	pm.saveReposLocked()
+
+	pl.rollbackArchivePath = previous.rollbackArchivePath
+	pm.cleanupRollbackArchiveLocked(pl)
+	if err := pm.removeInstallDirectory(txnDir); err != nil {
+		if pm.ts != nil {
+			pm.ts.Error("plugins", "Plugin installation committed; cleanup of %s is pending: %v\n",
+				txnDir, err)
+		}
+		return nil
+	}
+	if err := syncInstallDirectory(installDir); err != nil && pm.ts != nil {
+		pm.ts.Error("plugins", "Plugin installation committed; sync of %s failed: %v\n",
+			installDir, err)
+	}
 	return nil
 }
 
 // Go extension: restore both the persisted package and its runtime after failure;
 // if restoration fails, report it rather than claiming the old plugin is loaded.
-func (pm *PluginManager) rollbackPluginInstallLocked(pl *Plugin, previous pluginInstallState, installedPath, backupDir, backupPath string, hadBackup bool, cause error) error {
+func (pm *PluginManager) rollbackPluginInstallLocked(pl *Plugin, previous pluginInstallState, installedPath, txnDir, backupPath string, hadBackup bool, cause error) error {
+	if err := writePluginInstallPhase(txnDir, pluginInstallReplacing); err != nil {
+		if cause == nil {
+			return fmt.Errorf("rollback state could not be persisted: %w", err)
+		}
+		return fmt.Errorf("%w (rollback state could not be persisted: %w)", cause, err)
+	}
 	pm.unloadPluginInternal(pl)
 
 	var rollbackErr error
 	if err := os.Remove(installedPath); err != nil && !os.IsNotExist(err) {
 		rollbackErr = err
 	}
-	archiveRestored := !hadBackup
-	if hadBackup {
+	archiveRestored := !hadBackup && rollbackErr == nil
+	if hadBackup && rollbackErr == nil {
 		if err := os.Rename(backupPath, installedPath); err != nil {
-			if rollbackErr == nil {
-				rollbackErr = err
-			}
+			rollbackErr = err
 		} else {
 			archiveRestored = true
-			if err := os.RemoveAll(backupDir); err != nil && rollbackErr == nil {
-				rollbackErr = err
-			}
+		}
+	}
+	if rollbackErr == nil {
+		installDir := filepath.Dir(installedPath)
+		if err := syncInstallDirectory(installDir); err != nil {
+			rollbackErr = err
+		} else if err := pm.removeInstallDirectory(txnDir); err != nil {
+			rollbackErr = err
+		} else if err := syncInstallDirectory(installDir); err != nil {
+			rollbackErr = err
 		}
 	}
 
@@ -294,28 +384,68 @@ func (pm *PluginManager) rollbackPluginInstallLocked(pl *Plugin, previous plugin
 	if previous.loaded {
 		pl.Loaded = false
 		pm.UpdateState(pl)
+		var zipPath string
+		var err error
+		var rollbackArchivePath string
 		if hadBackup && archiveRestored {
-			zipPath, err := resolveZipPath(installedPath)
+			zipPath, err = resolveZipPath(installedPath)
+		} else if !hadBackup && previous.packageURL != "" {
+			rollbackArchivePath = previous.rollbackArchivePath
+			if rollbackArchivePath != "" {
+				if _, statErr := os.Stat(rollbackArchivePath); os.IsNotExist(statErr) {
+					rollbackArchivePath = ""
+				} else if statErr != nil {
+					err = statErr
+				}
+			}
+			if rollbackArchivePath == "" {
+				err = fmt.Errorf("previous rollback archive was not prepared")
+			}
 			if err == nil {
-				flags := PluginLoadForce
-				if previous.installed {
-					flags |= PluginLoadAsInstalled
+				var ctrl PluginControl
+				ctrl, err = pm.readPluginControlFromZip(rollbackArchivePath)
+				if err == nil && ctrl.ID != pluginIDFromFQID(pl.FQID) {
+					err = fmt.Errorf("previous package ID %q does not match plugin %q",
+						ctrl.ID, pl.FQID)
 				}
-				err = pm.loadPluginLocked(zipPath, pl.Origin, flags)
-			}
-			if err != nil {
-				pm.unloadPluginInternal(pl)
-				pm.restorePluginInstallStateLocked(pl, previous)
-				pl.Loaded = false
-				pm.UpdateState(pl)
-				if rollbackErr == nil {
-					rollbackErr = fmt.Errorf("failed to reload previous plugin: %w", err)
+				if err == nil {
+					zipPath, err = resolveZipPath(rollbackArchivePath)
 				}
-			} else {
-				pm.restoreSelectedPluginViewsLocked(pl, previous.selectedViews)
 			}
-		} else if rollbackErr == nil {
-			rollbackErr = fmt.Errorf("previous installed plugin archive is unavailable")
+		} else {
+			err = fmt.Errorf("previous installed plugin archive is unavailable")
+		}
+		pl.rollbackArchivePath = ""
+		if err == nil {
+			flags := PluginLoadForce
+			if previous.installed {
+				flags |= PluginLoadAsInstalled
+			}
+			err = pm.loadPluginLockedMode(zipPath, pl.Origin, flags, true, false)
+		}
+		if err != nil {
+			pm.unloadPluginInternal(pl)
+			pm.restorePluginInstallStateLocked(pl, previous)
+			pl.Loaded = false
+			pm.UpdateState(pl)
+			if rollbackArchivePath != "" &&
+				rollbackArchivePath != previous.rollbackArchivePath {
+				if removeErr := os.Remove(rollbackArchivePath); removeErr != nil &&
+					!os.IsNotExist(removeErr) && rollbackErr == nil {
+					rollbackErr = fmt.Errorf("remove failed rollback cache: %w", removeErr)
+				}
+			}
+			if rollbackErr == nil {
+				rollbackErr = fmt.Errorf("failed to reload previous plugin: %w", err)
+			}
+		} else {
+			pm.restoreSelectedPluginViewsLocked(pl, previous.selectedViews)
+			if !hadBackup && !previous.installed {
+				pl.rollbackArchivePath = rollbackArchivePath
+			} else if previous.rollbackArchivePath != "" {
+				pl.rollbackArchivePath = previous.rollbackArchivePath
+				pm.cleanupRollbackArchiveLocked(pl)
+			}
 		}
 	}
 
@@ -325,48 +455,49 @@ func (pm *PluginManager) rollbackPluginInstallLocked(pl *Plugin, previous plugin
 	return cause
 }
 
-// RemovePlugin removes an installed plugin
+// RemovePlugin removes an installed plugin.
 func (pm *PluginManager) RemovePlugin(pl *Plugin) error {
-	pm.installMu.Lock()
-	defer pm.installMu.Unlock()
-
 	pm.mu.Lock()
 	defer pm.mu.Unlock()
-
+	if err := pm.beginPluginLifecycleLocked(pl, false); err != nil {
+		return err
+	}
+	defer pm.finishPluginLifecycleLocked(pl)
 	if !pl.Installed {
 		return fmt.Errorf("Plugin is not installed")
 	}
-
-	// C: plugins.c:1486 — usage_event("Plugin remove", plugin=fqid)
 	pm.usage.Event("Plugin remove", 1, "plugin", pl.FQID)
-
-	// Unload plugin
 	pm.unloadPluginInternal(pl)
-
-	// Remove from storage
 	if err := pm.removeFromStorage(pl); err != nil {
 		return fmt.Errorf("Failed to remove plugin from storage: %w", err)
 	}
-
-	// Mark as not installed
 	pl.Installed = false
 	pl.InstVer = ""
 	pl.Loaded = false
 	pm.autoPluginSetInstalledLocked(pl.FQID, false)
 	pm.UpdateState(pl)
-
-	// Save repos configuration
 	pm.saveReposLocked()
 	return nil
 }
 
+func (pm *PluginManager) removeInstallDirectory(path string) error {
+	if pm.removeInstallDir != nil {
+		return pm.removeInstallDir(path)
+	}
+	return os.RemoveAll(path)
+}
+
 func (pm *PluginManager) createPluginArchiveFile() (*os.File, error) {
+	return pm.createPluginArchiveFileWithPattern("plugin-*.zip")
+}
+
+func (pm *PluginManager) createPluginArchiveFileWithPattern(pattern string) (*os.File, error) {
 	// os.TempDir() may not exist on Android; use the configured cache directory.
 	dir := pm.gcfg().CachePath
 	if dir == "" {
 		dir = getPersistentPath()
 	}
-	return os.CreateTemp(dir, "plugin-*.zip")
+	return os.CreateTemp(dir, pattern)
 }
 
 // maxPluginDownloadBytes caps untrusted remote packages independent of the HTTP upload limit.
@@ -390,7 +521,11 @@ func copyPluginArchiveBounded(dst io.Writer, src io.Reader, limit int64) (int64,
 // Go: stream into a cache file instead of keeping the whole ZIP in memory;
 // local updater packages and HTTP URLs still use the same fileaccess protocols.
 func (pm *PluginManager) downloadPlugin(packageURL string) (string, error) {
-	tempFile, err := pm.createPluginArchiveFile()
+	return pm.downloadPluginWithPattern(packageURL, "plugin-*.zip")
+}
+
+func (pm *PluginManager) downloadPluginWithPattern(packageURL, pattern string) (string, error) {
+	tempFile, err := pm.createPluginArchiveFileWithPattern(pattern)
 	if err != nil {
 		return "", err
 	}
@@ -418,26 +553,165 @@ func (pm *PluginManager) downloadPlugin(packageURL string) (string, error) {
 	return tempFile.Name(), nil
 }
 
-// installToStorage installs a plugin to persistent storage
-func (pm *PluginManager) installToStorage(pl *Plugin, sourcePath string) (string, error) {
-	// Create install directory
-	persistentPath := getPersistentPath()
-	installDir := filepath.Join(persistentPath, pm.storagePrefix, "installed")
-
+// installToStorage stages the validated archive inside its transaction directory
+// and atomically renames it to the canonical path on the same filesystem.
+func (pm *PluginManager) installToStorage(pl *Plugin, sourcePath, txnDir string) (string, error) {
+	installDir := filepath.Join(getPersistentPath(), pm.storagePrefix, "installed")
 	if err := os.MkdirAll(installDir, 0755); err != nil {
 		return "", err
 	}
 
-	// Create destination filename
-	destFilename := fmt.Sprintf("%s.zip", pl.FQID)
-	destPath := filepath.Join(installDir, destFilename)
-
-	// Copy file
-	if err := copyFile(sourcePath, destPath); err != nil {
+	destPath := filepath.Join(installDir, fmt.Sprintf("%s.zip", pl.FQID))
+	staged, err := os.CreateTemp(txnDir, ".staged-*.zip")
+	if err != nil {
 		return "", err
 	}
-
+	stagedPath := staged.Name()
+	if err := staged.Close(); err != nil {
+		_ = os.Remove(stagedPath)
+		return "", err
+	}
+	defer os.Remove(stagedPath)
+	if err := copyFile(sourcePath, stagedPath); err != nil {
+		return "", err
+	}
+	if err := os.Chmod(stagedPath, 0644); err != nil {
+		return "", err
+	}
+	file, err := os.OpenFile(stagedPath, os.O_RDWR, 0)
+	if err != nil {
+		return "", err
+	}
+	syncErr := file.Sync()
+	closeErr := file.Close()
+	if syncErr != nil {
+		return "", syncErr
+	}
+	if closeErr != nil {
+		return "", closeErr
+	}
+	ctrl, err := pm.readPluginControlFromZip(stagedPath)
+	if err != nil {
+		return "", fmt.Errorf("staged plugin archive is invalid: %w", err)
+	}
+	if ctrl.ID != pluginIDFromArchiveFilename(filepath.Base(destPath)) {
+		return "", fmt.Errorf("staged plugin ID %q does not match target %q",
+			ctrl.ID, filepath.Base(destPath))
+	}
+	if err := os.Rename(stagedPath, destPath); err != nil {
+		return "", err
+	}
+	if err := syncInstallDirectory(txnDir); err != nil {
+		return "", err
+	}
 	return destPath, nil
+}
+
+func pluginIDFromArchiveFilename(filename string) string {
+	name := strings.TrimSuffix(filepath.Base(filename), ".zip")
+	if id, _, ok := strings.Cut(name, "@"); ok {
+		return id
+	}
+	return name
+}
+
+// Go extension: recover the prior valid archive whenever an unfinished
+// replacement leaves its backup directory behind. A successful replacement
+// removes that directory only after the new plugin has loaded.
+func (pm *PluginManager) recoverInterruptedPluginInstalls(installDir string) error {
+	entries, err := os.ReadDir(installDir)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return nil
+		}
+		return err
+	}
+	var recoveryErrors []error
+	recordErr := func(err error) {
+		recoveryErrors = append(recoveryErrors, err)
+	}
+	for _, entry := range entries {
+		path := filepath.Join(installDir, entry.Name())
+		if entry.IsDir() && strings.HasPrefix(entry.Name(), pluginInstallTransactionPrefix) {
+			if err := pm.recoverPluginInstallTransaction(installDir, path); err != nil {
+				metaBytes, _ := os.ReadFile(filepath.Join(path, pluginInstallTransactionMeta))
+				var meta pluginInstallTransaction
+				_ = json.Unmarshal(metaBytes, &meta)
+				fqid := strings.TrimSuffix(meta.Target, ".zip")
+				recordErr(&PluginRecoveryError{Path: path, FQID: fqid, Err: err})
+			}
+			continue
+		}
+		if strings.HasPrefix(entry.Name(), ".plugin-install-") && !entry.IsDir() &&
+			!isCanonicalPluginArchiveFilename(entry.Name()) {
+			if err := os.Remove(path); err != nil && !os.IsNotExist(err) {
+				recordErr(fmt.Errorf("remove stale plugin staging file %s: %w", path, err))
+			}
+			continue
+		}
+		if !entry.IsDir() || !strings.HasPrefix(entry.Name(), ".plugin-backup-") {
+			continue
+		}
+		backupEntries, err := os.ReadDir(path)
+		if err != nil {
+			recordErr(fmt.Errorf("inspect plugin backup %s: %w", path, err))
+			continue
+		}
+		var backupPath string
+		for _, backup := range backupEntries {
+			if !backup.IsDir() && strings.HasSuffix(backup.Name(), ".zip") {
+				backupPath = filepath.Join(path, backup.Name())
+				break
+			}
+		}
+		if backupPath == "" {
+			if len(backupEntries) == 0 {
+				if err := pm.removeInstallDirectory(path); err != nil {
+					recordErr(fmt.Errorf("remove empty plugin backup %s: %w", path, err))
+				}
+			}
+			continue
+		}
+		installedPath := filepath.Join(installDir, filepath.Base(backupPath))
+		current, currentErr := pm.readPluginControlFromZip(installedPath)
+		currentValid := currentErr == nil &&
+			current.ID == pluginIDFromArchiveFilename(filepath.Base(installedPath))
+		if currentValid {
+			if err := pm.removeInstallDirectory(path); err != nil {
+				recordErr(fmt.Errorf("remove stale plugin backup %s: %w", path, err))
+			}
+			continue
+		}
+
+		backup, err := pm.readPluginControlFromZip(backupPath)
+		if err != nil || backup.ID != pluginIDFromArchiveFilename(filepath.Base(backupPath)) {
+			if err == nil {
+				err = fmt.Errorf("manifest ID %q does not match backup filename", backup.ID)
+			}
+			recordErr(fmt.Errorf("reject invalid plugin backup %s: %w", backupPath, err))
+			continue
+		}
+		if err := os.Remove(installedPath); err != nil && !os.IsNotExist(err) {
+			recordErr(fmt.Errorf("remove interrupted plugin archive %s: %w", installedPath, err))
+			continue
+		}
+		if err := os.Rename(backupPath, installedPath); err != nil {
+			recordErr(fmt.Errorf("restore plugin backup %s: %w", backupPath, err))
+			continue
+		}
+		if err := syncInstallDirectory(installDir); err != nil {
+			recordErr(fmt.Errorf("sync restored plugin archive %s: %w", installedPath, err))
+			continue
+		}
+		if err := pm.removeInstallDirectory(path); err != nil {
+			recordErr(fmt.Errorf("remove recovered plugin backup %s: %w", path, err))
+		}
+	}
+	var combined error
+	for _, recoveryErr := range recoveryErrors {
+		combined = errorsJoin(combined, recoveryErr)
+	}
+	return combined
 }
 
 // removeFromStorage removes a plugin from persistent storage
@@ -529,7 +803,8 @@ func (pm *PluginManager) SetPluginAutoUpgrade(fqid string, autoUpgrade bool) err
 func (pm *PluginManager) readPluginControlFromZip(zipfile string) (PluginControl, error) {
 	zipPath, err := resolveZipPath(zipfile)
 	if err != nil {
-		return PluginControl{}, fmt.Errorf("Unable to open %s -- Not a valid plugin archive", zipfile)
+		return PluginControl{}, fmt.Errorf("Unable to open %s -- Not a valid plugin archive: %w",
+			zipfile, err)
 	}
 
 	pluginJSONPath := fmt.Sprintf("%s/plugin.json", zipPath)

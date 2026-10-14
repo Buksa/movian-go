@@ -209,6 +209,26 @@ HTTP Control uses plain HTTP; limit access to the port to the intended
 clients.
 
 Successful installs are saved under `mrp/installed` and loaded immediately.
+The shared package-download path enforces a 64 MiB limit for every package
+source read through fileaccess, including repository, URL, and local-updater
+packages. HTTP ZIP uploads additionally have the HTTP server's 16 MiB
+request-body limit.
+
+Replacement writes a transaction journal beside the installed archive. The
+transaction is marked committed only after the replacement has loaded. Startup
+keeps a valid committed archive and retries transaction cleanup; before commit,
+it restores a valid prior archive when one exists, or removes an incomplete
+first install. Recovery reports errors while continuing to load other healthy
+plugins. These guarantees cover process interruption and use file syncs for
+archive/journal updates; directory syncing is best-effort on platforms that do
+not support it, so this is not a universal power-loss durability guarantee.
+Legacy backup recovery preserves a valid canonical archive rather than
+overwriting it with an older backup. If a replacing transaction's backup
+cannot be inspected, startup leaves its journal in place for a later retry.
+For each FQID, concurrent load/install/remove operations return a busy error;
+an unload requested during an active lifecycle transition is applied when that
+transition completes. Operations for other FQIDs can proceed independently.
+
 GET without installation parameters displays the page. POST without an
 installation source, or with an empty ZIP upload, returns HTTP 400.
 Download, archive validation, installation, and load failures return HTTP
