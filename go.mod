@@ -1,6 +1,6 @@
 module github.com/czz/movian-go
 
-go 1.26.6
+go 1.26.9
 
 require (
 	github.com/dop251/goja v0.0.0-20260618133527-c9b2ea77db59
@@ -8,8 +8,9 @@ require (
 	github.com/grandcat/zeroconf v1.0.0
 	github.com/iyear/gowidevine v0.1.2
 	github.com/quic-go/quic-go v0.62.0
-	golang.org/x/net v0.56.0
+	golang.org/x/net v0.60.0
 	golang.org/x/sys v0.48.0
+	golang.org/x/text v0.42.0
 	google.golang.org/protobuf v1.35.1
 	modernc.org/libc v1.77.1
 	modernc.org/sqlite v1.60.1
@@ -30,8 +31,7 @@ require (
 	github.com/ncruces/go-strftime v1.0.0 // indirect
 	github.com/quic-go/qpack v0.6.0 // indirect
 	github.com/remyoudompheng/bigfft v0.0.0-20230129092748-24d4a6f8daec // indirect
-	golang.org/x/crypto v0.54.0 // indirect
-	golang.org/x/text v0.40.0 // indirect
+	golang.org/x/crypto v0.57.0 // indirect
 	modernc.org/mathutil v1.7.1 // indirect
 	modernc.org/memory v1.12.1 // indirect
 )
