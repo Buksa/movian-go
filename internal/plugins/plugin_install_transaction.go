@@ -9,6 +9,9 @@ import (
 	"strings"
 )
 
+// Install journal phases: P is persisted before target mutation; R marks an
+// in-progress replacement (restore a valid backup or remove a first-install
+// target); C records successful loading and lets recovery keep a valid archive.
 const (
 	pluginInstallTransactionPrefix = ".plugin-txn-"
 	pluginInstallTransactionPhase  = "phase"
@@ -18,19 +21,22 @@ const (
 	pluginInstallCommitted         = byte('C')
 )
 
+// pluginInstallTransaction records the journal version, target filename, and
+// whether a prior archive existed.
 type pluginInstallTransaction struct {
 	Version   int    `json:"version"`
 	Target    string `json:"target"`
 	HadBackup bool   `json:"had_backup"`
 }
 
-// PluginRecoveryError identifies the transaction or archive that failed recovery.
+// PluginRecoveryError identifies one failed recovery item and unwraps its cause.
 type PluginRecoveryError struct {
 	Path string
 	FQID string
 	Err  error
 }
 
+// Error formats the recovery failure with its FQID, when available.
 func (e *PluginRecoveryError) Error() string {
 	if e.FQID != "" {
 		return fmt.Sprintf("recover plugin %s at %s: %v", e.FQID, e.Path, e.Err)
@@ -38,11 +44,12 @@ func (e *PluginRecoveryError) Error() string {
 	return fmt.Sprintf("recover plugin install at %s: %v", e.Path, e.Err)
 }
 
+// Unwrap returns the underlying recovery cause.
 func (e *PluginRecoveryError) Unwrap() error { return e.Err }
 
-// createPluginInstallTransaction persists rollback identity before touching the
-// installed archive. The phase file is created once and later updated in place,
-// avoiding destination-replacement rename semantics on Windows.
+// createPluginInstallTransaction records target identity and P before touching the
+// installed ZIP. It syncs journal files and attempts directory syncs, then updates
+// the phase file in place to avoid destination-replacement renames on Windows.
 func createPluginInstallTransaction(installDir, target string, hadBackup bool) (string, error) {
 	txnDir, err := os.MkdirTemp(installDir, pluginInstallTransactionPrefix+"*")
 	if err != nil {
@@ -78,6 +85,7 @@ func createPluginInstallTransaction(installDir, target string, hadBackup bool) (
 	return txnDir, nil
 }
 
+// writeSyncedNewFile creates a journal file exclusively and syncs its contents.
 func writeSyncedNewFile(path string, data []byte) error {
 	file, err := os.OpenFile(path, os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0600)
 	if err != nil {
@@ -95,6 +103,8 @@ func writeSyncedNewFile(path string, data []byte) error {
 	return closeErr
 }
 
+// writePluginInstallPhase updates the one-byte journal in place and syncs it
+// before the caller advances archive mutation or treats installation as committed.
 func writePluginInstallPhase(txnDir string, phase byte) error {
 	file, err := os.OpenFile(filepath.Join(txnDir, pluginInstallTransactionPhase), os.O_WRONLY, 0)
 	if err != nil {
@@ -115,6 +125,9 @@ func writePluginInstallPhase(txnDir string, phase byte) error {
 	return closeErr
 }
 
+// Go extension: interpret P/R/C journal states during startup. On unreadable
+// metadata/phase or failed restoration, return an error without clearing the
+// journal; the caller reports failures and continues with other entries.
 func (pm *PluginManager) recoverPluginInstallTransaction(installDir, txnDir string) error {
 	metaBytes, err := os.ReadFile(filepath.Join(txnDir, pluginInstallTransactionMeta))
 	if err != nil {
@@ -232,6 +245,7 @@ func (pm *PluginManager) recoverPluginInstallTransaction(installDir, txnDir stri
 	return pm.removeRecoveredTransaction(txnDir)
 }
 
+// pluginArchiveMatchesID reports whether the ZIP manifest ID matches pluginID.
 func (pm *PluginManager) pluginArchiveMatchesID(path, pluginID string) (bool, error) {
 	ctrl, err := pm.readPluginControlFromZip(path)
 	if err != nil {
@@ -243,6 +257,7 @@ func (pm *PluginManager) pluginArchiveMatchesID(path, pluginID string) (bool, er
 	return true, nil
 }
 
+// removeRecoveredTransaction deletes the journal directory and wraps cleanup errors.
 func (pm *PluginManager) removeRecoveredTransaction(txnDir string) error {
 	if err := pm.removeInstallDirectory(txnDir); err != nil {
 		return fmt.Errorf("remove recovered plugin transaction %s: %w", txnDir, err)
@@ -250,9 +265,12 @@ func (pm *PluginManager) removeRecoveredTransaction(txnDir string) error {
 	return nil
 }
 
+// errorsJoin preserves both causes for errors.Is and errors.As callers.
 func errorsJoin(first, second error) error {
 	return errors.Join(first, second)
 }
+
+// isCanonicalPluginArchiveFilename requires a .zip suffix, nonempty ID, and '@' separator.
 func isCanonicalPluginArchiveFilename(filename string) bool {
 	if !strings.HasSuffix(filename, ".zip") {
 		return false

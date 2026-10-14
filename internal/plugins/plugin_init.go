@@ -128,6 +128,7 @@ func ReloadDevPlugin(ctx context.Context, pm *PluginManager) error {
 		pl := pm.findPluginLocked(devPlugin)
 		loaded := pl != nil && pl.Loaded
 		pm.mu.RUnlock()
+		// Release pm.mu before LoadPlugin; it reacquires the lock and lifecycle gate.
 		if loaded {
 			if err := pm.LoadPlugin(devPlugin, "dev", PluginLoadForce|PluginLoadDebug); err != nil {
 				pm.ts.Error("plugins", "Failed to reload dev plugin %s: %v\n", devPlugin, err)
