@@ -11,6 +11,7 @@ import (
 	"compress/gzip"
 	"context"
 	"encoding/xml"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -122,6 +123,7 @@ func pickText(ts []xtvText) string {
 // ParseXMLTV — streaming parse; programmes for channels whose
 // normalized display-name (or channel id) fails the keep filter are
 // skipped, bounding memory for curated feeds.
+// Go: wrapped io.EOF is normal end-of-stream; XML syntax errors still propagate.
 func ParseXMLTV(r io.Reader, keepFn func(normName string) bool) (*Guide, error) {
 	g := &Guide{
 		progs: make(map[string][]Event),
@@ -135,7 +137,7 @@ func ParseXMLTV(r io.Reader, keepFn func(normName string) bool) (*Guide, error) 
 	dec := xml.NewDecoder(br)
 	for {
 		tok, err := dec.Token()
-		if err == io.EOF {
+		if errors.Is(err, io.EOF) {
 			break
 		}
 		if err != nil {

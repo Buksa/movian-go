@@ -374,7 +374,6 @@ func (i *I18N) nlsSetup(parent *propcore.Prop) {
 		settings.SettingTagStore, "i18n", "skipthe",
 		settings.SettingTagWriteInt, &i.gcfg().IgnoreThePrefix,
 	)
-
 }
 
 // langsToOptionList converts language list to option list

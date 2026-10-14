@@ -271,7 +271,6 @@ func (s *Scanner) applyLCN(sec *Section, tsid uint16, bySID map[uint16]*Channel)
 // Cancellable via ctx.
 func (s *Scanner) Scan(ctx context.Context, plan []TuneParams,
 	progressCb func(done, total, found int)) ([]*Channel, error) {
-
 	var all []*Channel
 	for i, tp := range plan {
 		select {
