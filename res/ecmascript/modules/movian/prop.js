@@ -61,7 +61,7 @@ var propHandler = {
         return true;
       }
 
-      var x = np.getChild(obj, name);
+      var x = np.getChild(obj, propIndexKey(name));
       if(typeof x !== 'object')
         throw "Assignment to non directory prop";
 
