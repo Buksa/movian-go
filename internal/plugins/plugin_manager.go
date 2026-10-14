@@ -103,6 +103,11 @@ type Plugin struct {
 	// Optional unload callback invoked when the plugin is unloaded
 	Unload func(*Plugin)
 
+	// rollbackArchivePath owns a downloaded ZIP while a restored plugin may
+	// lazily read its archived files. Lifecycle fields are guarded by pm.mu.
+	rollbackArchivePath string
+	lifecycleActive     bool
+	unloadRequested     bool
 	// Views associated with this plugin
 	Views []*PluginViewEntry
 
@@ -231,20 +236,20 @@ type PluginManager struct {
 	gconf *gconf.T // C: gconf_t — injected
 	mu    sync.RWMutex
 
-	// installMu serializes archive replacement and plugin loading. The
-	// plugin loader intentionally releases mu while executing plugin code,
-	// so mu alone does not make an install transaction atomic.
-	installMu sync.Mutex
+	// removeInstallDir is the narrow filesystem seam for deterministic
+	// transaction cleanup-failure tests; nil uses os.RemoveAll.
+	removeInstallDir func(string) error
 
 	ts *trace.TraceSystem // C: trace() global — injected
 
-	usage    *usage.Reporter                    // C: usage_event global (usage.c)
-	notifMgr *notifications.NotificationManager // C: notify_add global
-	store    *htsmsg.Store                      // C: global htsmsg_store
-
-	plugins []*Plugin
-	repos   []*PluginRepo
-	views   []*PluginView
+	usage              *usage.Reporter                    // C: usage_event global (usage.c)
+	notifMgr           *notifications.NotificationManager // C: notify_add global
+	store              *htsmsg.Store                      // C: global htsmsg_store
+	plugins            []*Plugin
+	repos              []*PluginRepo
+	views              []*PluginView
+	startupLoading     bool
+	beforeESPluginLoad func(*Plugin)
 
 	// C: plugin_mutex (plugins.c:62) — guards plugin_views/pv_entries and
 	// is the PROP_TAG_MUTEX of the view multiopt subscriptions.

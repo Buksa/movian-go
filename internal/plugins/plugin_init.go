@@ -124,11 +124,11 @@ func ReloadDevPlugin(ctx context.Context, pm *PluginManager) error {
 	}
 
 	for _, devPlugin := range pm.devPlugins {
-		pl := pm.FindPlugin(devPlugin)
-		if pl != nil && pl.Loaded {
-			if pl.Unload != nil {
-				pl.Unload(pl)
-			}
+		pm.mu.RLock()
+		pl := pm.findPluginLocked(devPlugin)
+		loaded := pl != nil && pl.Loaded
+		pm.mu.RUnlock()
+		if loaded {
 			if err := pm.LoadPlugin(devPlugin, "dev", PluginLoadForce|PluginLoadDebug); err != nil {
 				pm.ts.Error("plugins", "Failed to reload dev plugin %s: %v\n", devPlugin, err)
 			} else {
