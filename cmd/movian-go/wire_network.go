@@ -1,8 +1,10 @@
 package main
 
 import (
+	"bytes"
 	"context"
 	"path/filepath"
+	"runtime/pprof"
 	"time"
 
 	"github.com/czz/movian-go/internal/nls"
@@ -365,6 +367,16 @@ func wireNetwork(ctx *appContext, gc *gconf.T) {
 
 	// C: httpcontrol_init (httpcontrol.c:678-695) — register all canonical HTTP endpoints
 	hcHandler.Register(ctx.httpServer)
+
+	// Go-only: /api/debug/goroutines dumps every goroutine stack —
+	// the only way to inspect a stalled pipeline on non-debuggable
+	// Android builds where neither SIGQUIT nor debuggerd work.
+	ctx.httpServer.HTTPPathAdd("/api/debug/goroutines", nil,
+		func(hc *httpnet.HTTPConnection, remain string, opaque any, method httpnet.HTTPCmd) int {
+			var buf bytes.Buffer
+			pprof.Lookup("goroutine").WriteTo(&buf, 2)
+			return hc.HTTPSendReply(0, "text/plain", "", "", 0, buf.Bytes())
+		}, true)
 
 	// MPRIS2 D-Bus endpoint — documented extension (upstream C has no
 	// D-Bus support). Lets the DE route global media keys and show a
