@@ -28,6 +28,7 @@ func newArchiveRegressionPluginManager(t *testing.T) (*PluginManager, string) {
 	return newArchiveRegressionPluginManagerAt(t, t.TempDir())
 }
 
+// newArchiveRegressionPluginManagerAt creates a test manager rooted at dataDir.
 func newArchiveRegressionPluginManagerAt(t *testing.T, dataDir string) (*PluginManager, string) {
 	t.Helper()
 	pm := NewPluginManager(nil, nil, nil)

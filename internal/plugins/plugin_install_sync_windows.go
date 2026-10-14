@@ -8,6 +8,10 @@ import (
 	"golang.org/x/sys/windows"
 )
 
+// syncInstallDirectory flushes directory-entry changes when Windows supports
+// directory handles. Transaction files are synced separately, so successful
+// directory flushes still cannot promise power-loss durability on every
+// filesystem; unsupported directory flushes are best-effort.
 func syncInstallDirectory(path string) error {
 	name, err := windows.UTF16PtrFromString(path)
 	if err != nil {

@@ -103,8 +103,8 @@ type Plugin struct {
 	// Optional unload callback invoked when the plugin is unloaded
 	Unload func(*Plugin)
 
-	// rollbackArchivePath owns a downloaded ZIP while a restored plugin may
-	// lazily read its archived files. Lifecycle fields are guarded by pm.mu.
+	// rollbackArchivePath owns a cached ZIP while a restored, non-installed plugin
+	// may lazily read it. Lifecycle fields are protected by pm.mu.
 	rollbackArchivePath string
 	lifecycleActive     bool
 	unloadRequested     bool
@@ -231,7 +231,8 @@ type BlacklistEntry struct {
 	Version int
 }
 
-// PluginManager hosts the plugin lifecycle, repositories and GLW views.
+// PluginManager hosts the plugin lifecycle, repositories and GLW views. Lifecycle
+// state, including startupLoading, is protected by pm.mu.
 type PluginManager struct {
 	gconf *gconf.T // C: gconf_t — injected
 	mu    sync.RWMutex

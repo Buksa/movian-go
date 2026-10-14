@@ -34,12 +34,15 @@ func (pm *PluginManager) LoadPlugin(url, origin string, flags PluginLoadFlags) e
 	return pm.loadPluginLocked(url, origin, flags)
 }
 
-// loadPluginLocked requires pm.mu; callers that already own a lifecycle gate
-// use loadPluginLockedMode with lifecycleOwned=true.
+// loadPluginLocked — C: plugin_load (plugins.c). Caller holds pm.mu.
+// Go: loadPluginLockedMode keeps a per-plugin lifecycle gate across callback
+// unlocks; pm.mu alone cannot serialize transitions while plugin code runs.
 func (pm *PluginManager) loadPluginLocked(url, origin string, flags PluginLoadFlags) error {
 	return pm.loadPluginLockedMode(url, origin, flags, false, false)
 }
 
+// loadPluginLockedMode requires pm.mu. lifecycleOwned requires the caller to own
+// the per-plugin gate; allowStartup permits internal loads during startupLoading.
 func (pm *PluginManager) loadPluginLockedMode(url, origin string, flags PluginLoadFlags, lifecycleOwned, allowStartup bool) error {
 	// Load plugin.json
 	ctrlFile := fmt.Sprintf("%s/plugin.json", url)
@@ -145,7 +148,9 @@ func (pm *PluginManager) loadPluginLockedMode(url, origin string, flags PluginLo
 	return nil
 }
 
-// unloadPluginInternal unloads a plugin while the caller holds pm.mu.
+// unloadPluginInternal requires pm.mu and drops/reacquires it around the unload
+// callback to permit reentrant manager calls. Lifecycle callers keep their gate
+// active while the callback runs.
 func (pm *PluginManager) unloadPluginInternal(pl *Plugin) {
 	if pl.Unload != nil {
 		unload := pl.Unload
@@ -160,6 +165,8 @@ func (pm *PluginManager) unloadPluginInternal(pl *Plugin) {
 	pm.cleanupRollbackArchiveLocked(pl)
 }
 
+// cleanupRollbackArchiveLocked requires pm.mu. On removal failure, it retains
+// the owned path so a later lifecycle cleanup can retry.
 func (pm *PluginManager) cleanupRollbackArchiveLocked(pl *Plugin) {
 	if pl.rollbackArchivePath == "" {
 		return
@@ -174,8 +181,8 @@ func (pm *PluginManager) cleanupRollbackArchiveLocked(pl *Plugin) {
 	pl.rollbackArchivePath = ""
 }
 
-// UnloadPlugin unloads immediately unless another lifecycle transition owns the
-// plugin; in that case the unload is applied when that transition settles.
+// UnloadPlugin unloads immediately unless startup or another lifecycle transition
+// is active; reentrant requests are applied when that operation or startup ends.
 func (pm *PluginManager) UnloadPlugin(pl *Plugin) {
 	pm.mu.Lock()
 	defer pm.mu.Unlock()
@@ -192,7 +199,8 @@ func (pm *PluginManager) UnloadPlugin(pl *Plugin) {
 	pm.UpdateState(pl)
 }
 
-// loadECMAScriptPlugin loads an ECMAScript plugin
+// loadECMAScriptPlugin loads an ECMAScript plugin. Caller holds pm.mu; it drops
+// the lock while running hooks/plugin code, with the lifecycle gate still active.
 func (pm *PluginManager) loadECMAScriptPlugin(pl *Plugin, url string, ctrl *PluginControl, flags PluginLoadFlags) error {
 	if ctrl.File == "" {
 		return &LoadError{Message: "Missing \"file\" element in control file"}
@@ -333,7 +341,9 @@ func (pm *PluginManager) unloadPluginViews(pl *Plugin) {
 	pl.Views = nil
 }
 
-// LoadInstalledPlugins loads every usable installed plugin and joins recovery/load errors.
+// LoadInstalledPlugins recovers and loads archives while startupLoading blocks
+// competing lifecycle operations; unload requests are deferred until startup ends.
+// It returns joined recovery/load failures while continuing with other archives.
 func (pm *PluginManager) LoadInstalledPlugins(persistentPath string) error {
 	pm.mu.Lock()
 	if pm.startupLoading {

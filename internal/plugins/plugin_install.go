@@ -16,11 +16,13 @@ import (
 	fileaccesscore "github.com/czz/movian-go/internal/fileaccess"
 )
 
-// InstallPlugin installs a plugin
-// C: plugin_install (plugins.c).
-// ErrPluginLifecycleBusy reports that another lifecycle transition already owns this FQID.
+// ErrPluginLifecycleBusy is returned when a lifecycle operation conflicts with
+// an active transition for the same plugin or with startup loading.
 var ErrPluginLifecycleBusy = errors.New("plugin lifecycle operation already in progress")
 
+// beginPluginLifecycleLocked requires pm.mu and claims pl's per-FQID lifecycle
+// gate. Keep the gate through finishPluginLifecycleLocked, including while pm.mu
+// is dropped for I/O or callbacks; allowStartup is reserved for startup loading.
 func (pm *PluginManager) beginPluginLifecycleLocked(pl *Plugin, allowStartup bool) error {
 	if pl.lifecycleActive || (pm.startupLoading && !allowStartup) {
 		return fmt.Errorf("%w: %s", ErrPluginLifecycleBusy, pl.FQID)
@@ -29,6 +31,8 @@ func (pm *PluginManager) beginPluginLifecycleLocked(pl *Plugin, allowStartup boo
 	return nil
 }
 
+// finishPluginLifecycleLocked requires pm.mu and applies deferred unloads before
+// releasing the lifecycle gate.
 func (pm *PluginManager) finishPluginLifecycleLocked(pl *Plugin) {
 	defer func() {
 		pl.lifecycleActive = false
@@ -44,7 +48,10 @@ func (pm *PluginManager) finishPluginLifecycleLocked(pl *Plugin) {
 	}
 }
 
-// InstallPlugin downloads outside pm.mu and commits under the per-FQID state gate.
+// InstallPlugin — C: plugin_install (plugins.c).
+// Go: holds a per-FQID lifecycle gate across fileaccess I/O outside pm.mu, then
+// commits archive/runtime state under pm.mu. The gate stays active if callbacks
+// reenter manager APIs; conflicting operations return busy or defer unload.
 func (pm *PluginManager) InstallPlugin(pl *Plugin, packageURL string) error {
 	pm.mu.Lock()
 	source := "Repo"
@@ -86,6 +93,7 @@ func (pm *PluginManager) InstallPlugin(pl *Plugin, packageURL string) error {
 		if err != nil {
 			return fmt.Errorf("Failed to prepare rollback plugin: %w", err)
 		}
+		// Delete the downloaded rollback ZIP unless rollback transfers it to the plugin.
 		defer func() {
 			pm.mu.Lock()
 			owned := pl.rollbackArchivePath
@@ -99,6 +107,7 @@ func (pm *PluginManager) InstallPlugin(pl *Plugin, packageURL string) error {
 	return pm.installPluginFromDownloadedArchive(pl, tempPath, previous)
 }
 
+// findPluginLocked returns the record for fqid; caller must hold pm.mu.
 func (pm *PluginManager) findPluginLocked(fqid string) *Plugin {
 	for _, candidate := range pm.plugins {
 		if candidate.FQID == fqid {
@@ -108,8 +117,9 @@ func (pm *PluginManager) findPluginLocked(fqid string) *Plugin {
 	return nil
 }
 
-// Go extension: replacement rollback preserves the metadata and runtime flags
-// that this installer changes; the previous archive is backed up separately.
+// Go extension: snapshot the metadata/runtime fields this installer changes.
+// rollbackArchivePath carries a downloaded ZIP until ownership transfers to a
+// restored plugin or cleanup discards it.
 type pluginInstallState struct {
 	selectedViews       []pluginSelectedView
 	packageURL          string
@@ -120,6 +130,7 @@ type pluginInstallState struct {
 	rollbackArchivePath string
 }
 
+// pluginSelectedView identifies a selected view across plugin unload and reload.
 type pluginSelectedView struct {
 	uiType   string
 	class    string
@@ -162,6 +173,7 @@ func (pm *PluginManager) restoreSelectedPluginViewsLocked(pl *Plugin, selected [
 	}
 }
 
+// snapshotPluginInstallState requires pm.mu and captures fields restored on failure.
 func snapshotPluginInstallState(pl *Plugin) pluginInstallState {
 	return pluginInstallState{
 		packageURL:          pl.Package,
@@ -173,6 +185,8 @@ func snapshotPluginInstallState(pl *Plugin) pluginInstallState {
 	}
 }
 
+// restorePluginInstallStateLocked requires pm.mu, restores an install snapshot,
+// and recalculates the plugin's exposed status.
 func (pm *PluginManager) restorePluginInstallStateLocked(pl *Plugin, state pluginInstallState) {
 	pl.Package = state.packageURL
 	pl.Title = state.title
@@ -216,6 +230,7 @@ func (pm *PluginManager) InstallPluginFromArchive(archive io.Reader) error {
 	return pm.installPluginFromArchive(tempFile.Name(), "")
 }
 
+// Validate before taking pm.mu, then hold the lifecycle gate through installation.
 func (pm *PluginManager) installPluginFromArchive(tempPath, packageURL string) error {
 	ctrl, err := pm.readPluginControlFromZip(tempPath)
 	if err != nil {
@@ -233,6 +248,8 @@ func (pm *PluginManager) installPluginFromArchive(tempPath, packageURL string) e
 	return pm.installPluginFromDownloadedArchiveLocked(pl, tempPath, previous)
 }
 
+// Caller owns pl's lifecycle gate. Validate outside pm.mu, then recheck plugin
+// identity and lifecycle state under the lock before entering the transaction.
 func (pm *PluginManager) installPluginFromDownloadedArchive(pl *Plugin, tempPath string, previous pluginInstallState) error {
 	ctrl, err := pm.readPluginControlFromZip(tempPath)
 	if err != nil {
@@ -252,9 +269,8 @@ func (pm *PluginManager) installPluginFromDownloadedArchive(pl *Plugin, tempPath
 	return pm.installPluginFromDownloadedArchiveLocked(pl, tempPath, previous)
 }
 
-// C: plugin_install (plugins.c) unloads, writes installed/<fqid>.zip, then loads
-// with installed flags. Go extension: pm.mu also covers archive backup/rollback
-// so failed replacements can restore the previous archive and loaded runtime.
+// Go extension: Caller holds pm.mu and pl's lifecycle gate. Plugin load/unload
+// callbacks may release pm.mu, but the gate remains active through commit/rollback.
 func (pm *PluginManager) installPluginFromDownloadedArchiveLocked(pl *Plugin, tempPath string, previous pluginInstallState) error {
 	if _, err := resolveZipPath(tempPath); err != nil {
 		pm.restorePluginInstallStateLocked(pl, previous)
@@ -346,8 +362,9 @@ func (pm *PluginManager) installPluginFromDownloadedArchiveLocked(pl *Plugin, te
 	return nil
 }
 
-// Go extension: restore both the persisted package and its runtime after failure;
-// if restoration fails, report it rather than claiming the old plugin is loaded.
+// Go extension: Caller holds pm.mu and pl's lifecycle gate. Restore the archive
+// before reloading prior runtime state; transfer a downloaded rollback ZIP to a
+// restored non-installed plugin only while it needs lazy archive reads.
 func (pm *PluginManager) rollbackPluginInstallLocked(pl *Plugin, previous pluginInstallState, installedPath, txnDir, backupPath string, hadBackup bool, cause error) error {
 	if err := writePluginInstallPhase(txnDir, pluginInstallReplacing); err != nil {
 		if cause == nil {
@@ -455,7 +472,7 @@ func (pm *PluginManager) rollbackPluginInstallLocked(pl *Plugin, previous plugin
 	return cause
 }
 
-// RemovePlugin removes an installed plugin.
+// RemovePlugin removes an installed plugin under the per-plugin lifecycle gate.
 func (pm *PluginManager) RemovePlugin(pl *Plugin) error {
 	pm.mu.Lock()
 	defer pm.mu.Unlock()
@@ -480,6 +497,7 @@ func (pm *PluginManager) RemovePlugin(pl *Plugin) error {
 	return nil
 }
 
+// removeInstallDirectory uses the test cleanup hook if set, otherwise os.RemoveAll.
 func (pm *PluginManager) removeInstallDirectory(path string) error {
 	if pm.removeInstallDir != nil {
 		return pm.removeInstallDir(path)
@@ -491,6 +509,8 @@ func (pm *PluginManager) createPluginArchiveFile() (*os.File, error) {
 	return pm.createPluginArchiveFileWithPattern("plugin-*.zip")
 }
 
+// createPluginArchiveFileWithPattern creates a temporary file in the configured
+// cache path, falling back to persistent storage.
 func (pm *PluginManager) createPluginArchiveFileWithPattern(pattern string) (*os.File, error) {
 	// os.TempDir() may not exist on Android; use the configured cache directory.
 	dir := pm.gcfg().CachePath
@@ -524,6 +544,8 @@ func (pm *PluginManager) downloadPlugin(packageURL string) (string, error) {
 	return pm.downloadPluginWithPattern(packageURL, "plugin-*.zip")
 }
 
+// downloadPluginWithPattern returns a temporary ZIP owned by the caller; failed
+// downloads remove their partial file.
 func (pm *PluginManager) downloadPluginWithPattern(packageURL, pattern string) (string, error) {
 	tempFile, err := pm.createPluginArchiveFileWithPattern(pattern)
 	if err != nil {
@@ -553,8 +575,8 @@ func (pm *PluginManager) downloadPluginWithPattern(packageURL, pattern string) (
 	return tempFile.Name(), nil
 }
 
-// installToStorage stages the validated archive inside its transaction directory
-// and atomically renames it to the canonical path on the same filesystem.
+// installToStorage stages, syncs, and validates the archive in txnDir before
+// atomically renaming it to the canonical path on the same filesystem.
 func (pm *PluginManager) installToStorage(pl *Plugin, sourcePath, txnDir string) (string, error) {
 	installDir := filepath.Join(getPersistentPath(), pm.storagePrefix, "installed")
 	if err := os.MkdirAll(installDir, 0755); err != nil {
@@ -607,6 +629,8 @@ func (pm *PluginManager) installToStorage(pl *Plugin, sourcePath, txnDir string)
 	return destPath, nil
 }
 
+// pluginIDFromArchiveFilename strips .zip and returns the basename prefix before
+// @; without @, it returns the full filename stem.
 func pluginIDFromArchiveFilename(filename string) string {
 	name := strings.TrimSuffix(filepath.Base(filename), ".zip")
 	if id, _, ok := strings.Cut(name, "@"); ok {
@@ -615,9 +639,8 @@ func pluginIDFromArchiveFilename(filename string) string {
 	return name
 }
 
-// Go extension: recover the prior valid archive whenever an unfinished
-// replacement leaves its backup directory behind. A successful replacement
-// removes that directory only after the new plugin has loaded.
+// Go extension: replay transaction journals and legacy backups before loading
+// installed plugins. Inspect every entry and join recovery errors for startup.
 func (pm *PluginManager) recoverInterruptedPluginInstalls(installDir string) error {
 	entries, err := os.ReadDir(installDir)
 	if err != nil {
