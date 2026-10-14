@@ -541,7 +541,7 @@ func storeMetadata(vd *decoder.VideoDecoder, mb *mediacore.MediaBuf,
 	isBFrame := false
 	switch mc.CodecID {
 	case mediacore.CodecID(C.AV_CODEC_ID_MPEG4):
-		if mb.Size <= 7 {
+		if size <= 7 {
 			return 0
 		}
 		frameType := 0
@@ -614,12 +614,8 @@ func bsfFilter(avc *androidVideoCodec, data []byte, size int,
 // mb->mb_pkt->data/size; AVPacket-backed buffers carry the payload in
 // mb.Pkt while plain buffers use mb.Data/mb.Size.
 func mbData(mb *mediacore.MediaBuf) ([]byte, int) {
-	if mb.Pkt != nil {
-		if d := PacketData(mb.Pkt); len(d) > 0 {
-			return d, len(d)
-		}
-	}
-	return mb.Data, mb.Size
+	d := mb.Payload()
+	return d, len(d)
 }
 
 // androidCodecDecode — C: android_codec_decode
@@ -690,8 +686,19 @@ func androidCodecDecodeLocked(mc *mediacore.MediaCodec, vdI any,
 	defer runtime.UnlockOSThread()
 	mp := vd.MP
 
-	// C: drain one async output buffer first (android_video_codec.c:530-585)
-	if len(avc.asyncOutputBuffers) != 0 {
+	// C drains a single pending async output buffer per call
+	// (android_video_codec.c:528-585). The Go port keeps the same
+	// order, but must drain the whole list: sync.Cond.Signal is not a
+	// queue — signals delivered while the decoder is not parked in
+	// mq.Avail.Wait are lost. A burst of onOutputBufferAvailable
+	// (typical when the OMX does an adaptive output-port flush on a
+	// mid-stream resolution change) then leaves released-but-undrained
+	// buffers here forever: the codec runs out of output slots and
+	// stops posting onInputBufferAvailable, which freezes the whole
+	// pipe (decoder waits for input, video queue fills, demuxer
+	// parks, audio starves). Draining the full list each call keeps
+	// every codec buffer accounted for even when wakeups coalesce.
+	for len(avc.asyncOutputBuffers) != 0 {
 		buf := avc.asyncOutputBuffers[0]
 		avc.asyncOutputBuffers = avc.asyncOutputBuffers[1:]
 
@@ -714,8 +721,9 @@ func androidCodecDecodeLocked(mc *mediacore.MediaCodec, vdI any,
 		mp.ClockMutex.Unlock()
 
 		wt := fi.PTS + rtd
+		lead := wt - now
 
-		if epoch == int64(fi.Epoch) && (wt-now) > 10000 && skip == 0 {
+		if epoch == int64(fi.Epoch) && lead > 10000 && skip == 0 {
 			if avc.releaseOutputBufferTimed != nil {
 				C.ml_call_release_timed(env, C.jobject(avc.decoder),
 					avc.releaseOutputBufferTimed,
