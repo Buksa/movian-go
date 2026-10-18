@@ -395,6 +395,19 @@ type EventManager struct {
 	// It receives every event dispatched via Dispatch(). Used by E9 runtime
 	// tests to verify event propagation without modifying production code paths.
 	eventSinkTestHook func(e *Event)
+
+	// uiInjector is an optional hook registered by the GLW frontend
+	// (glwStart4). When set, EventToUI routes events through
+	// glwInjectEvent on the live root — the same sink real input uses —
+	// instead of resolving global.userinterfaces.ui.eventSink, which
+	// can point at a different prop than the GLW root's eventSink.
+	uiInjector func(e *Event)
+}
+
+// SetUIInjector registers the GLW-side event injection hook.
+// The hook takes ownership of the event (glwInjectEvent releases it).
+func (em *EventManager) SetUIInjector(fn func(e *Event)) {
+	em.uiInjector = fn
 }
 
 // NewEventManager creates a new event manager with default action mappings
@@ -1129,6 +1142,10 @@ func (em *EventManager) getOrCreatePropByPath(parent *propcore.Prop, names ...st
 //	prop_ref_dec(p);
 func (em *EventManager) EventToUI(e *Event) {
 	if em == nil || e == nil {
+		return
+	}
+	if em.uiInjector != nil {
+		em.uiInjector(e)
 		return
 	}
 	p := em.pm.GetByName([]string{"global", "userinterfaces", "ui", "eventSink"}, 1, nil, nil)

@@ -106,7 +106,19 @@ func (h *HTTPControlHandler) Action(hc *httpnet.HTTPConnection, remain string, o
 
 	if h.eventMgr != nil {
 		e := h.eventMgr.CreateActionStr(remain)
-		h.eventMgr.Dispatch(e)
+		if e.Type == event.EVENT_ACTION_VECTOR {
+			// Route action events through the UI sink like a real
+			// keypress (glwInjectEvent → ui.eventSink): the widget
+			// tree gets them first, unconsumed events fall back to
+			// the root handler which re-dispatches to the global,
+			// media and navigator sinks.
+			e.Flags |= event.EventKeypress
+			h.eventMgr.EventToUI(e)
+		} else {
+			// Dynamic actions and other event types keep the
+			// legacy dispatch path (global/nav/media sinks only).
+			h.eventMgr.Dispatch(e)
+		}
 	}
 	return 200
 }

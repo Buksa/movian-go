@@ -107,7 +107,20 @@ var glwDeps = struct {
 func SetPropManager(pm *propcore.PropManager) { glwDeps.pm = pm }
 
 // SetEventManager wires the global event manager seam (C: event_mgr).
-func SetEventManager(em *eventpkg.EventManager) { glwDeps.em = em }
+func SetEventManager(em *eventpkg.EventManager) {
+	glwDeps.em = em
+	// Route EventToUI through the same injection path as real input
+	// (glwInjectEvent → ui/eventSink on the live root). Resolving
+	// global.userinterfaces.ui.eventSink directly can land on a
+	// different node than the GLW root's eventSink.
+	em.SetUIInjector(func(e *eventpkg.Event) {
+		if gr := glwDeps.activeRoot; gr != nil {
+			glwInjectEvent(gr, e)
+		} else {
+			e.Release()
+		}
+	})
+}
 
 // SetKVStore wires the kvstore seam (C: global kvstore_* funcs).
 func SetKVStore(kvs *kvstore.KVStore) { glwDeps.kvstore = kvs }
