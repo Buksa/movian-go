@@ -167,10 +167,10 @@ func variantCreate(hd *hlsDemuxer) *hlsVariant {
 	return hv
 }
 
-func hvAddSegment(hv *hlsVariant, url string) *hlsSegment {
+func hvAddSegment(hv *hlsVariant, url, baseurl string) *hlsSegment {
 	hs := &hlsSegment{
 		TSOffset:   mediacore.PTSUnset,
-		URL:        misc.UrlResolveRelativeFromBase(hv.URL, url),
+		URL:        misc.UrlResolveRelativeFromBase(baseurl, url),
 		Variant:    hv,
 		ByteOffset: -1,
 		ByteSize:   -1,
@@ -254,10 +254,12 @@ func hlsVariantUpdate(hv *hlsVariant, mp *mediacore.MediaPipe) hlsError {
 	}
 	h := hv.Demuxer.HLS
 
+	var loc string
 	b, lerr := fileaccesscore.FALoad2(mp.FAM, hv.URL,
 		&fileaccesscore.FALoadArgs{
 			Flags:       fileaccesscore.FaCompression,
 			Cancellable: h.MP.Cancellable,
+			Location:    &loc,
 		})
 
 	if b == nil {
@@ -281,6 +283,15 @@ func hlsVariantUpdate(hv *hlsVariant, mp *mediacore.MediaPipe) hlsError {
 	}
 
 	hv.Loaded = time.Now().Unix()
+
+	// Relative segment/key URIs must resolve against the effective
+	// (post-redirect) playlist URL, not the request URL — Xtream-style
+	// providers redirect the m3u8 to a signed CDN host and 401
+	// segments fetched on the original host.
+	segBase := loc
+	if segBase == "" {
+		segBase = hv.URL
+	}
 
 	var duration float64
 	byteOffset := -1
@@ -306,7 +317,7 @@ func hlsVariantUpdate(hv *hlsVariant, mp *mediacore.MediaPipe) hlsError {
 		} else if v, ok := mystrbegins(line, "#EXT-X-TARGETDURATION"); ok {
 			hv.TargetDuration = misc.Atoi(v)
 		} else if v, ok := mystrbegins(line, "#EXT-X-KEY:"); ok {
-			hvParseKey(&hvp, hv.URL, v)
+			hvParseKey(&hvp, segBase, v)
 		} else if v, ok := mystrbegins(line, "#EXT-X-MEDIA-SEQUENCE:"); ok {
 			seq = misc.Atoi(v)
 			if firstSeq == -1 {
@@ -344,7 +355,7 @@ func hlsVariantUpdate(hv *hlsVariant, mp *mediacore.MediaPipe) hlsError {
 				if hv.FirstSeq == -1 {
 					hv.FirstSeq = seq
 				}
-				hs := hvAddSegment(hv, line)
+				hs := hvAddSegment(hv, line, segBase)
 				hs.ByteOffset = byteOffset
 				hs.ByteSize = byteSize
 				hs.TimeOffset = hv.Duration
