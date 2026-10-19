@@ -519,16 +519,18 @@ func (vd *VideoDecoder) decoderThread() {
 			mediacore.DvdspuDecodeClut(vd.dvdClut[:], bytesToU32(mb.Data, 16))
 
 		case mediacore.MBDVDSPU:
-			mediacore.DvdspuEnqueue(mp, mb.Data, mb.Size,
+			d := mb.Payload()
+			mediacore.DvdspuEnqueue(mp, d, len(d),
 				vd.dvdClut[:], 0, 0, mb.PTS)
 
 		case mediacore.MBCtrlDVDSPU2:
 			// C: clut at data[0:64], w/h at uint32[16]/[17],
 			// SPU packet at data+72.
-			clut := bytesToU32(mb.Data, 16)
-			w := int(binary.NativeEndian.Uint32(mb.Data[64:]))
-			h := int(binary.NativeEndian.Uint32(mb.Data[68:]))
-			mediacore.DvdspuEnqueue(mp, mb.Data[72:], mb.Size-72,
+			d := mb.Payload()
+			clut := bytesToU32(d, 16)
+			w := int(binary.NativeEndian.Uint32(d[64:]))
+			h := int(binary.NativeEndian.Uint32(d[68:]))
+			mediacore.DvdspuEnqueue(mp, d[72:], len(d)-72,
 				clut, w, h, mb.PTS)
 
 		case mediacore.MBSubtitle:

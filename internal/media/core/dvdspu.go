@@ -328,7 +328,8 @@ type dvdspuCodec struct {
 func dvdspuCodecDecode(mc *MediaCodec, vd any, mq *MediaQueue,
 	mb *MediaBuf, reqsize int) {
 	dc := mc.Opaque.(*dvdspuCodec)
-	DvdspuEnqueue(mc.MP, mb.Data, mb.Size, dc.clut[:], dc.w, dc.h, mb.PTS)
+	d := mb.Payload()
+	DvdspuEnqueue(mc.MP, d, len(d), dc.clut[:], dc.w, dc.h, mb.PTS)
 }
 
 // dvdspuCodecClose — C: dvdspu_codec_close

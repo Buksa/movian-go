@@ -87,9 +87,10 @@ func VideoSubtitlesLavc(mp *mediacore.MediaPipe, mb *mediacore.MediaBuf,
 	ctx *libav.AVCodecContext) {
 	var sub C.AVSubtitle
 
+	payload := mb.Payload()
 	var dataPtr unsafe.Pointer
-	if len(mb.Data) > 0 {
-		dataPtr = unsafe.Pointer(&mb.Data[0])
+	if len(payload) > 0 {
+		dataPtr = unsafe.Pointer(&payload[0])
 	}
 
 	// C enqueues a TIMED_FLUSH at mb_pts unconditionally before the
@@ -102,7 +103,7 @@ func VideoSubtitlesLavc(mp *mediacore.MediaPipe, mb *mediacore.MediaBuf,
 
 	cctx := (*C.AVCodecContext)(ctx.CPtr())
 	if C.ml_decode_subtitle(unsafe.Pointer(cctx), dataPtr,
-		C.int(len(mb.Data)), &sub) == 0 {
+		C.int(len(payload)), &sub) == 0 {
 		return
 	}
 	defer C.avsubtitle_free(&sub)

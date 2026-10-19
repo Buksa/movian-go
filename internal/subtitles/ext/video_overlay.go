@@ -76,17 +76,18 @@ func VideoOverlayDecode(mp *mediacore.MediaPipe, mb *mediacore.MediaBuf) {
 	mc := mb.Codec
 
 	if mc == nil {
+		payload := mb.Payload()
 		offset := 0
 		if mb.CodecID == mediacore.CodecIDMOVText {
-			if mb.Size < 2 {
+			if len(payload) < 2 {
 				return
 			}
 			offset = 2
 		}
-		if mb.Size-offset < 0 {
+		if len(payload)-offset < 0 {
 			return
 		}
-		str := string(mb.Data[offset : offset+mb.Size-offset])
+		str := string(payload[offset:])
 		// C copies to a NUL-terminated malloc'd buffer; Go string is fine.
 
 		var stop int64
