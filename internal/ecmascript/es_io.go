@@ -43,6 +43,9 @@ type esHTTPRequest struct {
 	ehrMinExpire int
 	ehrCache     int
 
+	ehrConnectTimeout int // C: (no equivalent) — ms, 0 = default
+	ehrReadTimeout    int // ms, 0 = no read timeout
+
 	ehrResult *misc.Buf
 
 	ehrErrbuf [512]byte
@@ -147,7 +150,7 @@ func esHTTPDoRequest(ehr *esHTTPRequest) {
 			postdata = ehr.ehrPostdata
 			postCT = ehr.ehrPostContentType
 		}
-		ehr.ehrError = esEnv.fam.HTTPReqv(ehr.ehrURL, []any{
+		args := []any{
 			facore.HTTPTagArgList, ehr.ehrHTTPArgs,
 			facore.HTTPTagResultPtr, esResultPtr(ehr),
 			facore.HTTPTagErrbuf, ehr.ehrErrbuf[:],
@@ -157,7 +160,16 @@ func esHTTPDoRequest(ehr *esHTTPRequest) {
 			facore.HTTPTagRequestHeaders, &ehr.ehrRequestHeaders,
 			facore.HTTPTagMethod, ehr.ehrMethod,
 			facore.HTTPTagResponseCode, &ehr.ehrHTTPStatus,
-		}, nil, nil)
+		}
+		if ehr.ehrConnectTimeout > 0 {
+			args = append(args, facore.HTTPTagConnectTimeout,
+				ehr.ehrConnectTimeout)
+		}
+		if ehr.ehrReadTimeout > 0 {
+			args = append(args, facore.HTTPTagReadTimeout,
+				ehr.ehrReadTimeout)
+		}
+		ehr.ehrError = esEnv.fam.HTTPReqv(ehr.ehrURL, args, nil, nil)
 
 		if ehr.ehrError != 0 {
 			ehr.ehrResult = nil
@@ -272,6 +284,8 @@ func esHTTPReq(ctx *gaftape.Context) int {
 
 	ehr.ehrHeadreq = EsPropIsTrue(ctx, 1, "headRequest")
 	ehr.ehrMinExpire = EsPropToInt(ctx, 1, "cacheTime", 0)
+	ehr.ehrConnectTimeout = EsPropToInt(ctx, 1, "connectTimeout", 0)
+	ehr.ehrReadTimeout = EsPropToInt(ctx, 1, "readTimeout", 0)
 	if EsPropIsTrue(ctx, 1, "caching") != 0 || ehr.ehrMinExpire != 0 {
 		ehr.ehrCache = 1
 	}
