@@ -716,6 +716,13 @@ func SubAssRender(mp *mediacore.MediaPipe, src string,
 	// Headers
 	assDecodeLines(adc, string(header))
 
+	// Text subtitle decoders (subrip/srt, mov_text, webvtt...) carry no
+	// [Events] header, so no Format: line defines the field layout —
+	// fall back to the canonical ASS event order FFmpeg emits.
+	if adc.eventFormat == "" {
+		adc.eventFormat = "Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text"
+	}
+
 	// Dialogue
 	vo := adDialogueDecode(adc, src, fontdomain)
 	if vo != nil {
