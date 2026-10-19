@@ -74,6 +74,8 @@ import "C"
 
 import (
 	"encoding/binary"
+	"fmt"
+	"strings"
 	"unsafe"
 
 	"github.com/czz/movian-go/internal/image"
@@ -183,8 +185,24 @@ func VideoSubtitlesLavc(mp *mediacore.MediaPipe, mb *mediacore.MediaBuf,
 				if p := C.ml_cctx_subtitle_header(unsafe.Pointer(cctx)); p != nil && hsz > 0 {
 					header = C.GoBytes(p, C.int(hsz))
 				}
-				mp.Sys.SubAssRender(mp, C.GoString(C.ml_rect_ass(r)),
-					header, mbFontContext(mb))
+				src := C.GoString(C.ml_rect_ass(r))
+				if !strings.HasPrefix(src, "Dialogue:") {
+					// Modern lavc emits rects as
+					// "ReadOrder,Layer,Style,Name,MarginL,MarginR,
+					// MarginV,Effect,Text" — no Dialogue: prefix and
+					// no timestamps (those live in the AVSubtitle
+					// display times). Rewrite to canonical event form.
+					stopUs := mb.PTS + endDT*1000
+					if endDT <= startDT {
+						stopUs = mb.PTS + startDT*1000 + mb.Duration
+					}
+					src = rewriteAssDialogue(src,
+						mb.PTS+startDT*1000, stopUs)
+					if src != "" {
+						src = "Dialogue:" + src
+					}
+				}
+				mp.Sys.SubAssRender(mp, src, header, mbFontContext(mb))
 			}
 		}
 	}
@@ -196,4 +214,33 @@ func mbFontContext(mb *mediacore.MediaBuf) int {
 		return v
 	}
 	return 0
+}
+
+// assFmtTS — ASS timestamp "h:mm:ss.cc" from microseconds (assGetTS
+// expects this exact 10-char layout).
+func assFmtTS(us int64) string {
+	if us < 0 {
+		us = 0
+	}
+	h := us / 3600000000
+	us -= h * 3600000000
+	m := us / 60000000
+	us -= m * 60000000
+	s := us / 1000000
+	us -= s * 1000000
+	return fmt.Sprintf("%d:%02d:%02d.%02d", h, m, s, us/10000)
+}
+
+// rewriteAssDialogue — modern lavc ASS rect
+// "ReadOrder,Layer,Style,Name,MarginL,MarginR,MarginV,Effect,Text"
+// rewritten to the canonical event layout
+// "Layer,Start,End,Style,Name,MarginL,MarginR,MarginV,Effect,Text"
+// with absolute timestamps. Empty on malformed input.
+func rewriteAssDialogue(src string, startUs, stopUs int64) string {
+	parts := strings.SplitN(src, ",", 9)
+	if len(parts) < 9 {
+		return ""
+	}
+	return parts[1] + "," + assFmtTS(startUs) + "," + assFmtTS(stopUs) +
+		"," + strings.Join(parts[2:], ",")
 }
