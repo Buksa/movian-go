@@ -67,6 +67,12 @@ type I18N struct {
 	// gconf — C: gconf_t fields i18n reads/writes
 	// (ignore_the_prefix binding, time_format_system). Injected.
 	gconf *gconf.T
+
+	// pluginLangDirs — registered <plugin>/lang directories.
+	// Go extension: upstream C (i18n.c::set_language) loaded only
+	// <dataroot>/lang/<lang>.lang; plugins had no translation
+	// support. Their files merge into the same NLS table.
+	pluginLangDirs []string
 }
 
 // SetGconf injects the process gconf (C: gconf_t — owned by main).
@@ -411,6 +417,7 @@ func (i *I18N) setLanguage(opaque any, str string) {
 			i.ts.Error("i18n", "Failed to load language: %v\n", err)
 		}
 	}
+	i.loadPluginLangs()
 
 	// C: memcpy(iso639_1, gconf.lang, 3); iso639_1[2] = 0;
 	//    prop_setv(prop_get_global(), "i18n", "iso639_1", NULL,
@@ -423,6 +430,75 @@ func (i *I18N) setLanguage(opaque any, str string) {
 		if i18n := i.pm.CreateEx(g, "i18n", nil, false, false); i18n != nil {
 			i.pm.SetVEx(nil, i18n, "iso639_1", iso)
 		}
+	}
+}
+
+// RegisterPluginLangDir — Go extension: registers a plugin's lang/
+// directory so every setLanguage also loads <dir>/<lang>.lang into the
+// shared NLS table (same format, same store as dataroot files).
+// Missing files are ignored. If a language is already active the
+// matching file is loaded immediately.
+func (i *I18N) RegisterPluginLangDir(dir string) {
+	if i == nil || dir == "" {
+		return
+	}
+	i.mutex.Lock()
+	for _, d := range i.pluginLangDirs {
+		if d == dir {
+			i.mutex.Unlock()
+			return
+		}
+	}
+	i.pluginLangDirs = append(i.pluginLangDirs, dir)
+	cur := i.currentLang
+	i.mutex.Unlock()
+
+	if cur != "" {
+		i.loadPluginLangFiles(dir, cur)
+	}
+}
+
+// loadPluginLangFiles loads a plugin's translations for language cur
+// with English as intermediate fallback: en.lang is loaded first, then
+// <cur>.lang overwrites it, so untranslated keys fall back to English
+// instead of the untranslated id.
+func (i *I18N) loadPluginLangFiles(dir, cur string) {
+	if cur != "en" {
+		i.nlsLoadLangQuiet(facore.FAPathjoin(dir, "en.lang"))
+	}
+	p := facore.FAPathjoin(dir, cur+".lang")
+	if err := i.nlsLoadLang(p); err != nil && i.ts != nil {
+		// Missing translation for the current language is normal —
+		// only log unexpected read/parse failures.
+		if _, serr := os.Stat(p); serr == nil {
+			i.ts.Error("i18n", "Failed to load plugin language %s: %v\n", p, err)
+		}
+	}
+}
+
+// nlsLoadLangQuiet loads a .lang file ignoring a missing file (the
+// common case for optional fallback layers) — errors on existing
+// files still surface.
+func (i *I18N) nlsLoadLangQuiet(p string) {
+	if err := i.nlsLoadLang(p); err != nil {
+		if _, serr := os.Stat(p); serr != nil {
+			return // file simply absent
+		}
+		if i.ts != nil {
+			i.ts.Error("i18n", "Failed to load plugin language %s: %v\n", p, err)
+		}
+	}
+}
+
+// loadPluginLangs loads plugin translations for every registered
+// plugin lang dir. Called by setLanguage after the dataroot file.
+func (i *I18N) loadPluginLangs() {
+	i.mutex.RLock()
+	dirs := append([]string(nil), i.pluginLangDirs...)
+	cur := i.currentLang
+	i.mutex.RUnlock()
+	for _, d := range dirs {
+		i.loadPluginLangFiles(d, cur)
 	}
 }
 

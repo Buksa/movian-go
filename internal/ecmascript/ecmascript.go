@@ -94,7 +94,11 @@ var esEnv = struct {
 	}
 	subSys          *subtitles.System // C: subtitles.c statics
 	pluginUninstall func(id string)   // C: plugin_uninstall under ENABLE_PLUGINS
-	sys             *System           // C: ecmascript.c/es_hook.c/es_route.c file statics
+	// pluginLangDirs — Go extension: <plugin>/lang dirs recorded at
+	// EcmascriptPluginLoad; flushed into i18n when it arrives (plugins
+	// load before i18n_init).
+	pluginLangDirs []string
+	sys            *System // C: ecmascript.c/es_hook.c/es_route.c file statics
 }{
 	// C's file statics exist unconditionally — unwired callers get a
 	// default instance (overridden by EsSetSystem at init).
@@ -599,6 +603,19 @@ var fnlistCore = []gaftape.FunctionListEntry{
 	{Key: "sleep", Value: esSleep, Nargs: 1},
 	{Key: "timestamp", Value: esTimestamp, Nargs: 0},
 	{Key: "randomBytes", Value: esRandomBytes, Nargs: 1},
+	{Key: "getString", Value: esGetString, Nargs: 1},
+}
+
+// esGetString — JS `Core.getString(str)` resolves str through the NLS
+// table (C: nls_get_rstring). Plugin translations registered via
+// RegisterPluginLangDir land in the same table.
+func esGetString(ctx *gaftape.Context) int {
+	s := ctx.RequireString(0)
+	if esEnv.i18n != nil {
+		s = esEnv.i18n.GetString(s)
+	}
+	ctx.PushString(s)
+	return 1
 }
 
 // ---------------------------------------------------------------------------
@@ -1077,6 +1094,17 @@ func EcmascriptPluginLoad(u *usage.Reporter, id, url string,
 	if ec.ecPath != "" {
 		ctx.PushString(ec.ecPath)
 		ctx.PutPropString(pluginObjIdx, "path")
+
+		// Go extension: if the plugin ships a lang/ directory its
+		// .lang files merge into the NLS table (upstream C had no
+		// per-plugin translations). i18n may not be wired yet —
+		// plugins load at step ~25, i18n_init is step 28 — so the
+		// dir is queued and flushed by EsSetI18N.
+		dir := facore.FAPathjoin(ec.ecPath, "lang")
+		esEnv.pluginLangDirs = append(esEnv.pluginLangDirs, dir)
+		if esEnv.i18n != nil {
+			esEnv.i18n.RegisterPluginLangDir(dir)
+		}
 	}
 
 	ctx.PutPropString(-2, "Plugin")

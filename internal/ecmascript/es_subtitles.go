@@ -15,8 +15,15 @@ import (
 
 // esEnv.i18n — C: i18n_subtitle_lang() uses the global i18n state.
 
-// EsSetI18N wires the i18n instance.
-func EsSetI18N(i *i18n.I18N) { esEnv.i18n = i }
+// EsSetI18N wires the i18n instance. Also flushes plugin lang dirs
+// recorded while i18n was not yet initialized (plugins_init runs
+// before i18n_init at startup).
+func EsSetI18N(i *i18n.I18N) {
+	esEnv.i18n = i
+	for _, d := range esEnv.pluginLangDirs {
+		i.RegisterPluginLangDir(d)
+	}
+}
 
 // ---------------------------------------------------------------------------
 // es_sp_t — C: es_subtitles.c:29-34
