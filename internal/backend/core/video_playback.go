@@ -959,6 +959,12 @@ func playVideo(bs *BackendSystem, pm *propcore.PropManager, url string,
 			flags |= BackendVideoNoSubtitleScan
 		}
 
+		// "live": the source is a live stream — never ask to resume
+		// from a stored restart position.
+		if m.GetU32OrDefault("live", 0) != 0 {
+			va.ResumeMode = VideoResumeNo
+		}
+
 		vs := vsources[0]
 
 		if canonicalURL == "" {
