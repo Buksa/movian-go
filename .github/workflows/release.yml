@@ -293,6 +293,11 @@ jobs:
           make rpi RPI_TAGS="rpi connman mgos webpopup libcec"
           arm-linux-gnueabihf-strip movian-go-rpi
           mkdir -p dist/movian-go-rpi-armv6
+          # Bare binary for OTA app-upgrade: the manifest artifact is
+          # downloaded over gconf.binary and the app restarts (see
+          # internal/upgrade — app artifact type "sqfs" is just a
+          # selector, the payload IS the binary).
+          cp movian-go-rpi dist/movian-go-rpi-update.bin
           mv movian-go-rpi dist/movian-go-rpi-armv6/
           cp -a glwskins res lang dist/movian-go-rpi-armv6/
           printf '#!/bin/sh\nD=$(cd "$(dirname "$0")" && pwd)\nexec "$D/movian-go-rpi" "$@"\n' \
@@ -305,7 +310,9 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: rpi
-          path: dist/movian-go-rpi-armv6.tar.gz
+          path: |
+            dist/movian-go-rpi-armv6.tar.gz
+            dist/movian-go-rpi-update.bin
 
   macos:
     name: macOS (amd64 + arm64, CEF pkg)
@@ -375,11 +382,30 @@ jobs:
     needs: [linux, windows, android, rpi, macos]
     runs-on: ubuntu-latest
     steps:
+      # Needed for scripts/gen_upgrade_manifest.sh below.
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.tag || github.ref_name }}
+
       - name: Download all artifacts
         uses: actions/download-artifact@v4
         with:
           path: dist
           merge-multiple: true
+
+      # OTA upgrade manifests — internal/upgrade fetches
+      # http://upgrade.movian-go.czz78.com/upgrade/3/<track>-<arch>.json,
+      # which the vhost 302s to releases/latest/download/<file>. Keeping
+      # them as release assets means "latest" always serves the newest
+      # manifest. mgos clients look for artifact type "sqfs"; arch is
+      # "rpi" under -tags rpi, runtime.GOARCH ("arm") elsewhere.
+      - name: Generate upgrade manifests
+        working-directory: dist
+        env:
+          TAG: ${{ inputs.tag || github.ref_name }}
+        run: |
+          ../scripts/gen_upgrade_manifest.sh "$TAG" \
+            movian-go-rpi-update.bin sqfs . rpi arm
 
       # Same CI release key as release-tag.yml — signs SHA256SUMS so
       # every release carries a detached signature over all artifacts.
