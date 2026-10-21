@@ -386,9 +386,29 @@ func ffmcStoreMeta(vd *decoder.VideoDecoder, mb *mediacore.MediaBuf,
 // (android_video_codec.c:317-348): matches the returned pts against
 // the reorder ring to recover epoch/usertime/driveclock/duration/skip.
 func ffmcFillFrameInfo(fi *mediacore.FrameInfo, vd *decoder.VideoDecoder,
-	st *ffmcState, pts int64) (skip, matched int) {
-	fi.DARNum = st.width
-	fi.DARDen = st.height
+	st *ffmcState, mc *mediacore.MediaCodec, pts int64) (skip, matched int) {
+	// DAR — same rules as LibAVDeliverFrame: frame dims scaled by the
+	// frame's sample aspect ratio, falling back to the codecpar SAR.
+	// MediaCodec surface buffers carry no geometry of their own, and
+	// codecpar dims may still be zero when the decoder was deferred
+	// — reading them from the decoded frame is the only reliable
+	// source for both.
+	darNum, darDen := avFrameWidth(st.frame), avFrameHeight(st.frame)
+	if darNum <= 0 || darDen <= 0 {
+		darNum, darDen = st.width, st.height
+	}
+	if darNum <= 0 || darDen <= 0 {
+		darNum, darDen = 16, 9
+	}
+	if sarNum := avFrameSARNum(st.frame); sarNum != 0 {
+		darNum *= sarNum
+		darDen *= avFrameSARDen(st.frame)
+	} else if mc != nil && mc.SARNum != 0 {
+		darNum *= mc.SARNum
+		darDen *= mc.SARDen
+	}
+	fi.DARNum = darNum
+	fi.DARDen = darDen
 	fi.PTS = pts
 
 	for i := 0; i < decoder.VideoDecoderReorderSize; i++ {
@@ -400,6 +420,12 @@ func ffmcFillFrameInfo(fi *mediacore.FrameInfo, vd *decoder.VideoDecoder,
 			fi.Duration = mbm.Duration
 			fi.PTS = mbm.PTS
 			mbm.PTS = mediacore.PTSUnset
+			switch mbm.AspectOverride {
+			case 1:
+				fi.DARNum, fi.DARDen = 4, 3
+			case 2:
+				fi.DARNum, fi.DARDen = 16, 9
+			}
 			if mbm.Flags.Skip {
 				return 1, 1
 			}
@@ -427,7 +453,7 @@ func ffmcReceive(mc *mediacore.MediaCodec, st *ffmcState,
 			pts := int64(C.ml_ffmc_frame_pts(st.frame.CPtr()))
 
 			var fi mediacore.FrameInfo
-			skip, matched := ffmcFillFrameInfo(&fi, vd, st, pts)
+			skip, matched := ffmcFillFrameInfo(&fi, vd, st, mc, pts)
 			fi.Type = mediacore.FourCCSURF
 
 			if st.diagN < 10 || (matched == 0 && st.diagN < 40) {
@@ -742,6 +768,10 @@ func ffmcOpen(mc *mediacore.MediaCodec, mcp *mediacore.MediaCodecParams,
 	}
 	fi.DARNum = w
 	fi.DARDen = h
+	if mc.SARNum != 0 {
+		fi.DARNum *= mc.SARNum
+		fi.DARDen *= mc.SARDen
+	}
 	fi.Height = h
 	surface := 0
 	if mp.SetVideoCodec != nil {
