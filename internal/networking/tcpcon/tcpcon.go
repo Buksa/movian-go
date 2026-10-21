@@ -178,6 +178,28 @@ func TCPConnect(hostname string, port int, timeout int,
 	return tc, nil
 }
 
+// ResolveHostname — exported resolve helper for protocol dialers that
+// cannot go through TCPCon (the go-smb2 transport). Mirrors
+// TCPConnect's resolution: DNS first, NetBIOS name lookup as fallback
+// for dot-less hostnames. Returns a numeric IP string.
+func ResolveHostname(hostname string) (string, error) {
+	if hostname == "localhost" {
+		return "127.0.0.1", nil
+	}
+	na, err := netcore.NetResolve(hostname)
+	if err != nil {
+		rerr := fmt.Errorf("Unable to resolve %s -- %w", hostname, err)
+		if strings.IndexByte(hostname, '.') != -1 {
+			return "", rerr
+		}
+		na = nmbResolve(hostname)
+		if na == nil {
+			return "", rerr
+		}
+	}
+	return na.ToTCPAddr().IP.String(), nil
+}
+
 // nmbResolve — C: nmb_resolve(hostname, &addr) — NetBIOS name lookup
 // for dot-less hostnames; fills addr on success.
 func nmbResolve(hostname string) *netcore.NetAddr {

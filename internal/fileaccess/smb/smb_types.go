@@ -158,6 +158,13 @@ type System struct {
 	gettextFn  func(string) string         // C: _() nls
 	usageEvent func(key string, count int) // C: usage_event direct call
 	gconf      *gconf.T                    // C: gconf_t — injected
+
+	// SMB2/3 sessions via go-smb2/v2 (smb2.go) — the native SMBv1
+	// machinery above stays as fallback for servers that do not
+	// speak SMB2.
+	s2mu    sync.Mutex
+	s2conns map[string]*smb2Conn
+	s2down  map[string]bool // host:port confirmed SMBv1-only
 }
 
 // cifsConnection — C: cifs_connection_t (fa_nativesmb.c:88-139)

@@ -470,9 +470,26 @@ func (sf *smbFile) Seek(pos int64, whence int) (int64, error) {
 // Size — C: smb_fsize (fa_nativesmb.c:2491)
 func (sf *smbFile) Size() int64 { return int64(sf.fileSize) }
 
-// smbStatFAP — C: smb_stat (fa_nativesmb.c:2501)
+// smbStatFAP — C: smb_stat (fa_nativesmb.c:2501). SMB2/3 first,
+// SMBv1 fallback.
 func (sys *System) smbStatFAP(fap *facore.FAProtocol, url string,
 	flags int) (*facore.FileStat, error) {
+	st, err := sys.smb2Stat(url, flags)
+	if err == nil {
+		return st, nil
+	}
+	if !errors.Is(err, errSMB2Unsupported) {
+		return nil, err
+	}
+	st, err = sys.smb1StatFAP(url, flags)
+	if err == nil {
+		sys.smb2MarkDown(url)
+	}
+	return st, err
+}
+
+// smb1StatFAP — C: smb_stat (fa_nativesmb.c:2501), SMBv1 path.
+func (sys *System) smb1StatFAP(url string, flags int) (*facore.FileStat, error) {
 	var filename [512]byte
 	var ct *cifsTree
 	var cc *cifsConnection
@@ -500,14 +517,34 @@ func (sys *System) smbStatFAP(fap *facore.FAProtocol, url string,
 	}
 }
 
-// smbUnlinkFAP — C: smb_unlink (fa_nativesmb.c:2540)
+// smbUnlinkFAP — C: smb_unlink (fa_nativesmb.c:2540). SMB2/3 first,
+// SMBv1 fallback.
 func (sys *System) smbUnlinkFAP(fap *facore.FAProtocol, url string) error {
-	return sys.cifsDelete(url, false)
+	if err := sys.smb2Unlink(url); err == nil {
+		return nil
+	} else if !errors.Is(err, errSMB2Unsupported) {
+		return err
+	}
+	if err := sys.cifsDelete(url, false); err != nil {
+		return err
+	}
+	sys.smb2MarkDown(url)
+	return nil
 }
 
-// smbRmdirFAP — C: smb_rmdir (fa_nativesmb.c:2550)
+// smbRmdirFAP — C: smb_rmdir (fa_nativesmb.c:2550). SMB2/3 first,
+// SMBv1 fallback.
 func (sys *System) smbRmdirFAP(fap *facore.FAProtocol, url string) error {
-	return sys.cifsDelete(url, true)
+	if err := sys.smb2Rmdir(url); err == nil {
+		return nil
+	} else if !errors.Is(err, errSMB2Unsupported) {
+		return err
+	}
+	if err := sys.cifsDelete(url, true); err != nil {
+		return err
+	}
+	sys.smb2MarkDown(url)
+	return nil
 }
 
 // smbSetXattrFAP — C: smb_set_xattr (fa_nativesmb.c:2572)
@@ -627,19 +664,38 @@ func (sys *System) smbGetXattrFAP(fap *facore.FAProtocol, url, name string) ([]b
 func smbNoParking(fh *facore.Handle) bool { return true }
 
 // smbOpenGo — C: fap_open = smb_open adapted to the Protocol shape;
-// returns the raw smb_file_t for core to wrap in a Handle.
+// returns the raw smb_file_t for core to wrap in a Handle. SMB2/3
+// first, SMBv1 fallback.
 func (sys *System) smbOpenGo(url string, extra *facore.OpenExtra) (facore.SMBFile, error) {
 	flags := 0
 	if extra != nil {
 		flags = extra.Flags
 	}
-	return sys.smbOpen(url, flags)
+	sf, err := sys.smb2Open(url, flags)
+	if err == nil {
+		return sf, nil
+	}
+	if !errors.Is(err, errSMB2Unsupported) {
+		return nil, err
+	}
+	sf1, err1 := sys.smbOpen(url, flags)
+	if err1 == nil {
+		sys.smb2MarkDown(url)
+	}
+	return sf1, err1
 }
 
 func (sys *System) smbScandirGo(url string, flags int) (*facore.Dir, error) {
 	fd := facore.DirAlloc()
-	if err := sys.SMBScandir(fd, url, flags); err != nil {
-		return nil, err
+	err := sys.smb2Scandir(fd, url, flags)
+	if err != nil {
+		if !errors.Is(err, errSMB2Unsupported) {
+			return nil, err
+		}
+		if err = sys.SMBScandir(fd, url, flags); err != nil {
+			return nil, err
+		}
+		sys.smb2MarkDown(url)
 	}
 	return fd, nil
 }
