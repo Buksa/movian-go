@@ -301,7 +301,8 @@ func binaryLE64(b []byte) uint64 {
 
 // videoPlayerLoop — C: video_player_loop (fa_video.c:160-381).
 func (bs *BackendSystem) videoPlayerLoop(fctx *medialibav.AVFormatCtx,
-	cwvec []*mediacore.MediaCodec, mp *mediacore.MediaPipe, flags int,
+	cwvec *[]*mediacore.MediaCodec, mp *mediacore.MediaPipe, flags int,
+	newStreamCodec func(i int),
 	canonicalURL string, freetypeContext int,
 	sidx, cidx *seekIndexT, fh *fileaccesscore.Handle,
 	resumeMode int, title string, vpi *htsmsg.HTSMsg,
@@ -356,6 +357,8 @@ func (bs *BackendSystem) videoPlayerLoop(fctx *medialibav.AVFormatCtx,
 		offset = 0
 	}
 
+	streamRescan := 0
+
 	for {
 		// C: need a new packet?
 		if mb == nil {
@@ -390,10 +393,64 @@ func (bs *BackendSystem) videoPlayerLoop(fctx *medialibav.AVFormatCtx,
 				continue
 			}
 
+			// In-place promotion rescan: a stream created as DATA
+			// (mpegts STREAM_TYPE_PRIVATE_DATA) can be promoted to
+			// VIDEO once probe_codec identifies the PES payload —
+			// same index, new codec_type. Rescan while no video is
+			// selected; upstream C picked codecs up lazily like this.
+			streamRescan++
+			if streamRescan >= 64 {
+				streamRescan = 0
+				mp.Mutex.Lock()
+				needVideo := mp.Video.Stream == -1
+				mp.Mutex.Unlock()
+				if needVideo {
+					for j := 0; j < fctx.GetNumStreams(); j++ {
+						if j < len(*cwvec) && (*cwvec)[j] != nil {
+							continue
+						}
+						sinfo := fctx.GetStreamInfo(j)
+						if sinfo != nil &&
+							sinfo.CodecType == medialibav.AVMediaTypeVideo {
+							bs.traceSystem.Trace(trace.TRACE_DEBUG,
+								"Video",
+								"promoted video stream detected idx=%d", j)
+							if j >= len(*cwvec) {
+								grown := make([]*mediacore.MediaCodec,
+									fctx.GetNumStreams())
+								copy(grown, *cwvec)
+								*cwvec = grown
+							}
+							newStreamCodec(j)
+							break
+						}
+					}
+				}
+			}
+
 			si := packetStreamIndex(pktPtr)
-			if si >= len(cwvec) {
-				libav.AvPacketFree(pktPtr)
-				continue
+			if si >= len(*cwvec) {
+				// Late stream: the demuxer added a stream after open
+				// (e.g. mpegts video PMT arriving post-window on a
+				// multi-program TS). Grow cwvec and create its codec.
+				n := fctx.GetNumStreams()
+				if si < n {
+					bs.traceSystem.Trace(trace.TRACE_DEBUG, "Video",
+						"late stream detected idx=%d (nb_streams=%d)",
+						si, n)
+					grown := make([]*mediacore.MediaCodec, n)
+					copy(grown, *cwvec)
+					*cwvec = grown
+					for j := 0; j < n; j++ {
+						if (*cwvec)[j] == nil {
+							newStreamCodec(j)
+						}
+					}
+				}
+				if si >= len(*cwvec) || (*cwvec)[si] == nil {
+					libav.AvPacketFree(pktPtr)
+					continue
+				}
 			}
 
 			streamInfo := fctx.GetStreamInfo(si)
@@ -461,8 +518,8 @@ func (bs *BackendSystem) videoPlayerLoop(fctx *medialibav.AVFormatCtx,
 			// C: media_discontinuity_debug — dead code in C
 			//   (returns immediately); no-op here.
 
-			if cwvec[si] != nil {
-				mb.Codec = mediacore.MediaCodecRef(cwvec[si])
+			if (*cwvec)[si] != nil {
+				mb.Codec = mediacore.MediaCodecRef((*cwvec)[si])
 			}
 			mb.Stream = si
 
@@ -914,6 +971,13 @@ func (bs *BackendSystem) bePlayvideoFctx(url string, mp *mediacore.MediaPipe,
 	// C: cwvec = alloca(nb_streams * sizeof(void *)) — codec vector
 	cwvecSize := fctx.GetNumStreams()
 	cwvec := make([]*mediacore.MediaCodec, cwvecSize)
+	for i := range cwvecSize {
+		if si := fctx.GetStreamInfo(i); si != nil {
+			bs.traceSystem.Trace(trace.TRACE_DEBUG, "Video",
+				"stream[%d] type=%d codec=%d %dx%d",
+				i, si.CodecType, si.CodecID, si.Width, si.Height)
+		}
+	}
 	fw := mediacore.MediaFormatCreate(fctxLibav)
 
 	freetypeContext := 0
@@ -922,11 +986,16 @@ func (bs *BackendSystem) bePlayvideoFctx(url string, mp *mediacore.MediaPipe,
 	}
 	var alist []*attachmentT
 
-	for i := range cwvecSize {
+	// createStreamCodec runs the per-stream codec creation for stream i.
+	// Shared between the initial cwvec fill and late stream detection in
+	// the packet loop: on multi-program or late-PMT mpegts the video PMT
+	// can arrive after open, so avformat adds the stream mid-playback
+	// (upstream C picked such streams up lazily the same way).
+	createStreamCodec := func(i int) {
 		var mcp mediacore.MediaCodecParams
 		si := fctx.GetStreamInfo(i)
 		if si == nil {
-			continue
+			return
 		}
 		ctxType := si.CodecType
 
@@ -949,7 +1018,7 @@ func (bs *BackendSystem) bePlayvideoFctx(url string, mp *mediacore.MediaPipe,
 
 		case medialibav.AVMediaTypeAudio:
 			if va.Flags&BackendVideoNoAudio != 0 {
-				continue
+				return
 			}
 			if si.CodecID == libav.AVCodecIDDts {
 				fctx.SetStreamChannels(i, 0)
@@ -973,7 +1042,7 @@ func (bs *BackendSystem) bePlayvideoFctx(url string, mp *mediacore.MediaPipe,
 			sel := mp.Video.Stream != -1
 			mp.Mutex.Unlock()
 			if sel {
-				continue
+				return
 			}
 		}
 
@@ -1028,6 +1097,10 @@ func (bs *BackendSystem) bePlayvideoFctx(url string, mp *mediacore.MediaPipe,
 		}
 	}
 
+	for i := range cwvecSize {
+		createStreamCodec(i)
+	}
+
 	flags := mediacore.MPCanPause
 	if fctx.GetDuration() != mediacore.PTSUnset {
 		flags |= mediacore.MPCanSeek
@@ -1055,9 +1128,9 @@ func (bs *BackendSystem) bePlayvideoFctx(url string, mp *mediacore.MediaPipe,
 		origin = p
 	}
 
-	e := bs.videoPlayerLoop(fctx, cwvec, mp, va.Flags,
-		va.CanonicalURL, freetypeContext, si, ci, fh, va.ResumeMode,
-		va.Title, vpi, origin)
+	e := bs.videoPlayerLoop(fctx, &cwvec, mp, va.Flags,
+		createStreamCodec, va.CanonicalURL, freetypeContext, si, ci, fh,
+		va.ResumeMode, va.Title, vpi, origin)
 
 	if bs.playbackInfoFn != nil {
 		bs.playbackInfoFn(videopkg.VPIStop, vpi, mp.PropRoot, origin)

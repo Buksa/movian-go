@@ -57,7 +57,6 @@ import (
 	"github.com/czz/movian-go/internal/arch"
 	eventpkg "github.com/czz/movian-go/internal/event"
 	"github.com/czz/movian-go/internal/i18n"
-	medialibav "github.com/czz/movian-go/internal/media/libav"
 	navcore "github.com/czz/movian-go/internal/navigator"
 	propcore "github.com/czz/movian-go/internal/prop"
 	"github.com/czz/movian-go/internal/service"
@@ -434,41 +433,6 @@ func Java_com_moviango_mediaplayer_Core_glwKeyUp(
 	if uiglw.GlwKeyUp(int32(id), int32(keycode)) {
 		return 1
 	}
-	return 0
-}
-
-// --- MediaCodec async callbacks (android_video_codec.c) --------------------
-// Called by the Java MediaCodec.Callback on its own thread; jopaque is
-// the int handed to Core.setVideoDecoderWrapper at codec create.
-
-//export Java_com_moviango_mediaplayer_Core_vdInputAvailable
-func Java_com_moviango_mediaplayer_Core_vdInputAvailable(
-	env *C.JNIEnv, obj C.jobject, jopaque, jbuf C.jint) C.jint {
-	medialibav.VdInputAvailable(int32(jopaque), int32(jbuf))
-	return 0
-}
-
-//export Java_com_moviango_mediaplayer_Core_vdOutputAvailable
-func Java_com_moviango_mediaplayer_Core_vdOutputAvailable(
-	env *C.JNIEnv, obj C.jobject, jopaque, jbuf C.jint,
-	pts C.jlong) C.jint {
-	medialibav.VdOutputAvailable(int32(jopaque), int32(jbuf), int64(pts))
-	return 0
-}
-
-//export Java_com_moviango_mediaplayer_Core_vdOutputFormatChanged
-func Java_com_moviango_mediaplayer_Core_vdOutputFormatChanged(
-	env *C.JNIEnv, obj C.jobject, jopaque C.jint,
-	jinfo C.jobject) C.jint {
-	medialibav.VdOutputFormatChanged(int32(jopaque),
-		unsafe.Pointer(jinfo))
-	return 0
-}
-
-//export Java_com_moviango_mediaplayer_Core_vdError
-func Java_com_moviango_mediaplayer_Core_vdError(
-	env *C.JNIEnv, obj C.jobject, jopaque C.jint) C.jint {
-	medialibav.VdError(int32(jopaque))
 	return 0
 }
 

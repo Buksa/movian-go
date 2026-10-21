@@ -17,9 +17,6 @@ import android.text.format.DateFormat;
 import android.widget.FrameLayout;
 import android.content.pm.PackageManager;
 
-import android.media.MediaCodec;
-import android.media.MediaFormat;
-
 import android.provider.Settings.Secure;
 
 
@@ -139,43 +136,6 @@ public class Core {
                     Canvas c = sh.lockCanvas();
                     c.drawBitmap(b, null, sh.getSurfaceFrame(), null);
                     sh.unlockCanvasAndPost(c);
-                }
-            });
-    }
-
-    public static native void vdInputAvailable(int opaque, int buf);
-    public static native void vdOutputAvailable(int opaque, int buf,
-                                                long pts);
-    public static native void vdOutputFormatChanged(int opaque,
-                                                    MediaFormat format);
-    public static native void vdError(int opaque);
-
-
-    public static void setVideoDecoderWrapper(MediaCodec codec,
-                                              final int opaque) {
-
-        codec.setCallback(new MediaCodec.Callback() {
-
-                @Override
-                public void onInputBufferAvailable(MediaCodec mc, int buf) {
-                    vdInputAvailable(opaque, buf);
-                }
-
-                @Override
-                public void onOutputBufferAvailable(MediaCodec mc, int buf,
-                                                    MediaCodec.BufferInfo info) {
-                    vdOutputAvailable(opaque, buf, info.presentationTimeUs);
-                }
-
-                @Override
-                public void onOutputFormatChanged(MediaCodec mc,
-                                                  MediaFormat format) {
-                    vdOutputFormatChanged(opaque, format);
-                }
-
-                @Override
-                public void onError(MediaCodec mc, MediaCodec.CodecException e) {
-                    vdError(opaque);
                 }
             });
     }

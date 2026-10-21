@@ -133,10 +133,6 @@ extern void Java_com_moviango_mediaplayer_Core_glwStep(JNIEnv* env, jobject obj,
 extern void Java_com_moviango_mediaplayer_Core_glwMotion(JNIEnv* env, jobject obj, jint id, jint source, jint action, jint x, jint y, jlong ts);
 extern jboolean Java_com_moviango_mediaplayer_Core_glwKeyDown(JNIEnv* env, jobject obj, jint id, jint keycode, jint unicode, jboolean shift);
 extern jboolean Java_com_moviango_mediaplayer_Core_glwKeyUp(JNIEnv* env, jobject obj, jint id, jint keycode);
-extern jint Java_com_moviango_mediaplayer_Core_vdInputAvailable(JNIEnv* env, jobject obj, jint jopaque, jint jbuf);
-extern jint Java_com_moviango_mediaplayer_Core_vdOutputAvailable(JNIEnv* env, jobject obj, jint jopaque, jint jbuf, jlong pts);
-extern jint Java_com_moviango_mediaplayer_Core_vdOutputFormatChanged(JNIEnv* env, jobject obj, jint jopaque, jobject jinfo);
-extern jint Java_com_moviango_mediaplayer_Core_vdError(JNIEnv* env, jobject obj, jint jopaque);
 
 #ifdef __cplusplus
 }
