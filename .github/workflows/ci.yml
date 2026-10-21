@@ -375,8 +375,9 @@ jobs:
       - name: golangci-lint
         uses: golangci/golangci-lint-action@v9
         with:
-          # pinned: v1.x does not support go1.26
-          version: v2.13.2
+          # pinned: needs a build compiled against the go1.27 export
+          # format (v2.13.x predates export data version 5)
+          version: v2.15.0
           args: --timeout 5m
 
   fmt:
