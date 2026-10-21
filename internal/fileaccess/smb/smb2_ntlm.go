@@ -28,20 +28,20 @@ var ntlmOID = asn1.ObjectIdentifier{1, 3, 6, 1, 4, 1, 311, 2, 2, 10}
 
 // NTLMSSP flag bits (MS-NLMP 2.2.2.5).
 const (
-	nfUNICODE      = 0x00000001
-	nfOEM          = 0x00000002
-	nfREQUESTTGT   = 0x00000004
-	nfSIGN         = 0x00000010
-	nfSEAL         = 0x00000020
-	nfNTLM         = 0x00000200
-	nfALWAYSSIGN   = 0x00008000
-	nfTGTDOMAIN    = 0x00010000
-	nfTGTSERVER    = 0x00020000
-	nfESS          = 0x00080000
-	nfTARGETINFO   = 0x00800000
-	nfKEYEXCH      = 0x40000000
-	nf56           = 0x80000000
-	nf128          = 0x20000000
+	nfUNICODE    = 0x00000001
+	nfOEM        = 0x00000002
+	nfREQUESTTGT = 0x00000004
+	nfSIGN       = 0x00000010
+	nfSEAL       = 0x00000020
+	nfNTLM       = 0x00000200
+	nfALWAYSSIGN = 0x00008000
+	nfTGTDOMAIN  = 0x00010000
+	nfTGTSERVER  = 0x00020000
+	nfESS        = 0x00080000
+	nfTARGETINFO = 0x00800000
+	nfKEYEXCH    = 0x40000000
+	nf56         = 0x80000000
+	nf128        = 0x20000000
 )
 
 // Flags we ask for: everything needed for NTLMv2 + KEY_EXCH, no
@@ -341,5 +341,3 @@ func ntlmTimestamp(targetInfo []byte) uint64 {
 	// FILETIME = 100ns ticks since 1601-01-01.
 	return uint64(time.Now().Unix()+11644473600) * 10000000
 }
-
-
