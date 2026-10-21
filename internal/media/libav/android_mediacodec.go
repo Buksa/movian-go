@@ -639,6 +639,16 @@ func androidCodecDecode(mc *mediacore.MediaCodec, vdI any,
 	C.ml_push_frame(env, 64)
 	defer C.ml_pop_frame(env)
 
+	// Go extension: decrypt cenc/cbcs-protected samples in place
+	// before any container transform — mirrors the lavc call site in
+	// lavcDecodeVideo (video.go). cbcs subsample maps keep NAL
+	// headers clear, so mp4toannexb still sees valid AVCC.
+	if mb.Pkt != nil {
+		if err := DRMDecryptPacket(mc, mb.Pkt); err != nil {
+			return
+		}
+	}
+
 	data, size := mbData(mb)
 
 	if avc.bsf != nil {
@@ -758,6 +768,15 @@ func androidCodecDecodeLocked(mc *mediacore.MediaCodec, vdI any,
 	avc.asyncInputBuffers = avc.asyncInputBuffers[1:]
 
 	mp.Mutex.Unlock()
+
+	// Go extension: decrypt cenc/cbcs-protected samples in place —
+	// same call site as the synchronous decode path.
+	if mb.Pkt != nil {
+		if err := DRMDecryptPacket(mc, mb.Pkt); err != nil {
+			mp.Mutex.Lock()
+			return 1
+		}
+	}
 
 	data, size := mbData(mb)
 

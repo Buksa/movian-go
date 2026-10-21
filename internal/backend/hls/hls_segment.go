@@ -8,6 +8,7 @@ package hls
 import (
 	"fmt"
 	"slices"
+	"strconv"
 	"time"
 
 	"github.com/czz/movian-go/internal/arch"
@@ -28,6 +29,30 @@ func hlsSegmentOpen(hs *hlsSegment) hlsError {
 	hs.OpenTime = arch.GetTS()
 	hs.BlockedCounter = h.Blocked
 	hs.DLBase = hd.DownloadCounter
+
+	// Go extension: recognized-but-unsupported EXT-X-KEY methods fail
+	// fast — SAMPLE-AES (FairPlay / cenc TS subsamples) needs a DRM
+	// layer this codebase does not have, and a non-identity KEYFORMAT
+	// (e.g. com.apple.streamingkeydelivery → FairPlay) means the URI
+	// does not return a raw 16-byte AES key — equally undecryptable
+	// here even when the method is declared AES-128. SAMPLE-AES-CTR
+	// with KEYFORMAT="identity" (or absent, identity is the default)
+	// is supported: the raw key feeds the cenc/cbcs decryptor on the
+	// fMP4 demux path.
+	unsupportedCrypto := hs.Crypto == HLSCryptoSampleAES ||
+		(hs.Crypto != HLSCryptoNone &&
+			hs.KeyFormat != "" && hs.KeyFormat != "identity")
+	if unsupportedCrypto {
+		hs.PermanentError = true
+		kf := hs.KeyFormat
+		if kf == "" {
+			kf = "identity"
+		}
+		h.ts.Trace(trace.TRACE_ERROR, "HLS",
+			"Segment %d uses unsupported encryption "+
+				"(crypto=%d keyformat=%s)", hs.Seq, hs.Crypto, kf)
+		return hlsErrorUnsupportedCrypto
+	}
 
 	foe := &fileaccesscore.OpenExtra{
 		OpenTimeout: 3000,
@@ -66,7 +91,7 @@ func hlsSegmentOpen(hs *hlsSegment) hlsError {
 
 	hs.Size = fh.Size()
 
-	if hs.Crypto == HLSCryptoAES128 {
+	if hs.Crypto == HLSCryptoAES128 || hs.Crypto == HLSCryptoSampleAESCTR {
 		if hs.KeyURL != hv.KeyURL {
 			hlsTrace(h, "Loading key %s", hs.KeyURL)
 			hv.Key = nil
@@ -79,7 +104,12 @@ func hlsSegmentOpen(hs *hlsSegment) hlsError {
 			}
 			hv.KeyURL = hs.KeyURL
 		}
-		fh = fileaccesscore.FAAescbcOpen(fh, hs.IV[:], hv.Key.Data)
+		// Go extension: SAMPLE-AES-CTR segments stay encrypted on the
+		// wire — sample-level cbcs/cenc decryption happens in the
+		// fMP4 demux path (pipe.Decryptor on mb.Pkt), not here.
+		if hs.Crypto == HLSCryptoAES128 {
+			fh = fileaccesscore.FAAescbcOpen(fh, hs.IV[:], hv.Key.Data)
+		}
 	}
 	hs.FH = fh
 	hlsTrace(h, "Opened %s (sequence %d) ranges:[%d + %d] OK",
@@ -243,6 +273,32 @@ func hlsVariantClose(hv *hlsVariant) {
 	}
 }
 
+// hlsVariantReload — Go extension: playlist reload honoring LL-HLS
+// blocking reload (RFC 8216bis §6.2.5.2). When the server advertises
+// CAN-BLOCK-RELOAD we attach _HLS_msn/_HLS_part for the next expected
+// media sequence — the server then holds the request until that unit
+// is published, collapsing edge→playlist latency to ~part duration.
+// Servers ignoring the params return the current playlist instantly,
+// which degrades back to the classic poll with no behavior change.
+func hlsVariantReload(hv *hlsVariant, mp *mediacore.MediaPipe) hlsError {
+	if !hv.CanBlockReload {
+		return hlsVariantUpdate(hv, mp)
+	}
+
+	// Next unit we are waiting for: media sequence lastSeq+1, part
+	// index = number of parts already published for it (0 when the
+	// pending segment has not started yet).
+	msn := hv.LastSeq + 1
+	part := len(hv.Parts)
+
+	hlsTrace(hv.Demuxer.HLS,
+		"Blocking playlist reload msn=%d part=%d", msn, part)
+	return hlsVariantUpdateArgs(hv, mp, [][2]string{
+		{"_HLS_msn", strconv.Itoa(msn)},
+		{"_HLS_part", strconv.Itoa(part)},
+	})
+}
+
 // Returns (segment, code) — code is codeEOF/codeNYA/0.
 func hlsVariantSelectNextSegment(hv *hlsVariant) (*hlsSegment, int) {
 	hd := hv.Demuxer
@@ -340,8 +396,12 @@ retry:
 	}
 
 	if mp.BufferDelay < 10000000 {
-		if hv.Loaded != time.Now().Unix() {
-			if err := hlsVariantUpdate(hv, mp); err != hlsErrorOK {
+		// Blocking reload is exempt from the 1s poll gate: the
+		// request itself is the wait — the server holds it until
+		// the next unit exists. If it comes back instantly (params
+		// ignored) the Loaded-second gate still applies next pass.
+		if hv.CanBlockReload || hv.Loaded != time.Now().Unix() {
+			if err := hlsVariantReload(hv, mp); err != hlsErrorOK {
 				hlsBadVariant(hv, err)
 				return nil, 0
 			}

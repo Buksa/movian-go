@@ -192,11 +192,18 @@ func hvParseKey(hvp *hlsVariantParser, baseurl, V string) {
 		v = rest
 		switch key {
 		case "METHOD":
-			if value == "AES-128" {
+			switch value {
+			case "AES-128":
 				hvp.Crypto = HLSCryptoAES128
+			case "SAMPLE-AES":
+				hvp.Crypto = HLSCryptoSampleAES
+			case "SAMPLE-AES-CTR":
+				hvp.Crypto = HLSCryptoSampleAESCTR
 			}
 		case "URI":
 			hvp.KeyURL = misc.UrlResolveRelativeFromBase(baseurl, value)
+		case "KEYFORMAT":
+			hvp.KeyFormat = value
 		case "IV":
 			if strings.HasPrefix(value, "0x") ||
 				strings.HasPrefix(value, "0X") {
@@ -204,6 +211,107 @@ func hvParseKey(hvp *hlsVariantParser, baseurl, V string) {
 				misc.Hex2bin(hvp.IV[:], 16, value[2:])
 			}
 		}
+	}
+}
+
+// hvParseMap — Go extension: EXT-X-MAP (fMP4/CMAF init section).
+// The map stays in effect for all following segments until replaced.
+func hvParseMap(hvp *hlsVariantParser, baseurl, V string) {
+	v := V
+	hvp.MapURL = ""
+	hvp.MapOffset = -1
+	hvp.MapSize = -1
+
+	for len(v) > 0 {
+		key, value, rest, ok := getAttrib(v)
+		if !ok {
+			break
+		}
+		v = rest
+		switch key {
+		case "URI":
+			hvp.MapURL = misc.UrlResolveRelativeFromBase(baseurl, value)
+		case "BYTERANGE":
+			if _, after, ok := strings.Cut(value, "@"); ok {
+				hvp.MapSize = misc.Atoi(value)
+				hvp.MapOffset = misc.Atoi(after)
+			} else {
+				hvp.MapSize = misc.Atoi(value)
+			}
+		}
+	}
+}
+
+// hvParseServerControl — Go extension: EXT-X-SERVER-CONTROL (LL-HLS).
+func hvParseServerControl(hv *hlsVariant, V string) {
+	v := V
+	hv.ServerControl = true
+
+	for len(v) > 0 {
+		key, value, rest, ok := getAttrib(v)
+		if !ok {
+			break
+		}
+		v = rest
+		switch key {
+		case "CAN-BLOCK-RELOAD":
+			hv.CanBlockReload = value == "YES"
+		case "CAN-SKIP-UNTIL":
+			hv.CanSkipUntil = int64(myStr2double(value) * 1000000)
+		case "HOLD-BACK":
+			hv.HoldBack = int64(myStr2double(value) * 1000000)
+		case "PART-HOLD-BACK":
+			hv.PartHoldBack = int64(myStr2double(value) * 1000000)
+		}
+	}
+}
+
+// hvParsePartInf — Go extension: EXT-X-PART-INF (LL-HLS).
+func hvParsePartInf(hv *hlsVariant, V string) {
+	v := V
+	for len(v) > 0 {
+		key, value, rest, ok := getAttrib(v)
+		if !ok {
+			break
+		}
+		v = rest
+		if key == "PART-TARGET" {
+			hv.PartTarget = int64(myStr2double(value) * 1000000)
+		}
+	}
+}
+
+// hvParsePart — Go extension: EXT-X-PART (LL-HLS partial segment).
+// Parts describe the pending media segment being appended; they are
+// reset on every playlist load (a snapshot, unlike full segments).
+func hvParsePart(hv *hlsVariant, baseurl, V string) {
+	v := V
+	p := &hlsPart{ByteOffset: -1, ByteSize: -1}
+
+	for len(v) > 0 {
+		key, value, rest, ok := getAttrib(v)
+		if !ok {
+			break
+		}
+		v = rest
+		switch key {
+		case "URI":
+			p.URL = misc.UrlResolveRelativeFromBase(baseurl, value)
+		case "DURATION":
+			p.Duration = int64(myStr2double(value) * 1000000)
+		case "INDEPENDENT":
+			p.Independent = value == "YES"
+		case "BYTERANGE":
+			if _, after, ok := strings.Cut(value, "@"); ok {
+				p.ByteSize = misc.Atoi(value)
+				p.ByteOffset = misc.Atoi(after)
+			} else {
+				p.ByteSize = misc.Atoi(value)
+			}
+		}
+	}
+	if p.URL != "" {
+		hv.Parts = append(hv.Parts, p)
 	}
 }
 
@@ -249,6 +357,15 @@ func hlsBadVariant(hv *hlsVariant, err hlsError) {
 }
 
 func hlsVariantUpdate(hv *hlsVariant, mp *mediacore.MediaPipe) hlsError {
+	return hlsVariantUpdateArgs(hv, mp, nil)
+}
+
+// hlsVariantUpdateArgs — hlsVariantUpdate + Go extension: extra query
+// args (LL-HLS _HLS_msn/_HLS_part blocking reload params). FALoad2
+// appends them verbatim, preserving any signed-URL query already
+// present on hv.URL.
+func hlsVariantUpdateArgs(hv *hlsVariant, mp *mediacore.MediaPipe,
+	qa [][2]string) hlsError {
 	if hv.Frozen {
 		return hlsErrorOK
 	}
@@ -260,6 +377,7 @@ func hlsVariantUpdate(hv *hlsVariant, mp *mediacore.MediaPipe) hlsError {
 			Flags:       fileaccesscore.FaCompression,
 			Cancellable: h.MP.Cancellable,
 			Location:    &loc,
+			QueryArgs:   qa,
 		})
 
 	if b == nil {
@@ -300,8 +418,15 @@ func hlsVariantUpdate(hv *hlsVariant, mp *mediacore.MediaPipe) hlsError {
 	items := 0
 	changed := false
 	var hvp hlsVariantParser
+	hvp.MapOffset = -1
+	hvp.MapSize = -1
 	firstSeq := -1
 	discontinuitySeq := -1
+
+	// Go extension: Parts is a snapshot of the pending segment's
+	// published partials — reset on each load (unlike Segments,
+	// which persist across reloads).
+	hv.Parts = nil
 
 	lp := b.Data
 	for {
@@ -318,6 +443,29 @@ func hlsVariantUpdate(hv *hlsVariant, mp *mediacore.MediaPipe) hlsError {
 			hv.TargetDuration = misc.Atoi(v)
 		} else if v, ok := mystrbegins(line, "#EXT-X-KEY:"); ok {
 			hvParseKey(&hvp, segBase, v)
+		} else if v, ok := mystrbegins(line, "#EXT-X-MAP:"); ok {
+			hvParseMap(&hvp, segBase, v)
+		} else if v, ok := mystrbegins(line, "#EXT-X-SERVER-CONTROL:"); ok {
+			hvParseServerControl(hv, v)
+		} else if v, ok := mystrbegins(line, "#EXT-X-PART-INF:"); ok {
+			hvParsePartInf(hv, v)
+		} else if v, ok := mystrbegins(line, "#EXT-X-PART:"); ok {
+			hvParsePart(hv, segBase, v)
+		} else if v, ok := mystrbegins(line, "#EXT-X-SKIP:"); ok {
+			// Go extension: delta playlist (LL-HLS reload with
+			// _HLS_skip=YES). SKIPPED-SEGMENTS are omitted from
+			// the listing but still occupy media sequence numbers
+			// — advance seq so following URIs get correct Seq.
+			for len(v) > 0 {
+				key, value, rest, ok := getAttrib(v)
+				if !ok {
+					break
+				}
+				v = rest
+				if key == "SKIPPED-SEGMENTS" {
+					seq += misc.Atoi(value)
+				}
+			}
 		} else if v, ok := mystrbegins(line, "#EXT-X-MEDIA-SEQUENCE:"); ok {
 			seq = misc.Atoi(v)
 			if firstSeq == -1 {
@@ -362,6 +510,10 @@ func hlsVariantUpdate(hv *hlsVariant, mp *mediacore.MediaPipe) hlsError {
 				hs.Duration = int64(duration * 1000000)
 				hs.Crypto = hvp.Crypto
 				hs.KeyURL = hvp.KeyURL
+				hs.KeyFormat = hvp.KeyFormat
+				hs.MapURL = hvp.MapURL
+				hs.MapOffset = hvp.MapOffset
+				hs.MapSize = hvp.MapSize
 				hs.DiscontinuitySegment =
 					discontinuitySeqGet(h, discontinuitySeq)
 

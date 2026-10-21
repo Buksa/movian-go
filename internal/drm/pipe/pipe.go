@@ -53,6 +53,19 @@ func (d *Decryptor) AttachInitInfo(pssh *cenc.PSSHBox) (*cdm.LicenseRequest, err
 	return req, nil
 }
 
+// AttachSession installs an already-usable session under a
+// caller-chosen key — for out-of-band key delivery (e.g. HLS
+// EXT-X-KEY identity keys) that needs no PSSH/license exchange.
+// Any previous session under the same id is closed.
+func (d *Decryptor) AttachSession(id [16]byte, s cdm.Session) {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	if old, ok := d.sessions[id]; ok {
+		old.Close()
+	}
+	d.sessions[id] = s
+}
+
 // DecryptPacket decrypts one sample in place. inits are the init-info
 // declarations seen on the packet (may be nil). Returns license
 // requests to be fulfilled when a session must be created.

@@ -55,6 +55,10 @@ type tsDemuxer struct {
 	// when &Buf[0] reaches av_parser_parse2.
 	Buf      []byte // C: td_buf
 	BufBytes int    // C: td_buf_bytes
+
+	// FP — Go extension: fMP4/CMAF demux state (FFmpeg mov demuxer on
+	// an init+segment AVIO splice). nil on TS/raw variants.
+	FP *fmp4State
 }
 
 // C: td_mux_mode enum.
@@ -62,6 +66,7 @@ const (
 	tdMuxModeUnset = iota // C: TD_MUX_MODE_UNSET
 	tdMuxModeTS           // C: TD_MUX_MODE_TS
 	tdMuxModeRaw          // C: TD_MUX_MODE_RAW
+	tdMuxModeFMP4         // Go extension — fMP4/CMAF via FFmpeg mov
 )
 
 // tsService — C: ts_service_t (hls_ts.c:71-76).
@@ -144,6 +149,7 @@ func (td *tsDemuxer) tssDestroy(tss *tsService) {
 }
 
 func (td *tsDemuxer) destroy() {
+	tdFmp4Close(td)
 	tdFlushPackets(td)
 	for len(td.ElementaryStreams) > 0 {
 		td.teDestroy(td.ElementaryStreams[0])
@@ -532,10 +538,30 @@ func probeDuration(te *tsES, data []byte) {
 func enqueuePacket(td *tsDemuxer, data []byte, dts, pts int64,
 	keyframe int, hs *hlsSegment, seq int, te *tsES,
 	hd *hlsDemuxer) {
-	h := td.HD.HLS
+	var logDTS, logPTS int64
+	if te.Codec != nil && te.Codec.ParserCtx != nil {
+		logDTS = te.Codec.ParserCtx.Dts()
+		logPTS = te.Codec.ParserCtx.Pts()
+	}
+	enqueuePacketCommon(td, nil, data, rescale(dts), rescale(pts),
+		keyframe, hs, seq, te.Codec, te.DataType, te.Stream,
+		te.SampleRate == 0, logDTS, logPTS, &te.LoggedKeyframe, hd)
+}
 
-	dts = rescale(dts)
-	pts = rescale(pts)
+// enqueuePacketCommon — Go extension: shared emit core of
+// enqueue_packet (hls_ts.c:600-716), parameterised so the fMP4 path can
+// queue an AVPacket-backed MediaBuf (mb != nil — data ignored) while
+// the TS/raw path keeps copying the payload into a pooled buffer
+// (mb == nil — data used). Timestamps are in microseconds on entry;
+// the discontinuity/userTime/keyframe-gate bookkeeping is identical for
+// both paths.
+func enqueuePacketCommon(td *tsDemuxer, mb *mediacore.MediaBuf,
+	data []byte, dts, pts int64,
+	keyframe int, hs *hlsSegment, seq int,
+	codec *mediacore.MediaCodec, dataType, stream int,
+	sampleRateZero bool, logDTS, logPTS int64,
+	loggedKeyframe *bool, hd *hlsDemuxer) {
+	h := td.HD.HLS
 
 	userTime := mediacore.PTSUnset
 	driveClock := 0
@@ -549,7 +575,7 @@ func enqueuePacket(td *tsDemuxer, data []byte, dts, pts int64,
 				hs.TSOffset = pts
 			}
 			userTime = hs.TimeOffset + max64(pts-hs.TSOffset, 0)
-			if te.DataType == int(mediacore.MBVideo) {
+			if dataType == int(mediacore.MBVideo) {
 				driveClock = 1
 			}
 		}
@@ -583,10 +609,10 @@ func enqueuePacket(td *tsDemuxer, data []byte, dts, pts int64,
 		dts = mediacore.PTSUnset
 	}
 
-	if te.SampleRate == 0 {
+	if sampleRateZero {
 		mp := td.MP
 		var mq *mediacore.MediaQueue
-		if te.DataType == int(mediacore.MBVideo) {
+		if dataType == int(mediacore.MBVideo) {
 			mq = mp.Video
 		} else {
 			mq = mp.Audio
@@ -601,30 +627,32 @@ func enqueuePacket(td *tsDemuxer, data []byte, dts, pts int64,
 		}
 	}
 
-	mb := mediacore.MediaBufAllocUnlocked(td.MP, len(data))
-	copy(mb.Data, data)
+	if mb == nil {
+		mb = mediacore.MediaBufAllocUnlocked(td.MP, len(data))
+		copy(mb.Data, data)
+	}
 	mb.UserTime = userTime
 	mb.DTS = dts
 	mb.PTS = pts
 	mb.Flags.DriveClock = driveClock
 
-	mb.Codec = mediacore.MediaCodecRef(te.Codec)
-	mb.DataType = te.DataType
+	mb.Codec = mediacore.MediaCodecRef(codec)
+	mb.DataType = dataType
 	mb.Flags.Keyframe = keyframe != 0
 	mb.Sequence = seq
 
-	if mb.Flags.Keyframe && !te.LoggedKeyframe {
-		te.LoggedKeyframe = true
+	if mb.Flags.Keyframe && !*loggedKeyframe {
+		*loggedKeyframe = true
 		hlsTrace(h,
 			"%s        keyframe %20d:%20d demuxer:%s stream:%d",
 			map[bool]string{true: "VIDEO",
-				false: "AUDIO"}[te.DataType == int(mediacore.MBVideo)],
-			te.Codec.ParserCtx.Dts(),
-			te.Codec.ParserCtx.Pts(),
-			hd.Type, te.Stream)
+				false: "AUDIO"}[dataType == int(mediacore.MBVideo)],
+			logDTS,
+			logPTS,
+			hd.Type, stream)
 	}
 
-	mb.Stream = te.Stream
+	mb.Stream = stream
 	td.Packets = append(td.Packets, mb)
 }
 
@@ -816,6 +844,7 @@ func hlsTsDemuxerClose(hv *hlsVariant) {
 
 func hlsTsDemuxerFlush(hv *hlsVariant) {
 	td := hv.DemuxerPrivate
+	tdFmp4Close(td)
 	for _, te := range td.ElementaryStreams {
 		mc := te.Codec
 		if mc == nil {
@@ -1078,6 +1107,13 @@ func hlsTsDemuxerRead(hd *hlsDemuxer) mbRef {
 			}
 
 			if i != len(td.Buf)-188*2 {
+				// Go extension: SAMPLE-AES-CTR is defined on fMP4
+				// (CMAF) only — a TS segment carrying it would get
+				// decrypted garbage; fail cleanly.
+				if hs.Crypto == HLSCryptoSampleAESCTR {
+					hlsBadVariant(hv, hlsErrorUnsupportedCrypto)
+					return mbRef{}
+				}
 				td.MuxMode = tdMuxModeTS
 				hlsTrace(h, "Variant %s is a transport stream",
 					hv.Name)
@@ -1093,6 +1129,21 @@ func hlsTsDemuxerRead(hd *hlsDemuxer) mbRef {
 				}
 				td.BufBytes = spill
 				copy(td.Buf[:], td.Buf[i:])
+				break
+			}
+
+			// Go extension: fMP4/CMAF — the variant advertises an
+			// EXT-X-MAP init fragment or the segment starts with an
+			// ISO-BMFF box signature. FFmpeg's mov demuxer sees
+			// [init][probe prefix][fh] over the custom AVIO splice.
+			if hs.MapURL != "" || fmp4Probe(td.Buf[:td.BufBytes]) {
+				if err := tdFmp4Open(td, hv, hs,
+					td.Buf[:td.BufBytes]); err != hlsErrorOK {
+					hlsBadVariant(hv, err)
+					return mbRef{}
+				}
+				td.MuxMode = tdMuxModeFMP4
+				td.BufBytes = 0
 				break
 			}
 
@@ -1147,6 +1198,21 @@ func hlsTsDemuxerRead(hd *hlsDemuxer) mbRef {
 			if td.BufBytes == 188 {
 				td.BufBytes = 0
 				processTSB(td, td.Buf[:188], hs)
+			}
+
+		case tdMuxModeFMP4:
+			// Go extension — one av_read_frame round per loop
+			// iteration; queued MediaBufs are drained by getPkt.
+			if misc.CancellableIsCancelled(hd.Cancellable) != 0 {
+				return mbRef{}
+			}
+			switch r := tdFmp4ReadPacket(td, hs); {
+			case r == 1:
+				hlsSegmentClose(hs)
+				continue
+			case r != 0:
+				hlsBadVariant(hv, hlsError(r))
+				return mbRef{}
 			}
 		}
 	}

@@ -23,6 +23,14 @@ const (
 	hlsCorruptionPeriodUs = 60 * 1000000 // C: HLS_CORRUPTION_MEASURE_PERIOD
 )
 
+// Go extension: EXT-X-KEY METHODs recognized but not decryptable.
+// Parsed so the open/probe path can fail fast with a clear error
+// instead of feeding ciphertext to the demuxer as plaintext.
+const (
+	HLSCryptoSampleAES    = 2 // METHOD=SAMPLE-AES (TS subsample / fMP4 cenc)
+	HLSCryptoSampleAESCTR = 3 // METHOD=SAMPLE-AES-CTR (fMP4 cbcs)
+)
+
 // Sentinel codes for C's (void*)-1/-2/-3 — used for media_buf_t*,
 // hls_segment_t* and hls_demuxer_t* return values alike.
 const (
@@ -58,6 +66,10 @@ const (
 	hlsErrorVariantUnknownAudio
 	hlsErrorVariantEmpty
 	hlsErrorVariantNotFound
+
+	// Go extension: EXT-X-KEY METHOD not decryptable
+	// (SAMPLE-AES / FairPlay / SAMPLE-AES-CTR).
+	hlsErrorUnsupportedCrypto
 )
 
 // hlserrstr — C: hlserrstr (hls.c:307-317).
@@ -71,6 +83,8 @@ var hlserrstr = map[hlsError]string{
 	hlsErrorVariantUnknownAudio: "Unknown audio codec",
 	hlsErrorVariantEmpty:        "Variant is empty",
 	hlsErrorVariantNotFound:     "Variant not found",
+
+	hlsErrorUnsupportedCrypto: "Encrypted stream — DRM not supported",
 }
 
 // hlsDiscontinuitySegment — C: hls_discontinuity_segment_t.
@@ -106,6 +120,15 @@ type hlsSegment struct {
 	// (hs_size = -1) — h2/h3/QUIC responses can lack it where the
 	// canonical h1 stack always had one.
 	DLBase int64
+
+	// Go extension: EXT-X-MAP init-section in effect when this
+	// segment was listed (fMP4/CMAF). Empty MapURL = TS/raw segment.
+	MapURL    string
+	MapOffset int // -1 = no BYTERANGE on the map
+	MapSize   int // -1
+
+	// Go extension: EXT-X-KEY KEYFORMAT attribute ("" = "identity").
+	KeyFormat string
 }
 
 // hlsVariant — C: hls_variant_t.
@@ -162,6 +185,27 @@ type hlsVariant struct {
 	Name            string      // C: hv_name[32]
 	AudioStream     int         // C: hv_audio_stream
 	StartTimeOffset int64       // C: hv_start_time_offset
+
+	// Go extension: LL-HLS (RFC 8216bis) state. CanBlockReload=false
+	// keeps the classic 1s/target-duration polling behavior.
+	ServerControl  bool  // EXT-X-SERVER-CONTROL seen
+	CanBlockReload bool  // CAN-BLOCK-RELOAD=YES
+	CanSkipUntil   int64 // CAN-SKIP-UNTIL, usec
+	HoldBack       int64 // HOLD-BACK, usec
+	PartHoldBack   int64 // PART-HOLD-BACK, usec
+	PartTarget     int64 // EXT-X-PART-INF:PART-TARGET, usec
+	// Parts of the pending (still-incomplete) segment; snapshot from
+	// the last playlist load — used for the _HLS_part reload param.
+	Parts []*hlsPart
+}
+
+// hlsPart — Go extension: EXT-X-PART partial segment (LL-HLS).
+type hlsPart struct {
+	URL         string
+	Duration    int64 // usec
+	Independent bool
+	ByteOffset  int // -1 = no BYTERANGE
+	ByteSize    int // -1
 }
 
 // hlsDemuxer — C: hls_demuxer_t.
@@ -249,12 +293,19 @@ type hls struct {
 	LastError hlsError // C: h_last_error
 }
 
-// hlsVariantParser — C: hls_variant_parser_t (hls.c:240-245).
+// hlsVariantParser — C: hls_variant_parser_t (hls.c:240-245) +
+// Go extension: EXT-X-MAP / KEYFORMAT state, carried forward like
+// the crypto fields until changed by the playlist.
 type hlsVariantParser struct {
 	KeyURL     string // C: hvp_key_url (rstr)
 	Crypto     int    // C: hvp_crypto
 	ExplicitIV int    // C: hvp_explicit_iv
 	IV         [16]byte
+
+	KeyFormat string // EXT-X-KEY:KEYFORMAT
+	MapURL    string // EXT-X-MAP:URI (resolved)
+	MapOffset int    // EXT-X-MAP:BYTERANGE offset, -1 = none
+	MapSize   int    // EXT-X-MAP:BYTERANGE size, -1 = none
 }
 
 const testURL = "http://devimages.apple.com.edgekey.net/resources/" +
