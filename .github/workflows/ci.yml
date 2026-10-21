@@ -445,7 +445,7 @@ jobs:
           sudo cp third_party/glfw/linux/lib/pkgconfig/glfw3.pc /usr/local/lib/pkgconfig/
 
       - name: Install govulncheck
-        run: go install golang.org/x/vuln/cmd/govulncheck@v1.1.4
+        run: go install golang.org/x/vuln/cmd/govulncheck@v1.9.0
 
       - name: Run govulncheck
         run: govulncheck ./...

@@ -249,7 +249,7 @@ func (sys *System) smb2GetConn(host string, port int, interactive bool) (*smb2Co
 			// The server spoke SMB2 — surface its error verbatim.
 			return nil, err
 		}
-		return nil, fmt.Errorf("%w: %v", errSMB2Unsupported, err)
+		return nil, fmt.Errorf("%w: %w", errSMB2Unsupported, err)
 	}
 	cc := &smb2Conn{sess: sess, shares: map[string]*smb2.Share{}}
 	sys.s2mu.Lock()
