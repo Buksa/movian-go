@@ -5,7 +5,11 @@
 // modem/NAS firmware) fail against it. This initiator negotiates a
 // permissive flag set and parses the challenge tolerantly while still
 // producing a spec-correct NTLMv2 AUTHENTICATE_MESSAGE (NTProofStr,
-// MIC, KEY_EXCH session key).
+// MIC). KEY_EXCH is never requested: per MS-NLMP 3.1.5.2.1 the
+// exchanged session key is adopted only when KEY_EXCH *and* SIGN/SEAL
+// are negotiated, and this client signs nothing — asking for it only
+// desynced the session key on conformant servers, which kept the
+// key-exchange key while we signed with a random one.
 package smb
 
 import (
@@ -13,7 +17,6 @@ import (
 	"crypto/hmac"
 	"crypto/md5"
 	"crypto/rand"
-	"crypto/rc4"
 	"encoding/asn1"
 	"encoding/binary"
 	"errors"
@@ -44,11 +47,12 @@ const (
 	nf128        = 0x20000000
 )
 
-// Flags we ask for: everything needed for NTLMv2 + KEY_EXCH, no
-// SIGN/SEAL/VERSION — servers that do not support NTLM signing still
-// authenticate (the SMB layer decides signing independently).
+// Flags we ask for: everything needed for NTLMv2, no
+// SIGN/SEAL/VERSION/KEY_EXCH — servers that do not support NTLM
+// signing still authenticate (the SMB layer decides signing
+// independently).
 const ntlmClientFlags = nfUNICODE | nfREQUESTTGT | nfNTLM |
-	nfALWAYSSIGN | nfESS | nfTARGETINFO | nfKEYEXCH | nf56 | nf128
+	nfALWAYSSIGN | nfESS | nfTARGETINFO | nf56 | nf128
 
 // smb2NTLMCredential adapts plaintext credentials to smb2.Credentials.
 type smb2NTLMCredential struct {
@@ -159,14 +163,12 @@ func (i *smb2NTLMInitiator) AcceptSecContext(cmsg []byte) ([]byte, error) {
 
 	// Anonymous: real clients send an AUTHENTICATE_MESSAGE with a
 	// 1-byte null LM response and no NT response — not an NTLMv2
-	// computed over an empty password.
+	// computed over an empty password. The anonymous KeyExchangeKey is
+	// Z(16) and no key exchange happens, so the exported session key
+	// is all zeroes.
 	if i.IsAnonymous() {
-		i.exportedKey = rand16()
-		encKey := i.exportedKey
-		if serverFlags&nfKEYEXCH == 0 {
-			encKey = nil
-		}
-		msg := ntlmAuthMsg([]byte{0}, nil, nil, nil, nil, encKey, t3flags)
+		i.exportedKey = make([]byte, 16)
+		msg := ntlmAuthMsg([]byte{0}, nil, nil, nil, nil, nil, t3flags)
 		i.auth = msg
 		i.complete = true
 		return msg, nil
@@ -203,21 +205,17 @@ func (i *smb2NTLMInitiator) AcceptSecContext(cmsg []byte) ([]byte, error) {
 		append(append([]byte{}, serverChallenge...), clientNonce[:]...))
 	lmResp = append(lmResp, clientNonce[:]...)
 
-	baseKey := hmacMD5(ntowfv2, ntProof)
-	var encKey []byte
-	if serverFlags&nfKEYEXCH != 0 {
-		i.exportedKey = make([]byte, 16)
-		rand.Read(i.exportedKey)
-		rc, _ := rc4.NewCipher(baseKey)
-		encKey = make([]byte, 16)
-		rc.XORKeyStream(encKey, i.exportedKey)
-	} else {
-		i.exportedKey = baseKey
-	}
+	// With KEY_EXCH not negotiated, ExportedSessionKey is the
+	// key-exchange key itself (MS-NLMP 3.1.5.2.1) — the session base
+	// key for NTLMv2 — matching what the server derives. A server that
+	// echoes KEY_EXCH+SIGN/SEAL unasked would expect an
+	// EncryptedRandomSessionKey we do not send; such an echo is
+	// already off-spec since we never offer those flags.
+	i.exportedKey = hmacMD5(ntowfv2, ntProof)
 
 	// AUTHENTICATE_MESSAGE: 64-byte header + 16-byte MIC + payload.
 	msg := ntlmAuthMsg(lmResp, ntResp, utf16le(domain),
-		utf16le(i.creds.User), nil, encKey, t3flags, 16)
+		utf16le(i.creds.User), nil, nil, t3flags, 16)
 
 	i.auth = msg
 	// MIC = HMAC-MD5(exportedKey, neg||chal||auth zeroed-MIC)
@@ -257,22 +255,30 @@ func ntlmAuthMsg(lm, nt, dom, user, wk, key []byte,
 	return msg
 }
 
-func rand16() []byte {
-	b := make([]byte, 16)
-	rand.Read(b)
-	return b
-}
-
 func (i *smb2NTLMInitiator) Complete() bool { return i.complete }
 
 func (i *smb2NTLMInitiator) SessionKey() []byte {
 	return append([]byte(nil), i.exportedKey...)
 }
 
-// GetMIC — NTLM signature block for the SPNEGO mechListMIC:
-// Version(4)=1 || HMAC-MD5(key, seq||msg)[:8] || SeqNum(4).
-// Anonymous sessions share no verifiable key — real clients send no
-// MIC, so neither do we.
+// ntlmSigningKey — MS-NLMP 3.4.5.2 SIGNKEY under extended session
+// security: MD5(ExportedSessionKey || direction magic). KEY_EXCH is
+// never negotiated, so message checksums are sent unsealed.
+func (i *smb2NTLMInitiator) ntlmSigningKey(toServer bool) []byte {
+	magic := "session key to server-to-client signing key magic constant\x00"
+	if toServer {
+		magic = "session key to client-to-server signing key magic constant\x00"
+	}
+	h := md5.New()
+	h.Write(i.exportedKey)
+	h.Write([]byte(magic))
+	return h.Sum(nil)
+}
+
+// GetMIC — NTLM signature block for the SPNEGO mechListMIC (MS-NLMP
+// 2.2.2.9.1): Version(4)=1 || HMAC-MD5(signingKey, seq||msg)[:8] ||
+// SeqNum(4). Anonymous sessions share no verifiable key — real clients
+// send no MIC, so neither do we.
 func (i *smb2NTLMInitiator) GetMIC(message []byte) ([]byte, error) {
 	if i.IsAnonymous() {
 		return nil, nil
@@ -282,7 +288,7 @@ func (i *smb2NTLMInitiator) GetMIC(message []byte) ([]byte, error) {
 	}
 	mic := make([]byte, 16)
 	binary.LittleEndian.PutUint32(mic[0:], 1)
-	ck := hmacMD5(i.exportedKey,
+	ck := hmacMD5(i.ntlmSigningKey(true),
 		append(binary.LittleEndian.AppendUint32([]byte{}, i.sendSeq),
 			message...))
 	copy(mic[4:12], ck[:8])
@@ -304,7 +310,7 @@ func (i *smb2NTLMInitiator) VerifyMIC(message, mic []byte) error {
 	if len(mic) < 12 {
 		return errors.New("ntlm: short MIC")
 	}
-	ck := hmacMD5(i.exportedKey,
+	ck := hmacMD5(i.ntlmSigningKey(false),
 		append(binary.LittleEndian.AppendUint32([]byte{}, i.recvSeq),
 			message...))
 	if !hmac.Equal(mic[4:12], ck[:8]) {
