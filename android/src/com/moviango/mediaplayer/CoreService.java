@@ -20,10 +20,24 @@ public class CoreService extends Service {
 
     final IntentFilter networkChecker = new IntentFilter();
 
+    // Registered only once the core is ready, so the callback can
+    // never touch class Core early.
     private BroadcastReceiver networkCheckerAction = new BroadcastReceiver() {
             @Override
             public void onReceive(final Context context, final Intent intent) {
-                Core.networkStatusChanged();
+                if(CoreBoot.isReady())
+                    Core.networkStatusChanged();
+            }
+        };
+
+    private boolean receiverRegistered;
+
+    private final Runnable registerNetworkReceiver = new Runnable() {
+            public void run() {
+                if(receiverRegistered)
+                    return;
+                receiverRegistered = true;
+                registerReceiver(networkCheckerAction, networkChecker);
             }
         };
 
@@ -32,8 +46,18 @@ public class CoreService extends Service {
         Log.d("Movian", "Coreservice Init");
 
         networkChecker.addAction(android.net.ConnectivityManager.CONNECTIVITY_ACTION);
-        Core.init(this);
-        registerReceiver(networkCheckerAction, networkChecker);
+        CoreBoot.start(this);
+        CoreBoot.runWhenReady(registerNetworkReceiver);
+    }
+
+    @Override
+    public void onDestroy() {
+        CoreBoot.removeReadyListener(registerNetworkReceiver);
+        if(receiverRegistered) {
+            receiverRegistered = false;
+            unregisterReceiver(networkCheckerAction);
+        }
+        super.onDestroy();
     }
 
     @Override
