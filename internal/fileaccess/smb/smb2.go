@@ -136,7 +136,7 @@ func (sys *System) smb2Dial(host string, port int, interactive bool) (*smb2.Sess
 		if r == -1 {
 			return nil, errors.New("Authentication rejected by user")
 		}
-		cred := smb2Credential(ku, kp, kd)
+		cred := smb2Credential(host, ku, kp, kd)
 		d := &smb2.Dialer{
 			Credentials:     cred,
 			TransportDialer: smb2TCPDialer{},
@@ -166,8 +166,14 @@ func (sys *System) smb2Dial(host string, port int, interactive bool) (*smb2.Sess
 // An unset or empty domain stays nil so go-smb2 authenticates against the
 // server's challenge TargetName; a pointer to "" would force an empty
 // domain instead.
-func smb2Credential(user, password, domain string) auth.NTLMCredential {
-	cred := auth.NTLMCredential{}
+//
+// TargetSPN is set to cifs/<host> without the port. go-smb2 otherwise
+// derives it from the dial address ("host:port"), which differs from the
+// SPN Windows clients and smbclient send and can be rejected by servers
+// that harden SPN target-name checking.
+func smb2Credential(host, user, password, domain string) auth.NTLMCredential {
+	spn := "cifs/" + host
+	cred := auth.NTLMCredential{TargetSPN: &spn}
 	if user != krUnset {
 		cred.User = user
 	}
