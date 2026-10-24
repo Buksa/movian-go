@@ -59,7 +59,19 @@ public class GLWActivity extends Activity implements VideoRendererProvider {
     TvView mTvView;
     private OskEditText mOskEdit;
 
+    private boolean mStarted;
+
+    // Runs on the main thread when the core becomes ready.
+    private final Runnable mReadyRunnable = new Runnable() {
+            public void run() { startGLW(); }
+        };
+
     private void startGLW() {
+        // Only for a started, live activity, once the core is ready,
+        // and only once per start.
+        if(!mStarted || isFinishing() || mGLWView != null ||
+           !CoreBoot.isReady())
+            return;
         // remove title
         mRoot = new FrameLayout(this);
 
@@ -72,21 +84,21 @@ public class GLWActivity extends Activity implements VideoRendererProvider {
     @Override
     protected void onStart() {
         super.onStart();
-
-        Handler h = new Handler(new Handler.Callback() {
-                public boolean handleMessage(Message msg) {
-                    startGLW();
-                    return true;
-                }
-            });
-
-        h.sendEmptyMessage(0);
+        mStarted = true;
+        // Immediately if the core is ready, else when it becomes ready.
+        CoreBoot.runWhenReady(mReadyRunnable);
     }
 
     @Override
     protected void onStop() {
         super.onStop();
-        mGLWView.destroy();
+        mStarted = false;
+        CoreBoot.removeReadyListener(mReadyRunnable);
+        // GLW is never created if the core was not ready yet.
+        if(mGLWView != null) {
+            mGLWView.destroy();
+            mGLWView = null;
+        }
     }
 
     @Override
@@ -131,22 +143,16 @@ public class GLWActivity extends Activity implements VideoRendererProvider {
         Log.d("Movian", "onResume");
         super.onResume();
 
-        Handler h = new Handler(new Handler.Callback() {
-                public boolean handleMessage(Message msg) {
-                    Intent intent = getIntent();
-                    Uri uri = intent.getData();
-                    if(uri == null)
-                        uri = intent.getParcelableExtra("uri");
+        Intent intent = getIntent();
+        Uri uri = intent.getData();
+        if(uri == null)
+            uri = intent.getParcelableExtra("uri");
 
-                    if(uri != null) {
-                        String u = getRealPathFromUri(uri);
-                        Core.openUri(u != null ? u : uri.toString());
-                    }
-                    return true;
-                }
-            });
-
-        h.sendEmptyMessage(0);
+        if(uri != null) {
+            String u = getRealPathFromUri(uri);
+            // Queued (deduplicated) until the core is ready.
+            CoreBoot.openUri(u != null ? u : uri.toString());
+        }
     }
 
     @Override
@@ -158,6 +164,7 @@ public class GLWActivity extends Activity implements VideoRendererProvider {
     @Override
     protected void onDestroy() {
         Log.d("Movian", "onDestroy");
+        CoreBoot.removeReadyListener(mReadyRunnable);
         closeOskView();
         tvUntune();
         Tv.detach(this);
@@ -554,7 +561,7 @@ public class GLWActivity extends Activity implements VideoRendererProvider {
     public void onRequestPermissionsResult(int requestCode,
                                            String permissions[],
                                            int[] grantResults) {
-        if (requestCode != 1)
+        if (requestCode != 1 || !CoreBoot.isReady())
             return;
         // grantResults is empty when the request is cancelled — indexing
         // it would throw and leave the native wait blocked forever.
