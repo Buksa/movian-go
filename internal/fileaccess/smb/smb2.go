@@ -15,6 +15,7 @@ import (
 	"time"
 
 	smb2 "github.com/hirochachacha/go-smb2/v2"
+	"github.com/hirochachacha/go-smb2/v2/auth"
 	"github.com/hirochachacha/go-smb2/v2/x/protocol"
 	"github.com/hirochachacha/go-smb2/v2/x/wire"
 
@@ -135,16 +136,7 @@ func (sys *System) smb2Dial(host string, port int, interactive bool) (*smb2.Sess
 		if r == -1 {
 			return nil, errors.New("Authentication rejected by user")
 		}
-		cred := smb2NTLMCredential{}
-		if ku != krUnset {
-			cred.User = ku
-		}
-		if kp != krUnset {
-			cred.Password = kp
-		}
-		if kd != krUnset {
-			cred.Domain = kd
-		}
+		cred := smb2Credential(ku, kp, kd)
 		d := &smb2.Dialer{
 			Credentials:     cred,
 			TransportDialer: smb2TCPDialer{},
@@ -168,6 +160,24 @@ func (sys *System) smb2Dial(host string, port int, interactive bool) (*smb2.Sess
 		return nil, err
 	}
 	return nil, errors.New("Authentication failed")
+}
+
+// smb2Credential maps the keyring result to go-smb2's NTLM credential.
+// An unset or empty domain stays nil so go-smb2 authenticates against the
+// server's challenge TargetName; a pointer to "" would force an empty
+// domain instead.
+func smb2Credential(user, password, domain string) auth.NTLMCredential {
+	cred := auth.NTLMCredential{}
+	if user != krUnset {
+		cred.User = user
+	}
+	if password != krUnset {
+		cred.Password = password
+	}
+	if domain != krUnset && domain != "" {
+		cred.Domain = &domain
+	}
+	return cred
 }
 
 func smb2IsAuthError(err error) bool {
