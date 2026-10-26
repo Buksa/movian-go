@@ -42,6 +42,7 @@ const (
 	nfTGTSERVER  = 0x00020000
 	nfESS        = 0x00080000
 	nfTARGETINFO = 0x00800000
+	nfVERSION    = 0x02000000
 	nfKEYEXCH    = 0x40000000
 	nf56         = 0x80000000
 	nf128        = 0x20000000
@@ -158,8 +159,10 @@ func (i *smb2NTLMInitiator) AcceptSecContext(cmsg []byte) ([]byte, error) {
 
 	// NegotiateFlags for the AUTHENTICATE: impacket-masked — strip
 	// OEM/SIGN/SEAL/OEM-domain-supplied and always set REQUEST_TARGET.
+	// Strip KEY_EXCH (never negotiated) and VERSION (the message
+	// carries no Version field, so the flag must not claim one).
 	t3flags := (serverFlags | nfREQUESTTGT) &^
-		(nfOEM | nfSIGN | nfSEAL | nfKEYEXCH | 0x00010000)
+		(nfOEM | nfSIGN | nfSEAL | nfVERSION | nfKEYEXCH | 0x00010000)
 
 	// Anonymous: real clients send an AUTHENTICATE_MESSAGE with a
 	// 1-byte null LM response and no NT response — not an NTLMv2
