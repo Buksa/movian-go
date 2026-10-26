@@ -257,7 +257,13 @@ func (sys *System) smb2GetConn(host string, port int, interactive bool) (*smb2Co
 		sys.s2conns = map[string]*smb2Conn{}
 	}
 	if old := sys.s2conns[key]; old != nil {
-		old.dead = true
+		if !old.dead {
+			// A concurrent dial won while we were dialing and its
+			// session may already serve other callers: keep it.
+			sys.s2mu.Unlock()
+			sess.Abort()
+			return old, nil
+		}
 		old.sess.Abort()
 	}
 	sys.s2conns[key] = cc
