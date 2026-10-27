@@ -48,6 +48,7 @@ package ui
 #include <include/capi/cef_cookie_capi.h>
 #include <include/capi/cef_command_line_capi.h>
 #include <include/cef_api_hash.h>
+#include <include/cef_version_info.h>
 
 extern void cefOnContextInit(void);
 extern void cefOnBrowserCreated(void *browser, void *data);
@@ -753,6 +754,7 @@ import (
 	"encoding/base64"
 	"os"
 	"runtime"
+	"strconv"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -1230,6 +1232,25 @@ func WpActive() bool {
 	return len(cefJobs) > 0
 }
 
+var cefUAOnce sync.Once
+var cefUA string
+
+// wpPlatformUserAgent — the exact UA CEF sends: Chromium's reduced UA
+// carries Chrome/<major>.0.0.0 (user_agent_utils.cc), with the major
+// taken from the loaded library via cef_version_info — mirrors CEF's
+// own default so a plugin pinning $ua gets the UA the challenge was
+// solved on. Computed lazily so webuseragent() works before the first
+// popup too.
+func wpPlatformUserAgent() string {
+	cefUAOnce.Do(func() {
+		cefUA = "Mozilla/5.0 (" + cefUAPlatform() + ") " +
+			"AppleWebKit/537.36 (KHTML, like Gecko) " +
+			"Chrome/" + strconv.Itoa(int(C.cef_version_info(4))) +
+			".0.0.0 Safari/537.36"
+	})
+	return cefUA
+}
+
 // cefUAPlatform — UA token per host OS (wpLastUA reports what the
 // webview pages ran with).
 func cefUAPlatform() string {
@@ -1258,10 +1279,6 @@ func wpNewSession(uri, trap string, wr *WebpopupResult,
 		return s
 	}
 	cefActiveN.Add(1)
-
-	wpLastUA = "Mozilla/5.0 (" + cefUAPlatform() + ") " +
-		"AppleWebKit/537.36 (KHTML, like Gecko) " +
-		"Chrome/cef Safari/537.36"
 
 	if wpSurfaceGlueCef.show == nil || !wpSurfaceGlueCef.show(s) {
 		s.finish(WebpopupLoadError)
