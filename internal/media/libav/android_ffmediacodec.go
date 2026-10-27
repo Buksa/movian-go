@@ -118,15 +118,6 @@ static void ml_ffmc_set_hwdevice(void *ctx, void *buf) {
     ((AVCodecContext *)ctx)->hw_device_ctx = (AVBufferRef *)buf;
 }
 
-static void *ml_ffmc_new_global_ref(void *env, void *surface) {
-    jobject ref = (*((JNIEnv *)env))->NewGlobalRef((JNIEnv *)env,
-                                                 (jobject)surface);
-    // The global ref keeps the Surface alive; the local ref from
-    // getSurface is no longer needed.
-    (*((JNIEnv *)env))->DeleteLocalRef((JNIEnv *)env, (jobject)surface);
-    return (void *)ref;
-}
-
 static void ml_ffmc_delete_global_ref(void *env, void *ref) {
     (*((JNIEnv *)env))->DeleteGlobalRef((JNIEnv *)env, (jobject)ref);
 }
@@ -789,11 +780,9 @@ func ffmcOpen(mc *mediacore.MediaCodec, mcp *mediacore.MediaCodecParams,
 		return fail("no JNIEnv")
 	}
 
-	gsurface := C.ml_ffmc_new_global_ref(unsafe.Pointer(env),
-		unsafe.Pointer(uintptr(surface)))
-	if gsurface == nil {
-		return fail("NewGlobalRef failed")
-	}
+	// SetVideoCodec hands back a Surface that is already a global ref
+	// (ml_vw_surf_job); we adopt it and must DeleteGlobalRef it once.
+	gsurface := unsafe.Pointer(uintptr(surface))
 
 	st := &ffmcState{surface: gsurface, width: w, height: h, mp: mp}
 
@@ -814,6 +803,7 @@ func ffmcOpen(mc *mediacore.MediaCodec, mcp *mediacore.MediaCodecParams,
 
 	st.frame = libav.AvFrameAlloc()
 	if st.frame == nil {
+		C.ml_ffmc_delete_global_ref(unsafe.Pointer(env), gsurface)
 		C.ml_ffmc_buffer_unref(&st.devbuf)
 		return fail("frame alloc failed")
 	}
@@ -838,6 +828,7 @@ func ffmcOpen(mc *mediacore.MediaCodec, mcp *mediacore.MediaCodecParams,
 	if ret := C.ml_ffmc_open(ctx, codec, C.int(w), C.int(h)); ret < 0 {
 		lavTS.Debug("Video", "MediaCodec skipped: open %s failed: %d",
 			name, int(ret))
+		C.ml_ffmc_delete_global_ref(unsafe.Pointer(env), gsurface)
 		C.ml_ffmc_buffer_unref(&st.devbuf)
 		return fail("avcodec_open2 failed")
 	}
