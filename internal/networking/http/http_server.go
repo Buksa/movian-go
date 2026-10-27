@@ -88,12 +88,18 @@ type HTTPServer struct {
 	mu           sync.RWMutex
 	running      atomic.Bool
 	wg           sync.WaitGroup
+	// wsConns — upgraded WebSocket connections held by their handler
+	// goroutines; tracked so Close can shut them down (C closes them
+	// with WS close frames in http_server_fini).
+	wsMu    sync.Mutex
+	wsConns map[*HTTPConnection]struct{}
 }
 
 // NewHTTPServer creates a new HTTP server
 func NewHTTPServer() *HTTPServer {
 	return &HTTPServer{
-		paths: make(map[string]*HTTPPath),
+		paths:   make(map[string]*HTTPPath),
+		wsConns: make(map[*HTTPConnection]struct{}),
 	}
 }
 
@@ -444,6 +450,18 @@ func (s *HTTPServer) Close() {
 	}
 	s.auxListeners = nil
 	s.mu.Unlock()
+
+	// Shut down upgraded WebSocket connections — they run
+	// handleWebSocketFrames synchronously and hold wg, so without this
+	// Close would block forever (C: http_server_fini sends close frames
+	// then closes).
+	s.wsMu.Lock()
+	for hc := range s.wsConns {
+		hc.WebSocketSend(8, []byte{0x03, 0xE9}, 2) // 1001 Going Away
+		hc.conn.Close()
+	}
+	s.wsMu.Unlock()
+
 	s.wg.Wait()
 }
 
@@ -728,29 +746,41 @@ func (s *HTTPServer) handleWebSocketUpgrade(hc *HTTPConnection) error {
 		return fmt.Errorf("not a WebSocket upgrade")
 	}
 
-	// Send upgrade response
-	hc.HTTPSetResponseHdr("Upgrade", "websocket")
-	hc.HTTPSetResponseHdr("Connection", "Upgrade")
-
-	// Generate WebSocket accept key per RFC 6455
+	// C: no Sec-WebSocket-Key → 400 (http_server.c:636-663). The reply
+	// has not been sent yet, so the caller's HTTPError still writes a
+	// plain HTTP response.
 	secKey := hc.headers.HTTPHeaderGet("Sec-WebSocket-Key")
-	if secKey != "" {
-		h := sha1.Sum([]byte(secKey + "258EAFA5-E914-47DA-95CA-C5AB0DC85B11"))
-		acceptKey := base64.StdEncoding.EncodeToString(h[:])
-		hc.HTTPSetResponseHdr("Sec-WebSocket-Accept", acceptKey)
+	if secKey == "" {
+		return fmt.Errorf("missing Sec-WebSocket-Key")
 	}
 
-	hc.HTTPSendReply(101, "", "", "", 0, nil)
-
-	// Call WebSocket init callback
+	// C: ws_setup runs BEFORE the 101 is sent — a failed init gets an
+	// HTTP error, not bytes on an already-switched connection.
 	if hc.path.wsSetup != nil {
 		if hc.path.wsSetup(hc, hc.path.opaque) != 0 {
 			return fmt.Errorf("WebSocket init failed")
 		}
 	}
 
-	// Handle WebSocket frames
-	go s.handleWebSocketFrames(hc)
+	// Send upgrade response
+	hc.HTTPSetResponseHdr("Upgrade", "websocket")
+	hc.HTTPSetResponseHdr("Connection", "Upgrade")
+	h := sha1.Sum([]byte(secKey + "258EAFA5-E914-47DA-95CA-C5AB0DC85B11"))
+	hc.HTTPSetResponseHdr("Sec-WebSocket-Accept",
+		base64.StdEncoding.EncodeToString(h[:]))
+	hc.HTTPSendReply(101, "", "", "", 0, nil)
+
+	// Track the connection so HTTPServer.Close can shut it down — the
+	// frame loop below runs synchronously and holds s.wg.
+	s.wsMu.Lock()
+	s.wsConns[hc] = struct{}{}
+	s.wsMu.Unlock()
+
+	// Handle WebSocket frames synchronously — the connection stays
+	// owned by handleConnection until the session ends (running this
+	// on a separate goroutine let the deferred conn.Close() kill the
+	// socket right after the 101).
+	s.handleWebSocketFrames(hc)
 
 	return nil
 }
@@ -758,18 +788,50 @@ func (s *HTTPServer) handleWebSocketUpgrade(hc *HTTPConnection) error {
 // handleWebSocketFrames handles WebSocket frames
 func (s *HTTPServer) handleWebSocketFrames(hc *HTTPConnection) {
 	defer func() {
+		s.wsMu.Lock()
+		delete(s.wsConns, hc)
+		s.wsMu.Unlock()
 		if hc.path.wsFini != nil {
 			hc.path.wsFini(hc, hc.opaque)
 		}
 		hc.conn.Close()
 	}()
 
+	missedPongs := 0
 	for {
-		// Read frame header (minimum 2 bytes)
-		var header [2]byte
-		if _, err := io.ReadFull(hc.reader, header[:]); err != nil {
+		// C: http_ws_send_ping — ping the client when the connection
+		// has been silent for 5s; two unanswered pings close it. The
+		// deadline covers only the first header byte: a timeout via
+		// ReadByte consumes nothing, so a client is never cut off
+		// mid-frame.
+		if hc.conn != nil {
+			hc.conn.SetReadDeadline(time.Now().Add(5 * time.Second))
+		}
+		b, err := hc.reader.ReadByte()
+		if err != nil {
+			if nerr, ok := err.(net.Error); ok && nerr.Timeout() {
+				missedPongs++
+				if missedPongs >= 2 {
+					hc.WebSocketSend(8, []byte{0x03, 0xE8}, 2) // 1000
+					return
+				}
+				hc.WebSocketSend(9, nil, 0) // ping
+				continue
+			}
 			return
 		}
+		if hc.conn != nil {
+			hc.conn.SetReadDeadline(time.Time{})
+		}
+		missedPongs = 0
+
+		// Read the second header byte + frame (no deadline — a client
+		// that started a frame may take its time).
+		var b2 [1]byte
+		if _, err := io.ReadFull(hc.reader, b2[:]); err != nil {
+			return
+		}
+		header := [2]byte{b, b2[0]}
 
 		_ = header[0] & 0x80 // FIN bit - full frames read, fragmentation not buffered
 		opcode := int(header[0] & 0x0F)
@@ -817,6 +879,19 @@ func (s *HTTPServer) handleWebSocketFrames(hc *HTTPConnection) {
 			for i := range payload {
 				payload[i] ^= mask[i%4]
 			}
+		}
+
+		// C: websocket_input — control frames are handled by the server
+		// itself: 8 close, 9 ping → pong, 10 pong (missed counter was
+		// already reset above).
+		switch opcode {
+		case 8: // close
+			return
+		case 9: // ping → pong
+			hc.WebSocketSend(10, payload, len(payload))
+			continue
+		case 10: // pong
+			continue
 		}
 
 		// Call data callback
