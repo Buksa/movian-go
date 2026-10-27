@@ -82,7 +82,7 @@ public class HomeKeyService extends AccessibilityService {
                 // are. From another app we also bring Movian to front.
                 if (!getPackageName().equals(foregroundPkg))
                     launchHome();
-                Core.openUri("page:home");
+                CoreBoot.openUri("page:home");
             }
             return true;
         }
