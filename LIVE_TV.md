@@ -65,6 +65,26 @@ Inputs are enumerated at runtime from `TvInputManager` — nothing is
 hardcoded per vendor. Vendor feeder URIs live in the sidecar as data,
 not in the code.
 
+### Channel-list source (settings:livetv)
+
+The **Live TV** settings page (`Settings → Live TV`) picks where the
+channel list comes from — needed on boxes whose `TvProvider` is
+broken or package-locked while their inputs still tune:
+
+- **Automatic** *(default)* — TvProvider, falling back to the Java
+  sidecar when the provider is empty (the original behavior).
+- **TV provider** — `TvContract` rows only.
+- **Channel list file** — only a JSON channel map picked on disk
+  (file picker, any location — not just the fixed sidecar path).
+- **File + TV provider** — the file's channels merged with the
+  provider's, deduplicated.
+
+The file uses the sidecar schema below. Positive `id` values tune
+through the TvView (vendor internal ids — what the vendor TV app
+uses); `uri` is the raw feeder fallback for id-less entries. Missing
+`inputId` falls back to the first non-passthrough input. Selection
+persists in the `tvinput:store` kvstore page.
+
 ### Sidecar format
 
 ```json
@@ -84,7 +104,7 @@ not in the code.
 
 | Field | Meaning |
 |---|---|
-| `id` | `TvContract` rowid when the row exists; otherwise arbitrary/0 — the feeder URI is what matters |
+| `id` | The channel's real rowid: a `TvContract` rowid, or the vendor input's *internal* channel id — a positive value tunes through the TvView (`tune(inputId, id)`), which is the path that works on vendor boxes. Missing/0 gets a synthetic negative id and the channel falls back to `uri` |
 | `inputId` | Component name of the `TvInputService` (`pkg/.Service` or `pkg/pkg.Service`) |
 | `name` | Display name; also used for XMLTV channel matching |
 | `number` | LCN — used for sorting and shown as the list prefix. Vendor boxes often hide the LCN; fill it in manually if you know it |
