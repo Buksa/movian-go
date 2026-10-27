@@ -128,6 +128,30 @@ func WebpopupCookies(uri string) map[string]string {
 // cookies like cf_clearance are bound to it.
 func WebpopupUserAgent() string { return wpLastUA }
 
+var wpDelCookiesMu sync.Mutex
+
+// WebpopupDeleteCookies removes the webview-store cookies a request to
+// host/path would carry — optionally restricted to the listed names —
+// and returns the removed count. Partitioned cookies are covered too:
+// the native visitor walks the whole store. An empty jar reports 0 via
+// the wait timeout, like the read path.
+func WebpopupDeleteCookies(host, path string, names map[string]bool) int {
+	wpEnsure()
+	if !wpPlatformOK() {
+		return 0
+	}
+	done := make(chan int, 1)
+	wpDelCookiesMu.Lock()
+	defer wpDelCookiesMu.Unlock()
+	wpPlatformDispatch(func() { wpPlatformDeleteCookies(host, path, names, done) })
+	select {
+	case n := <-done:
+		return n
+	case <-time.After(10 * time.Second):
+		return 0
+	}
+}
+
 // WebpopupSetStorage enables persistent cookies for the webview's
 // cookie jar (dir under the app persistent path).
 func WebpopupSetStorage(dir string) {

@@ -1,0 +1,7 @@
+{
+  "type": "ecmascript",
+  "id": "cookiedelete",
+  "file": "cookiedelete.js",
+  "title": "Cookie delete demo",
+  "apiversion": 2
+}

@@ -26,6 +26,11 @@ func wpPlatformStorage(dir string) {}
 
 func wpPlatformCookies(uri string, done chan map[string]string) {}
 
+func wpPlatformDeleteCookies(host, path string, names map[string]bool,
+	done chan int) {
+	done <- 0
+}
+
 func WpMainCheck() {}
 
 func WpActive() bool { return false }
