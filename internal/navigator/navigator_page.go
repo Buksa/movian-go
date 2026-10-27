@@ -419,7 +419,12 @@ func pageEventsink(opaque any, evtType propcore.EventType, args ...any) {
 	// ACTION_RELOAD_DATA and EVENT_REDIRECT. All other events are
 	// silently ignored — they must NOT be forwarded to the event manager.
 	if evtType == propcore.EventExtEvent && len(args) > 0 {
-		if evt, ok := args[0].(*event.Event); ok {
+		// C: prop_send_ext_event delivers the event_t* as sent —
+		// receivers read its type tag regardless of the concrete
+		// event subtype (event_payload_t and friends). Flatten via
+		// ExtArg so *EventPayload-based senders (e.g. bt_backend's
+		// torrent:browse redirect) reach the handler too.
+		if evt := event.ExtArg(args[0]); evt != nil {
 			switch {
 			case evt.Type == event.EVENT_REDIRECT:
 				// C: event_is_type(e, EVENT_REDIRECT) →

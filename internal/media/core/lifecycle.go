@@ -158,8 +158,8 @@ func (ms *MediaSystem) globalEventsink(_ any, ev propcore.EventType, args ...any
 	if ev != propcore.EventExtEvent || len(args) == 0 {
 		return
 	}
-	e, ok := args[0].(*event.Event)
-	if !ok || e == nil {
+	e := event.ExtArg(args[0])
+	if e == nil {
 		return
 	}
 
@@ -397,7 +397,7 @@ func MpCreate(ms *MediaSystem, pm *propcore.PropManager, name string, flags Medi
 				if ev != propcore.EventExtEvent || len(args) == 0 {
 					return
 				}
-				if e, ok := args[0].(*event.Event); ok && e != nil {
+				if e := event.ExtArg(args[0]); e != nil {
 					MpEnqueueEventLocked(mp, &MediaEvent{Type: int(e.Type), Data: e.Concrete()})
 				}
 			}, mp, propcore.SubNoInitialUpdate,

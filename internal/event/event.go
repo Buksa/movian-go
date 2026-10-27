@@ -1282,3 +1282,18 @@ func (em *EventManager) Sprint(e *Event) string {
 // GconfEnableInputEventDebug — C: gconf.enable_input_event_debug
 
 // SetEnableInputEventDebug — C: gconf field written by settings.c dev bool.
+
+// ExtArg unwraps an ext-event delivery arg into its base *Event:
+// accepts the flattened *Event itself and any subtype exposing
+// AsEvent() (EventPayload, EventActionVector, ...). Mirrors C where
+// prop_send_ext_event delivers the event_t* as sent and receivers
+// inspect its type tag regardless of the concrete subtype.
+func ExtArg(a any) *Event {
+	switch v := a.(type) {
+	case *Event:
+		return v
+	case interface{ AsEvent() *Event }:
+		return v.AsEvent()
+	}
+	return nil
+}

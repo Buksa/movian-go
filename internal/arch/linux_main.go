@@ -116,8 +116,8 @@ func linuxGlobalEventsink(et propcore.EventType, args ...any) {
 	if len(args) == 0 {
 		return
 	}
-	e, ok := args[0].(*event.Event)
-	if !ok || e == nil {
+	e := event.ExtArg(args[0])
+	if e == nil {
 		return
 	}
 	if e.IsAction(event.ACTION_SWITCH_UI) {

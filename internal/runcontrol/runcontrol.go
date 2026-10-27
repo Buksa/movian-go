@@ -367,8 +367,8 @@ func (rc *RunControl) globalEventsink(ev propcore.EventType, args ...any) {
 	if ev != propcore.EventExtEvent || len(args) == 0 {
 		return
 	}
-	e, ok := args[0].(*event.Event)
-	if !ok || e == nil {
+	e := event.ExtArg(args[0])
+	if e == nil {
 		return
 	}
 	switch {
