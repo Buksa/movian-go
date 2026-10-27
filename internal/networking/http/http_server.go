@@ -257,11 +257,16 @@ func (hc *HTTPConnection) HTTPSendRaw(rc int, rctxt string, headers *HTTPHeaders
 	fmt.Fprintf(hc.writer, "Server: Movian Go %s\r\n", version.AppVersion())
 	fmt.Fprintf(hc.writer, "Date: %s\r\n", time.Now().UTC().Format(http.TimeFormat))
 	hc.writer.WriteString("Cache-Control: no-cache\r\n")
-	// C: http_send_header — "Connection: %s" per hc->hc_keep_alive
-	if hc.keepAlive {
-		hc.writer.WriteString("Connection: Keep-Alive\r\n")
-	} else {
-		hc.writer.WriteString("Connection: Close\r\n")
+	// C: http_send_header — "Connection: %s" per hc->hc_keep_alive.
+	// Skipped for 101 Switching Protocols: the upgrade handler emits
+	// Connection: Upgrade itself (RFC 6455 §4.2.2) and a second
+	// Connection makes strict WebSocket clients reject the handshake.
+	if httpRC != 101 {
+		if hc.keepAlive {
+			hc.writer.WriteString("Connection: Keep-Alive\r\n")
+		} else {
+			hc.writer.WriteString("Connection: Close\r\n")
+		}
 	}
 
 	// Write headers
@@ -278,8 +283,11 @@ func (hc *HTTPConnection) HTTPSendRaw(rc int, rctxt string, headers *HTTPHeaders
 
 	// C: htsbuf_qprintf(&hdrs, "Content-Length: %d\r\n", contentlen) —
 	// always emitted, even for empty bodies; without it a keep-alive
-	// client cannot tell where the reply ends and hangs.
-	fmt.Fprintf(hc.writer, "Content-Length: %d\r\n", len(output))
+	// client cannot tell where the reply ends and hangs. Skipped for
+	// 101 — a switched protocol has no framed body.
+	if httpRC != 101 {
+		fmt.Fprintf(hc.writer, "Content-Length: %d\r\n", len(output))
+	}
 
 	hc.writer.WriteString("\r\n")
 
