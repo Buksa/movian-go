@@ -21,8 +21,6 @@ const WebpopupAvailable = true
 var (
 	wpOnce sync.Once
 
-	wpLastUA string
-
 	// wpJSCookies — per-origin document.cookie cache filled by the
 	// injected page script (HttpOnly cookies never reach JS; the
 	// platform hook covers those where available).
@@ -124,9 +122,10 @@ func WebpopupCookies(uri string) map[string]string {
 	return native
 }
 
-// WebpopupUserAgent is the UA string the webview pages ran with —
-// cookies like cf_clearance are bound to it.
-func WebpopupUserAgent() string { return wpLastUA }
+// WebpopupUserAgent is the UA string the webview sends — cookies like
+// cf_clearance are bound to it. The CEF backend reports the exact UA
+// Chromium emits (Chrome/<major>.0.0.0), even before the first popup.
+func WebpopupUserAgent() string { return wpPlatformUserAgent() }
 
 var wpDelCookiesMu sync.Mutex
 

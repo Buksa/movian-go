@@ -31,6 +31,8 @@ func wpPlatformDeleteCookies(host, path string, names map[string]bool,
 	done <- 0
 }
 
+func wpPlatformUserAgent() string { return "" }
+
 func WpMainCheck() {}
 
 func WpActive() bool { return false }
