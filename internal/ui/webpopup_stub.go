@@ -26,6 +26,11 @@ func WebpopupCookies(uri string) map[string]string { return nil }
 // WebpopupUserAgent returns "" without a webview.
 func WebpopupUserAgent() string { return "" }
 
+// WebpopupDeleteCookies returns 0 without a webview.
+func WebpopupDeleteCookies(host, path string, names map[string]bool) int {
+	return 0
+}
+
 // WpMainCheck — C: linux_webpopup_check() slot; nothing to drain.
 func WpMainCheck() {}
 

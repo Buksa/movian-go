@@ -10,6 +10,7 @@ package ecmascript
 
 import (
 	"fmt"
+	"strconv"
 	"strings"
 	"time"
 
@@ -147,6 +148,48 @@ func esInjectCookies(ctx *gaftape.Context) int {
 		esEnv.fam.HTTPDomainSetUserAgent(host, ua)
 	}
 	return 0
+}
+
+// es_deletecookies — remove the URL's cookies from both stores (shared
+// HTTP jar + webview store) so a plugin can finish a logout for real.
+// Optional second arg limits deletion to the listed names (array of
+// strings, or an object whose keys are the names). Returns the total
+// number of cookies removed.
+func esDeleteCookies(ctx *gaftape.Context) int {
+	url := ctx.SafeToString(0)
+	var hbuf [256]byte
+	var pbuf [512]byte
+	var port int
+	misc.UrlSplit(nil, 0, nil, 0, hbuf[:], len(hbuf),
+		&port, pbuf[:], len(pbuf), url)
+	host := misc.CStr(hbuf[:])
+	path := misc.CStr(pbuf[:])
+	if q := strings.IndexByte(path, '?'); q >= 0 {
+		path = path[:q]
+	}
+	if path == "" {
+		path = "/"
+	}
+	var names map[string]bool
+	if ctx.GetTop() > 1 && ctx.IsObject(1) {
+		names = map[string]bool{}
+		ctx.Enum(1, 0)
+		for ctx.Next(-1, true) {
+			k := ctx.SafeToString(-2)
+			v := ctx.SafeToString(-1)
+			if _, err := strconv.Atoi(k); err == nil {
+				names[v] = true // array element — name is the value
+			} else {
+				names[k] = true // object key — name is the key
+			}
+			ctx.Pop2()
+		}
+		ctx.Pop()
+	}
+	n := esEnv.fam.HTTPDeleteCookies(host, path, names)
+	n += ui.WebpopupDeleteCookies(host, path, names)
+	ctx.PushInt(n)
+	return 1
 }
 
 // ---------------------------------------------------------------------------
@@ -380,6 +423,7 @@ var fnlistPopup = []gaftape.FunctionListEntry{
 	{Key: "webcookies", Value: esWebcookies, Nargs: 1},
 	{Key: "webuseragent", Value: esWebUserAgent, Nargs: 0},
 	{Key: "injectcookies", Value: esInjectCookies, Nargs: 2},
+	{Key: "deletecookies", Value: esDeleteCookies, Nargs: -1},
 	{Key: "getAuthCredentials", Value: esGetAuthCredentials, Nargs: 5},
 	{Key: "message", Value: esMessage, Nargs: 3},
 	{Key: "textDialog", Value: esTextDialog, Nargs: 3},

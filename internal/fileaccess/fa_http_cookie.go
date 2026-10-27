@@ -219,6 +219,39 @@ func (fam *FileAccessManager) HTTPInjectCookies(host, path string, cookies map[s
 	}
 }
 
+// HTTPDeleteCookies drops the jar entries a request to host/path would
+// carry — i.e. domain/path pairs passing validateCookie — optionally
+// restricted to the listed names (nil map = all names). No C
+// counterpart: the inject/delete pair exists for plugin-driven session
+// logout. Returns the removed count and schedules a jar persist.
+func (fam *FileAccessManager) HTTPDeleteCookies(host, path string, names map[string]bool) int {
+	if path == "" {
+		path = "/"
+	}
+	fam.httpCookies.mu.Lock()
+	n := 0
+	kept := fam.httpCookies.list[:0]
+	for _, x := range fam.httpCookies.list {
+		if (len(names) == 0 || names[x.name]) &&
+			validateCookie(host, path, x.domain, x.path) == 0 {
+			n++
+			continue
+		}
+		kept = append(kept, x)
+	}
+	for i := len(kept); i < len(fam.httpCookies.list); i++ {
+		fam.httpCookies.list[i] = nil
+	}
+	fam.httpCookies.list = kept
+	fam.httpCookies.mu.Unlock()
+	if n > 0 {
+		if cs := fam.CalloutSystem(); cs != nil {
+			cs.Arm(&fam.httpCookies.persistTimer, fam.cookiePersist, nil, 5)
+		}
+	}
+	return n
+}
+
 // httpCookieAppend — C: http_cookie_append.
 func httpCookieAppend(reqHost string, hf *httpFile,
 	headers, extraCookies *httpnet.HTTPHeaderList) {

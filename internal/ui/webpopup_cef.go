@@ -60,6 +60,8 @@ extern void cefOnField(void *data, char *msg);
 extern void cefOnConsole(void *data, char *msg);
 extern void cefCookieVisit(char *name, char *value);
 extern void cefCookiesDone(void *data);
+extern int cefCookieDelMatch(char *dom, char *path, char *name);
+extern void cefCookiesDeleted(void *data, int n);
 
 // ------------------------------------------------------------------
 // refcounted handler plumbing (C API objects must implement
@@ -698,6 +700,52 @@ static void cef_get_cookies(const char *uri, void *data) {
 	mgr->visit_url_cookies(mgr, &u, 1, &g_cvis.h);
 	cef_string_utf16_clear(&u);
 }
+
+// ---- cookie deletion: visit_all_cookies + *del flag + flush ----
+// visit_all (not visit_url) so partitioned cookies are covered too —
+// the Go side decides each cookie via cefCookieDelMatch. flush_store
+// pushes the deletions to disk so they survive restarts.
+REFCOUNT_IMPL(cdel, cef_cookie_visitor_t)
+
+static cdel_t g_cdel;
+static int g_cdel_n;
+static cef_cookie_manager_t *g_cdel_mgr;
+
+static int CEF_CALLBACK cdel_visit(cef_cookie_visitor_t *self,
+    const cef_cookie_t *c, int count, int total, int *del) {
+	cdel_t *v = (cdel_t *)self;
+	char dom[256], path[1024], name[256];
+	cef_go_str(dom, sizeof dom, &c->domain);
+	cef_go_str(path, sizeof path, &c->path);
+	cef_go_str(name, sizeof name, &c->name);
+	if (cefCookieDelMatch(dom, path, name)) {
+		*del = 1;
+		g_cdel_n++;
+	}
+	if (count + 1 >= total) {
+		if (g_cdel_n > 0 && g_cdel_mgr->flush_store) {
+			g_cdel_mgr->flush_store(g_cdel_mgr, NULL);
+		}
+		cefCookiesDeleted(v->ud, g_cdel_n);
+		return 0;
+	}
+	return 1;
+}
+
+// cef_delete_cookies — like cef_get_cookies: runs via the dispatched
+// job queue on the CEF main thread. An empty jar never fires visit →
+// the Go caller falls back to its wait timeout.
+static void cef_delete_cookies(void *data) {
+	cdel_init(&g_cdel);
+	g_cdel.h.visit = cdel_visit;
+	g_cdel.ud = data;
+	g_cdel_n = 0;
+	g_cdel_mgr = cef_cookie_manager_get_global_manager(NULL);
+	if (!g_cdel_mgr ||
+	    !g_cdel_mgr->visit_all_cookies(g_cdel_mgr, &g_cdel.h)) {
+		cefCookiesDeleted(data, 0);
+	}
+}
 */
 import "C"
 
@@ -919,6 +967,33 @@ func cefCookiesDone(data unsafe.Pointer) {
 	cefActiveN.Add(-1)
 	if cefCookiesCh != nil {
 		cefCookiesCh <- cefCookieResult
+	}
+}
+
+//export cefCookieDelMatch
+func cefCookieDelMatch(dom, path, name *C.char) C.int {
+	if cefDelNames != nil && !cefDelNames[C.GoString(name)] {
+		return 0
+	}
+	// Same rules as the shared HTTP jar: the cookie's Domain must
+	// domain-match the request host, its Path must be a request-path
+	// prefix.
+	d := strings.TrimPrefix(C.GoString(dom), ".")
+	if cefDelHost != d && !strings.HasSuffix(cefDelHost, "."+d) {
+		return 0
+	}
+	p := C.GoString(path)
+	if !strings.HasPrefix(cefDelPath, p) {
+		return 0
+	}
+	return 1
+}
+
+//export cefCookiesDeleted
+func cefCookiesDeleted(data unsafe.Pointer, n C.int) {
+	cefActiveN.Add(-1)
+	if cefCookiesDelCh != nil {
+		cefCookiesDelCh <- int(n)
 	}
 }
 
@@ -1240,4 +1315,28 @@ func wpPlatformCookies(uri string, done chan map[string]string) {
 	curi := C.CString(uri)
 	defer C.free(unsafe.Pointer(curi))
 	C.cef_get_cookies(curi, nil)
+}
+
+var cefCookiesDelCh chan int
+var cefDelHost, cefDelPath string
+var cefDelNames map[string]bool
+
+// wpPlatformDeleteCookies — deletion via visit_all_cookies with the
+// *del flag; each cookie is filtered Go-side in cefCookieDelMatch
+// (domain/path/name). done receives the number of deleted cookies.
+func wpPlatformDeleteCookies(host, path string, names map[string]bool,
+	done chan int) {
+	if cefEnsureInit() != 1 {
+		done <- 0
+		return
+	}
+	cefDelHost = host
+	cefDelPath = path
+	if cefDelPath == "" {
+		cefDelPath = "/"
+	}
+	cefDelNames = names
+	cefCookiesDelCh = done
+	cefActiveN.Add(1)
+	C.cef_delete_cookies(nil)
 }
