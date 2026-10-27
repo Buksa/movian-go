@@ -431,3 +431,4 @@ jobs:
           name: Movian Go ${{ inputs.tag || github.ref_name }}
           draft: false
           prerelease: false
+          generate_release_notes: true
