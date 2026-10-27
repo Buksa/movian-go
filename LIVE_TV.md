@@ -59,8 +59,8 @@ session.
    even though the box can tune channels.
 2. **Sidecar** — only in *Automatic* mode (below): when the provider
    returns zero channels, the fixed
-   `<externalFilesDir>/tv_channels.json` is merged in — on the TIM box
-   that's
+   `<externalFilesDir>/tv_channels.json` is merged in. The resolved
+   path varies by device/ROM — on the TIM box, for example, it's
    `/sdcard/Android/data/com.moviango.mediaplayer/files/tv_channels.json`.
    A different location needs the *Channel list file* source in
    `settings:livetv`, which reads whatever path you pick.
