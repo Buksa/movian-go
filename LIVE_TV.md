@@ -57,9 +57,13 @@ session.
    `ACCESS_ALL_EPG_DATA` permission, which normal apps don't get —
    that's why on operator boxes the provider often reads back empty
    even though the box can tune channels.
-2. **Sidecar** — when the provider returns zero channels,
-   `<externalFilesDir>/tv_channels.json` is merged in. On the TIM box:
+2. **Sidecar** — only in *Automatic* mode (below): when the provider
+   returns zero channels, the fixed
+   `<externalFilesDir>/tv_channels.json` is merged in — on the TIM box
+   that's
    `/sdcard/Android/data/com.moviango.mediaplayer/files/tv_channels.json`.
+   A different location needs the *Channel list file* source in
+   `settings:livetv`, which reads whatever path you pick.
 
 Inputs are enumerated at runtime from `TvInputManager` — nothing is
 hardcoded per vendor. Vendor feeder URIs live in the sidecar as data,
