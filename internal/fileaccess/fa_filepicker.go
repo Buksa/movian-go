@@ -137,12 +137,9 @@ func (fp *Filepicker) loadDir(path, title string) {
 	}
 	fp.pm.SelectChildProp(fd.root, nil)
 
-	// C: prop_set(fd->fd_root, "canGoBack", PROP_SET_INT, LIST_FIRST != NULL)
-	canGoBack := 0
-	if len(fp.dirstack) > 0 {
-		canGoBack = 1
-	}
-	fp.pm.SetIntEx(fp.pm.CreateEx(fd.root, "canGoBack", nil, false, true), nil, canGoBack)
+	// Always offer a way back: at the root the button cancels the
+	// picker (popdir empties the stack → run=false).
+	fp.pm.SetIntEx(fp.pm.CreateEx(fd.root, "canGoBack", nil, false, true), nil, 1)
 
 	// C: LIST_INSERT_HEAD(&fp->fp_dirstack, fd, fd_link)
 	fp.dirstack = slices.Insert(fp.dirstack, 0, fd)
@@ -225,6 +222,14 @@ func (fp *Filepicker) eventsink(opaque any, ev propcore.EventType, args ...any) 
 // vfs:/// and blocks until a pick is made or the popup is destroyed.
 // Returns "" when cancelled (C: NULL fp_path).
 func FilepickerPick(fam *FileAccessManager, title string, flags int) string {
+	return FilepickerPickAt(fam, title, "vfs:///", flags)
+}
+
+// FilepickerPickAt — FilepickerPick rooted at startURL instead of
+// vfs:/// (embedded schemes like es:// or file:// on Android, where
+// nothing is exported into the vfs root).
+func FilepickerPickAt(fam *FileAccessManager, title, startURL string,
+	flags int) string {
 	fp := &Filepicker{
 		run:   true,
 		flags: flags,
@@ -272,7 +277,23 @@ func FilepickerPick(fam *FileAccessManager, title string, flags int) string {
 		return ""
 	}
 
-	fp.loadDir("vfs:///", "")
+	if startURL == "" {
+		startURL = "vfs:///"
+	}
+	// Load the whole ancestor chain so BACK climbs real parents up to
+	// the scheme root instead of starting on a leaf with no way up.
+	chain := []string{startURL}
+	for len(chain) < 16 {
+		parent, err := FAParent(chain[len(chain)-1])
+		if err != nil || parent == "" ||
+			parent == chain[len(chain)-1] {
+			break
+		}
+		chain = append(chain, parent)
+	}
+	for i := len(chain) - 1; i >= 0; i-- {
+		fp.loadDir(chain[i], "")
+	}
 
 	// C: while(fp.fp_run) prop_courier_wait_and_dispatch(pc)
 	for fp.run {
@@ -301,13 +322,14 @@ type fpaux struct {
 	title  string
 	target *propcore.Prop
 	url    string
+	start  string
 	flags  int
 }
 
 // filepickerPickToPropTask — C: filepicker_pick_to_prop_task
 func filepickerPickToPropTask(aux any) {
 	a := aux.(*fpaux)
-	res := FilepickerPick(a.fam, a.title, a.flags)
+	res := FilepickerPickAt(a.fam, a.title, a.start, a.flags)
 
 	if res != "" {
 		// C: prop_set_rstring(a->target, res)
@@ -329,6 +351,23 @@ func FilepickerPickToProp(fam *FileAccessManager, title string, target *propcore
 		title:  title,
 		target: target,
 		url:    current,
+		flags:  flags,
+	})
+}
+
+// FilepickerPickToPropAt — FilepickerPickToProp rooted at startURL.
+func FilepickerPickToPropAt(fam *FileAccessManager, title string,
+	target *propcore.Prop, current string, flags int, startURL string) {
+	if target == nil {
+		return
+	}
+	target.Retain()
+	fam.tasks.Run(filepickerPickToPropTask, &fpaux{
+		fam:    fam,
+		title:  title,
+		target: target,
+		url:    current,
+		start:  startURL,
 		flags:  flags,
 	})
 }

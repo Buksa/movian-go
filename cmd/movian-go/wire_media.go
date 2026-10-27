@@ -214,15 +214,17 @@ func wireMedia(ctx *appContext) {
 	// 20. backend_init() — SOFT
 	// (ctx.backendRegistry + bs allocated earlier — see INIT_GROUP_GRAPHICS)
 
+	// Wire the settings manager to the backend system so the settings: backend
+	// can link page.model to the global settingsModel (matching C's
+	// prop_set(page, "model", PROP_SET_LINK, settings_model)). Runs before
+	// bs.Start(): backends may add settings dirs while registering
+	// (e.g. settings:livetv).
+	bs.SetSettingsMgr(settingsManager)
+
 	// Initialize the backend system (registers page:, settings:, search:, prop: backends)
 	// In C, backends are registered via INITIALIZER() constructors before main().
 	// In Go, we must call Start() explicitly.
 	bs.Start()
-
-	// Wire the settings manager to the backend system so the settings: backend
-	// can link page.model to the global settingsModel (matching C's
-	// prop_set(page, "model", PROP_SET_LINK, settings_model)).
-	bs.SetSettingsMgr(settingsManager)
 
 	// fileaccess_init — C: backend_init → be_init (fap_init hooks +
 	// indexer/imageloader/settings tail). Protocol registration and the
