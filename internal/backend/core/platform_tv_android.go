@@ -70,8 +70,32 @@ type tvChannel struct {
 	URI     string `json:"uri,omitempty"`
 }
 
-// tvLoadChannels fetches the channel list from the Java side.
+// tvLoadChannels fetches the channel list from the configured source:
+// "auto"/"provider" → the system TvProvider (Java side, incl. its
+// discovered-channels sidecar); "file" → only the JSON channel map
+// picked in settings:livetv; "merge" → file entries followed by the
+// provider's, deduplicated.
 func (bs *BackendSystem) tvLoadChannels() []tvChannel {
+	src := bs.tvChannelSource()
+	if src != tvSrcAuto && src != tvSrcProvider {
+		if chans := bs.tvLoadChannelsFromFile(); chans != nil {
+			if src == tvSrcFile {
+				return chans
+			}
+			return mergeTvChannels(chans, bs.tvLoadProviderChannels())
+		}
+		bs.traceSystem.Trace(trace.TRACE_ERROR, "TV",
+			"channel list file %q unreadable or empty", bs.tvKvGet("chanList"))
+		if src == tvSrcMerge {
+			return bs.tvLoadProviderChannels()
+		}
+		return nil
+	}
+	return bs.tvLoadProviderChannels()
+}
+
+// tvLoadProviderChannels — TvProvider channels via the Java side.
+func (bs *BackendSystem) tvLoadProviderChannels() []tvChannel {
 	raw := arch.AndroidTvListChannels()
 	var chans []tvChannel
 	if err := json.Unmarshal([]byte(raw), &chans); err != nil {
@@ -79,10 +103,16 @@ func (bs *BackendSystem) tvLoadChannels() []tvChannel {
 			"listChannels failed: %v raw=%q", err, raw)
 		return nil
 	}
-	// Logical Channel Numbering: order by numeric "number" when the
-	// source publishes it (TvContract.COLUMN_DISPLAY_NUMBER or the
-	// sidecar). Unnumbered entries keep their discovery order at the
-	// tail — a stable sort keeps zap indices consistent everywhere.
+	sortTvChannels(chans)
+	return chans
+}
+
+// sortTvChannels — Logical Channel Numbering: order by numeric
+// "number" when the source publishes it (TvContract
+// COLUMN_DISPLAY_NUMBER, the sidecar, or the channel list file).
+// Unnumbered entries keep their discovery order at the tail — a
+// stable sort keeps zap indices consistent everywhere.
+func sortTvChannels(chans []tvChannel) {
 	sort.SliceStable(chans, func(a, b int) bool {
 		na, ea := strconv.Atoi(chans[a].Number)
 		nb, eb := strconv.Atoi(chans[b].Number)
@@ -91,7 +121,6 @@ func (bs *BackendSystem) tvLoadChannels() []tvChannel {
 		}
 		return ea == nil
 	})
-	return chans
 }
 
 // tvLoadInputs fetches the input list from the Java side.
@@ -253,6 +282,13 @@ func tvFillChannelEvents(pm *propcore.PropManager, ev []chanEvProps,
 
 // tvTuneChannel — tune, deduplicated by channel key across both pages.
 func (bs *BackendSystem) tvTuneChannel(ch tvChannel) {
+	// Media-URI channels without a provider rowid play through
+	// movian's own pipeline (their item URL is the media URL
+	// itself) — nothing to feed the TvView. Rowid channels must
+	// continue to the real tune below.
+	if ch.ID <= 0 && tvIsMediaURI(ch.URI) {
+		return
+	}
 	// The TvView session renders outside the media-pipe system, so no
 	// MpBecomePrimary runs to stop a previous primary (radio/audio
 	// file). Stop it explicitly, exactly like a pipe-based playback
@@ -267,7 +303,12 @@ func (bs *BackendSystem) tvTuneChannel(ch tvChannel) {
 	if tvTunedKey == key && arch.AndroidTvIsTuned() {
 		return
 	}
-	if ch.URI != "" {
+	// Prefer the provider rowid when real (file-loaded channels get
+	// negative synthetic ids): it is the tune path that has always
+	// worked on vendor boxes — a raw uri is only the fallback.
+	if ch.ID > 0 && ch.InputID != "" {
+		arch.AndroidTvTune(ch.InputID, ch.ID)
+	} else if ch.URI != "" {
 		arch.AndroidTvTuneUri(ch.InputID, ch.URI)
 	} else {
 		arch.AndroidTvTune(ch.InputID, ch.ID)
@@ -476,6 +517,15 @@ func tvChannelNodes(pm *propcore.PropManager, nodes *propcore.Prop,
 // unescaped: tvPlayPage matches it as a literal prefix, and a decoded
 // '%2F' inside it would be indistinguishable from the path separator.
 func tvPlayURL(ch tvChannel) string {
+	// Media URIs (file:///mnt/dtvfs/…, http://…) play through
+	// movian's own pipeline: wrap in video: so the video backend
+	// opens them directly — a raw file:// URL would just hit the
+	// file browser (the dvb node has no extension to sniff).
+	// Only when the channel lacks a real provider rowid: a positive
+	// id always wins the TvView tune path (proven on vendor boxes).
+	if ch.ID <= 0 && tvIsMediaURI(ch.URI) {
+		return "video:" + ch.URI
+	}
 	tail := fmt.Sprintf("%d", ch.ID)
 	if ch.URI != "" {
 		tail = url.PathEscape(ch.URI)

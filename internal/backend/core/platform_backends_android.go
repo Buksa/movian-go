@@ -124,8 +124,10 @@ func (bs *BackendSystem) registerPlatformBackends() {
 
 	// TIF backend — "tvinput:" URLs: Live TV service page, channel
 	// tune/untune, input setup passthrough. Registered only when the
-	// device exposes TvInputServices.
+	// device exposes TvInputServices — as is the settings:livetv
+	// page, so devices without TV inputs see neither.
 	if arch.AndroidTvInputCount() > 0 {
+		bs.tvSettingsInit()
 		tvBackend := &Backend{Prefix: "tvinput:"}
 		tvBackend.CanHandle = func(url string) int {
 			if strings.HasPrefix(url, "tvinput:") {
