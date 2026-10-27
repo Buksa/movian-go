@@ -285,6 +285,9 @@ func wireNetwork(ctx *appContext, gc *gconf.T) {
 	ui.SetWebpopupTrace(traceSystem)
 	ui.SetWebpopupFAM(ctx.faManager)
 	ui.SetWebpopupMainloopWake(arch.WakeMainloop)
+	// CEF steals SIGTERM/SIGINT once initialized; the re-armed
+	// handler it installs must reach the real shutdown path.
+	ui.SetWebpopupSignalShutdown(func() { app_shutdown(ctx, 0) })
 	// C: linux_webpopup_check() slot in mainloop (linux_main.c:110).
 	arch.WebpopupCheck = ui.WpMainCheck
 	arch.WebpopupActive = ui.WpActive

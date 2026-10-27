@@ -710,6 +710,7 @@ import (
 	"sync/atomic"
 	"unsafe"
 
+	"github.com/czz/movian-go/internal/arch"
 	"github.com/czz/movian-go/internal/trace"
 )
 
@@ -1087,6 +1088,14 @@ func cefEnsureInit() int {
 		defer C.free(unsafe.Pointer(ccache))
 		if C.cef_init(cex, cres, cloc, ccache) != 0 {
 			cefInit = 1
+			// Chromium just installed its own SIGTERM/SIGINT
+			// handlers — re-arm ours so a later signal reaches the
+			// app again instead of dying in the browser loop.
+			arch.SetSignalHandler(func(sig os.Signal) {
+				if webpopupDeps.signalShutdown != nil {
+					webpopupDeps.signalShutdown()
+				}
+			})
 		} else {
 			cefInit = 0
 		}

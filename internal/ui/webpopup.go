@@ -33,6 +33,10 @@ var webpopupDeps struct {
 	// dispatched webpopup job is drained promptly — GTK/webkit jobs
 	// can only run on the process main thread (WpMainCheck slot).
 	mainloopWake func()
+	// signalShutdown — invoked when SIGTERM/SIGINT arrive after CEF
+	// stole the process handlers (Chromium installs its own at init,
+	// which would otherwise swallow the signal and leave a zombie).
+	signalShutdown func()
 }
 
 // SetWebpopupTrace injects the trace system (C: trace() global).
@@ -44,6 +48,10 @@ func SetWebpopupFAM(fam *facore.FileAccessManager) { webpopupDeps.fam = fam }
 // SetWebpopupMainloopWake injects the arch mainloop waker
 // (C: g_main_context_wakeup on glibcourier dispatch).
 func SetWebpopupMainloopWake(fn func()) { webpopupDeps.mainloopWake = fn }
+
+// SetWebpopupSignalShutdown — wires the process shutdown path the
+// post-CEF-init signal handler should run (cmd's app_shutdown).
+func SetWebpopupSignalShutdown(fn func()) { webpopupDeps.signalShutdown = fn }
 
 // C: webpopup.h result codes
 const (
