@@ -5,6 +5,7 @@ import (
 	"cmp"
 	"crypto/sha1"
 	"encoding/base64"
+	"errors"
 	"fmt"
 	"io"
 	"net"
@@ -809,7 +810,8 @@ func (s *HTTPServer) handleWebSocketFrames(hc *HTTPConnection) {
 		}
 		b, err := hc.reader.ReadByte()
 		if err != nil {
-			if nerr, ok := err.(net.Error); ok && nerr.Timeout() {
+			var nerr net.Error
+			if errors.As(err, &nerr) && nerr.Timeout() {
 				missedPongs++
 				if missedPongs >= 2 {
 					hc.WebSocketSend(8, []byte{0x03, 0xE8}, 2) // 1000
