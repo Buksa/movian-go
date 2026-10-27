@@ -87,8 +87,8 @@ func (ns *NavigatorSystem) navEventsinkCallback(opaque any, eventType propcore.E
 	if len(args) < 1 {
 		return
 	}
-	e, ok := args[0].(*event.Event)
-	if !ok {
+	e := event.ExtArg(args[0])
+	if e == nil {
 		return
 	}
 	// e is BORROWED — do NOT release. Framework releases via freeNotification.

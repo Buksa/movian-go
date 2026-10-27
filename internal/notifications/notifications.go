@@ -217,7 +217,7 @@ func (nm *NotificationManager) PopupDisplay(p *propcore.Prop) *event.Event {
 		case propcore.EventExtEvent:
 			// C: if(*ep) event_release(*ep); atomic_inc; *ep = e
 			if len(args) > 0 {
-				if ev, ok := args[0].(*event.Event); ok {
+				if ev := event.ExtArg(args[0]); ev != nil {
 					if e != nil {
 						e.Release()
 					}
@@ -393,7 +393,7 @@ func (nm *NotificationManager) newsSink(opaque any, eventType propcore.EventType
 		if len(args) == 0 {
 			return
 		}
-		e, _ := args[0].(*event.Event)
+		e := event.ExtArg(args[0])
 		if e == nil || e.GetType() != event.EVENT_DYNAMIC_ACTION {
 			return
 		}
