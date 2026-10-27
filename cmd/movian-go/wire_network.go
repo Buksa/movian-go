@@ -467,7 +467,17 @@ func wireNetwork(ctx *appContext, gc *gconf.T) {
 		)
 	}
 
-	listenErr := ctx.httpServer.Listen(42000)
+	httpPort := 42000
+	listenErr := ctx.httpServer.Listen(httpPort)
+	if listenErr != nil {
+		// C: asyncio_listen falls back to port 0 when the requested
+		// port is taken (e.g. C movian already running) — the real port
+		// then propagates to UPnP and STPP discovery via GetPort.
+		if err := ctx.httpServer.Listen(0); err == nil {
+			httpPort = ctx.httpServer.GetPort()
+			listenErr = nil
+		}
+	}
 
 	// C: #if STOS — asyncio_listen("http-server", 80, http_accept, NULL, 1)
 	//    (http_server.c:1176-1178): extra listener on port 80, between the
@@ -486,7 +496,7 @@ func wireNetwork(ctx *appContext, gc *gconf.T) {
 			if ctx.netIfMgr == nil {
 				ctx.netIfMgr = ifaddr.NewNetIfAddrManager(ctx.asyncIO)
 			}
-			upnpSys := upnp.NewSystem(42000, ctx.httpServer, ctx.serviceSystem,
+			upnpSys := upnp.NewSystem(httpPort, ctx.httpServer, ctx.serviceSystem,
 				settingsManager, ctx.propManager, ctx.backendSystem,
 				ctx.eventManager, ctx.playqueue,
 				metadataManager, ctx.netIfMgr,
@@ -511,7 +521,7 @@ func wireNetwork(ctx *appContext, gc *gconf.T) {
 		}
 		ctx.mgppClient = mgpp.NewMGPPClient(ctx.propManager, settingsManager,
 			ctx.serviceSystem, nil, ctx.netIfMgr)
-		ctx.mgppClient.SetHTTPServerPort(42000)
+		ctx.mgppClient.SetHTTPServerPort(httpPort)
 		ctx.mgppClient.StartDiscovery()
 		ctx.mgppClient.CreateSettings(settingsManager)
 		mgpp.StartNetworking(ctx.netIfMgr, ctx.propManager)

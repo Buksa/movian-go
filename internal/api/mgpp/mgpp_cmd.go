@@ -386,10 +386,26 @@ func mgppCmdSub(mgpp *Mgpp, id uint32, propRef int, path string, flags uint16, n
 	}
 
 	targetProp := propPtr
+	var valueProp *prop.Prop
+	var origins []*prop.Prop
 	if len(components) > 0 {
-		// C: prop_subfind with follow_symlinks=1 for value resolution
-		targetProp = propPtr.ResolvePath(components, true)
-		if targetProp == nil {
+		// Reject non-existent paths — Subfind auto-creates missing
+		// children (C prop_subfind semantics), so existence is checked
+		// with the non-mutating ResolvePath first.
+		if propPtr.ResolvePath(components, true) == nil {
+			return fmt.Errorf("path resolution failed for propRef %d, path %v", propRef, components)
+		}
+		// C: prop_subscribe(PROP_SUB_ALT_PATH | flags, PROP_TAG_NAMESTR,
+		// path, ...) — a NAME subscription: canonical node resolved
+		// without following links, value prop + link origin chain with
+		// follow_symlinks=1. The origin chain is what lets the
+		// subscription re-resolve when a link in the path retargets —
+		// e.g. navigators.current.currentpage changing on navigation.
+		// Resolving once via ResolvePath bound the sub to the terminal
+		// node, so navigation never delivered new-page frames.
+		targetProp = mgpp.pm.Subfind(propPtr, components, 0, 0, nil)
+		valueProp = mgpp.pm.Subfind(propPtr, components, 1, 0, &origins)
+		if targetProp == nil || valueProp == nil {
 			return fmt.Errorf("path resolution failed for propRef %d, path %v", propRef, components)
 		}
 	}
@@ -402,12 +418,19 @@ func mgppCmdSub(mgpp *Mgpp, id uint32, propRef int, path string, flags uint16, n
 	}
 	mgpp.Subscriptions[id] = sub
 
-	// Subscribe to the RESOLVED target prop (not the root)
-	// C: prop_subscribe subscribes to the resolved value prop on
-	// asyncio_courier (stpp.c:565 PROP_TAG_COURIER).
+	// Subscribe to the canonical target prop; the resolved value prop
+	// and its origin chain ride along (SubValueProp/SubOrigins) so the
+	// subscription follows links — same pattern as GLW's
+	// subscribeByNameVector.
 	subArgs := []any{int(flags)}
 	if mgpp.courier != nil {
 		subArgs = append(subArgs, prop.SubCourier{C: mgpp.courier})
+	}
+	if valueProp != nil {
+		subArgs = append(subArgs, prop.SubValueProp{P: valueProp})
+	}
+	if len(origins) > 0 {
+		subArgs = append(subArgs, prop.SubOrigins{Props: origins})
 	}
 	propSub := targetProp.Subscribe(func(opaque any, event prop.EventType, args ...any) {
 		notifyFunc(sub, int(event), args...)
