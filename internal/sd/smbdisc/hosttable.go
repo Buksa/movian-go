@@ -97,6 +97,14 @@ func (t *hostTable) sight(o sighting, now time.Time) {
 	if prev := t.hosts[o.again]; prev != nil && prev.nameBy == fromWSD {
 		return
 	}
+	// Go extension: a multihomed server WS-Discovery named answers mDNS at
+	// its other addresses too. Such a sighting, under a name WS-Discovery's
+	// host has been called by, is dropped while that host is current:
+	// WS-Discovery's address is the host's own answer.
+	if w := t.wsdHostCalled(o, now); w != nil {
+		t.ts.Debug(traceSubsys, "%s: %s at %v is another address of %s", o.name, w.title(), o.addr, w.addr)
+		return
+	}
 	var left *host // the NetBIOS-listed host that o's computer displaced
 	if o.name != "" && h.takesName(o) {
 		named := t.hostNamed(o.name)
@@ -168,6 +176,27 @@ func (t *hostTable) sight(o sighting, now time.Time) {
 	if left != nil {
 		t.publish(left) // after h, which may have just freed its id
 	}
+}
+
+// wsdHostCalled returns the host WS-Discovery named, at another address
+// than o's and seen within hostTTL, that o's mDNS name is an alias of. A
+// name some host bears itself is not an alias. A name netbiosName
+// shortens is no proof of the host: other names share its key, so it
+// matches nothing.
+func (t *hostTable) wsdHostCalled(o sighting, now time.Time) *host {
+	if o.from != fromMDNS || o.name == "" || t.hostNamed(o.name) != nil {
+		return nil
+	}
+	a := netbiosName(o.name)
+	if label, _, _ := strings.Cut(o.name, "."); len([]rune(label)) > len([]rune(a)) {
+		return nil
+	}
+	for _, h := range t.hosts {
+		if h.name != "" && h.nameBy == fromWSD && h.addr != o.addr && h.aliases[a] && now.Sub(h.seen) < hostTTL {
+			return h
+		}
+	}
+	return nil
 }
 
 // netbiosFound handles NetBIOS listing the server name in workgroup.
