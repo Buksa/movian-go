@@ -333,6 +333,35 @@ func TestHostDropsOutRightAfterItsThirdMissedRound(t *testing.T) {
 	r.waitListing()
 }
 
+// A process that was suspended with the page open wakes up long after a
+// round was due: that round starts at the current time with its whole
+// collection window, so the hosts stay listed, and the missed rounds
+// are not replayed.
+func TestOverdueRoundStartsNowAndIsNotReplayed(t *testing.T) {
+	lan := startTestLAN(t)
+	lan.AddHost("127.0.0.2", "OFFICE-PC/Workgroup:WORKGROUP")
+	r := startEngine(t, lan)
+	want := entry{"smb/OFFICE-PC", "OFFICE-PC", "smb://127.0.0.2"}
+	r.waitListing(want)
+	lan.WaitProbes(1)
+	r.clock.Advance(collectWindow)
+	first := lan.ProbeCount()
+
+	r.clock.Advance(5 * time.Minute)
+	lan.WaitProbes(first + 1)
+	r.expectListingStays(want)
+	if got := lan.ProbeCount(); got != first+1 {
+		t.Fatalf("%d Probes after the jump, want %d: one round, not a burst", got, first+1)
+	}
+
+	// The round after it is due roundInterval after the one that started
+	// at the jump.
+	r.clock.Advance(collectWindow)
+	r.clock.Advance(roundInterval - collectWindow)
+	lan.WaitProbes(first + 2)
+	r.expectListingStays(want)
+}
+
 func TestNetBIOSPunctuationStaysInTheName(t *testing.T) {
 	lan := startTestLAN(t)
 	lan.AddHost("127.0.0.2", "ANNA'S-PC/Workgroup:WORKGROUP")

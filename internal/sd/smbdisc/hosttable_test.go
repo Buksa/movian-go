@@ -379,6 +379,52 @@ func TestHostSilentForTheHostTTLIsRemovedAndComesBack(t *testing.T) {
 	l.expect(want)
 }
 
+// A multihomed server that WS-Discovery named and mDNS calls by another
+// name is one entry: mDNS resolving it at its other address, round after
+// round, creates no second entry and does not move it.
+func TestMDNSAliasOfAWSDNamedHostAtAnotherAddressIsDropped(t *testing.T) {
+	tab, l := newTestTable(t)
+	want := entry{"smb/NAS-BOX", "NAS-BOX", "smb://127.0.0.2"}
+	tab.sight(wsdSeen("NAS-BOX", "127.0.0.2"), t0)
+	tab.sight(mdns("storage", "127.0.0.2", smbPort), t0)
+	l.expect(want)
+	h := l.handleOf(want.id)
+
+	for round := 1; round <= 3; round++ {
+		now := t0.Add(time.Duration(round) * roundInterval)
+		tab.sight(wsdSeen("NAS-BOX", "127.0.0.2"), now)
+		tab.sight(mdns("storage", "127.0.0.3", smbPort), now)
+		l.expect(want)
+		l.expectSame(want.id, h)
+	}
+}
+
+// Two mDNS names that netbiosName shortens to the same key are not the
+// same host: the other server is listed, not taken for an alias.
+func TestMDNSNamesSharingANetBIOSKeyAreNotAliases(t *testing.T) {
+	tab, l := newTestTable(t)
+	tab.sight(wsdSeen("NAS-BOX", "127.0.0.2"), t0)
+	tab.sight(mdns("storage-server-01", "127.0.0.2", smbPort), t0)
+
+	tab.sight(mdns("storage-server-02", "127.0.0.3", smbPort), t0.Add(roundInterval))
+	l.expect(entry{"smb/NAS-BOX", "NAS-BOX", "smb://127.0.0.2"},
+		entry{"smb/STORAGE-SERVER-02", "storage-server-02", "smb://127.0.0.3"})
+}
+
+// Once WS-Discovery has not seen the host for hostTTL the server may
+// really have moved, so the same mDNS sighting is handled by the usual
+// rules, which list it at the new address.
+func TestMDNSAliasOfAStaleWSDNamedHostIsHandledAsBefore(t *testing.T) {
+	tab, l := newTestTable(t)
+	tab.sight(wsdSeen("NAS-BOX", "127.0.0.2"), t0)
+	tab.sight(mdns("storage", "127.0.0.2", smbPort), t0)
+	l.expect(entry{"smb/NAS-BOX", "NAS-BOX", "smb://127.0.0.2"})
+
+	tab.sight(mdns("storage", "127.0.0.3", smbPort), t0.Add(hostTTL))
+	l.expect(entry{"smb/NAS-BOX", "NAS-BOX", "smb://127.0.0.2"},
+		entry{"smb/STORAGE", "storage", "smb://127.0.0.3"})
+}
+
 // WS-Discovery's address for a host is the host's own answer from there:
 // a preferred mDNS address that comes later does not move the entry or
 // list a second one, round after round.
