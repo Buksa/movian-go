@@ -70,6 +70,10 @@ type NMBManager struct {
 	// directly. Field so tests can stub the DCE/RPC walk.
 	enumServers func(hostname string) []string
 	ss          *service.ServiceSystem
+
+	// nbnsDest is where name-service queries go; nil means the C
+	// broadcast to 255.255.255.255:137. Field so tests can answer them.
+	nbnsDest *netcore.NetAddr
 }
 
 // NewNMBManager creates a new NMB manager
@@ -96,12 +100,9 @@ func (m *NMBManager) NMBStart(ss *service.ServiceSystem) error {
 	}
 	m.ss = ss
 
-	// C: asyncio_udp_bind("nmb", 0, nmb_udp_input, NULL, 0, 1)
-	fd := m.aio.UDPBind("nmb", nil, m.nmbUDPInput, nil, false, true)
-	if fd == nil {
+	if !m.nmbBind() {
 		return fmt.Errorf("nmb: UDPBind failed") // C: NULL from asyncio_udp_bind
 	}
-	m.udpFd = fd
 
 	// C: asyncio_timer_init(&nmb_timer, nmb_send_msb_query, NULL)
 	m.timer = &asyncio.Timer{}
@@ -112,6 +113,19 @@ func (m *NMBManager) NMBStart(ss *service.ServiceSystem) error {
 	// C: nmb_send_msb_query(NULL)
 	m.nmbSendMSBQuery()
 	return nil
+}
+
+// nmbBind — the asyncio_udp_bind step of C nmb_init. Binds the broadcast
+// UDP socket unless it is bound already; runs on the asyncio thread,
+// like every other user of udpFd.
+// Go: the resolver calls it too, because with --disable-sd NMBStart
+// never runs and the first name query has to bind the socket.
+func (m *NMBManager) nmbBind() bool {
+	if m.udpFd == nil {
+		// C: asyncio_udp_bind("nmb", 0, nmb_udp_input, NULL, 0, 1)
+		m.udpFd = m.aio.UDPBind("nmb", nil, m.nmbUDPInput, nil, false, true)
+	}
+	return m.udpFd != nil
 }
 
 // encodeName — C: encode_name (nmb.c:99-119). NetBIOS first-level
@@ -249,7 +263,10 @@ func (m *NMBManager) nmbUDPInput(opaque any, data []byte, remoteAddr *netcore.Ne
 	var addr [4]byte
 	copy(addr[:], data[58:62])
 
-	if txid == m.msbTxid {
+	// Go: m.timer is set only by NMBStart. Without it no master-browser
+	// query went out, so msbTxid's zero value must not match a stray
+	// reply and start server enumeration.
+	if m.timer != nil && txid == m.msbTxid {
 		// Master browser replied — enumerate its servers in a task
 		// (C: task_run(query_master_browser, a))
 		m.tasks.Run(func(opaque any) {
@@ -278,7 +295,8 @@ func (m *NMBManager) nmbUDPInput(opaque any, data []byte, remoteAddr *netcore.Ne
 }
 
 // nmbSendQuery — C: nmb_send_query (nmb.c:259-278). Broadcasts an NB
-// name query to 255.255.255.255:137, dups+1 times. Returns the txid.
+// name query to 255.255.255.255:137 (nbnsDest in tests), dups+1 times.
+// Returns the txid.
 func (m *NMBManager) nmbSendQuery(name string, typ byte, dups int) uint16 {
 	m.txidTally++
 	txid := m.txidTally
@@ -291,9 +309,12 @@ func (m *NMBManager) nmbSendQuery(name string, typ byte, dups int) uint16 {
 	binary.BigEndian.PutUint16(pkt[46:48], 0x20) // type = NB
 	binary.BigEndian.PutUint16(pkt[48:50], 0x01) // class = IN
 
-	// C: net_addr_t to 255.255.255.255:137
-	dst := &netcore.NetAddr{Family: 4, Port: 137}
-	copy(dst.Addr[:4], net.IPv4bcast.To4())
+	dst := m.nbnsDest
+	if dst == nil {
+		// C: net_addr_t to 255.255.255.255:137
+		dst = &netcore.NetAddr{Family: 4, Port: 137}
+		copy(dst.Addr[:4], net.IPv4bcast.To4())
+	}
 	for range dups + 1 {
 		m.udpFd.UDPSend(pkt, len(pkt), dst)
 	}
@@ -363,6 +384,13 @@ func (m *NMBManager) nmbResolverProcess() {
 		nr := m.pending[0]
 		m.pending = m.pending[1:]
 		m.mu.Unlock()
+
+		// Go: a failed lazy bind (see nmbBind) fails the request at once.
+		if !m.nmbBind() {
+			m.nmbResolveTimeout(nr)
+			m.mu.Lock()
+			continue
+		}
 
 		m.sent = slices.Insert(m.sent, 0, nr) // LIST_INSERT_HEAD
 		nr.txid = m.nmbSendQuery(nr.hostname, 0x20, 1)

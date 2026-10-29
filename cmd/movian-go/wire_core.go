@@ -85,10 +85,16 @@ func wireCore(ctx *appContext, gc *gconf.T, cleanupOnFail func()) {
 	})
 	// C: INITME(INIT_GROUP_ASYNCIO, nmb_init, NULL, 0) — UDP socket,
 	// MSBROWSE/flush timers, first broadcast query.
+	// Go extension: --disable-sd skips it (C gates only sd_init); name
+	// resolution then binds the socket on its first query.
 	ctx.initGroupSystem.RegisterInitHelper(&arch.InitHelper{
 		Group: arch.InitGroupAsyncIO,
 		Prio:  0,
-		Start: func() { ctx.nmbManager.NMBStart(ctx.serviceSystem) },
+		Start: func() {
+			if ctx.sdEnabled() {
+				ctx.nmbManager.NMBStart(ctx.serviceSystem)
+			}
+		},
 	})
 	// C: INITME(INIT_GROUP_ASYNCIO, asyncio_http_init, NULL, 0) —
 	// registers the completed-request delivery worker.

@@ -45,6 +45,12 @@ import (
 	"github.com/czz/movian-go/internal/video"
 )
 
+// sdEnabled reports whether service discovery runs. --disable-sd turns
+// off the mDNS/Bonjour backends (C: gconf.disable_sd gates sd_init) and,
+// as a Go extension, NetBIOS host discovery; NetBIOS name resolution
+// stays on.
+func (ctx *appContext) sdEnabled() bool { return !ctx.gconf.DisableSD }
+
 func wireNetwork(ctx *appContext, gc *gconf.T) {
 	traceSystem := ctx.traceSystem
 	settingsManager := ctx.settingsManager
@@ -297,7 +303,10 @@ func wireNetwork(ctx *appContext, gc *gconf.T) {
 	//    avahi_update_hostname (settings.c:1327-1330). Under !mgos the
 	//    function still exists but its flag is never consumed.
 	settingsManager.SetAvahiUpdateHostname(ctx.sdSys.AvahiUpdateHostname)
-	ctx.sdSys.Start(ctx.serviceSystem, settingsManager, ctx.propManager, traceSystem)
+	// C: if(!gconf.disable_sd) sd_init(); (main.c)
+	if ctx.sdEnabled() {
+		ctx.sdSys.Start(ctx.serviceSystem, settingsManager, ctx.propManager, traceSystem)
+	}
 
 	// C: INITME(INIT_GROUP_API, tmdb_init / tvdb_init / lastfm_init, NULL, 0)
 	// — each registers a metadata source (which adds its dir + "Enabled"
