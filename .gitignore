@@ -67,8 +67,28 @@ ffmpeg/android/*-shared/
 cmd/movian-go/*.syso
 "Movian Go.app/"
 /libcore_*.so
-# test files live only in the local working tree
+# Ad hoc test files stay local; keep the NetBIOS --disable-sd regression
+# and the SMB discovery engine tests tracked.
 *_test.go
+!internal/fileaccess/smb/nmb_discovery_test.go
+!internal/fileaccess/smb/nmb_test.go
+!internal/sd/smbdisc/engine_mdns_test.go
+!internal/sd/smbdisc/engine_test.go
+!internal/sd/smbdisc/mdns_test.go
+!internal/sd/smbdisc/netbios_test.go
+!internal/sd/smbdisc/netchange_test.go
+!internal/sd/smbdisc/lan/netif_test.go
+!internal/sd/smbdisc/smoke_test.go
+!internal/sd/smbdisc/wsd/codec_test.go
+!internal/sd/smbdisc/wsd/client_test.go
+!internal/sd/smbdisc/internal/hostname/hostname_test.go
+!internal/sd/smbdisc/lan/netif_ifaddr_unix_test.go
+!internal/sd/smbdisc/roundpolicy_test.go
+!internal/sd/smbdisc/engine_merge_test.go
+!internal/sd/smbdisc/memlisting_test.go
+!internal/sd/smbdisc/hosttable_test.go
+!internal/sd/smbdisc/registrylisting_test.go
+!internal/backend/core/discovered_watch_test.go
 third_party/cef/
 third_party/libxml2/
 third_party/glfw/linux/
