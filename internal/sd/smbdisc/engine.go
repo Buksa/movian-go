@@ -259,11 +259,15 @@ func (e *Engine) run(ctx context.Context, next time.Time) {
 
 // awaitRound waits for the round due at next, a network change or a
 // page opening, and returns when the round starts: at next, or now
-// after a change or an opening. False means ctx ended. No round is due
-// while no page is open: not at start, on the clock or after a change.
+// after a change, an opening, or a wake-up past next. False means ctx
+// ended. No round is due while no page is open: not at start, on the
+// clock or after a change.
 //
 // C: wsd_send_probe (movian6 src/sd/wsd.c) runs off its 20 s timer
 // only; the WS-Discovery client never hears of a network change.
+// Go extension: a round whose timer is handled after next, as when the
+// process was suspended, starts now and not at next, whose collection
+// window has closed; the round after it is due roundInterval later.
 // Go extension: a change starts a round at once, through the interfaces
 // as they are then, and the round after it is due roundInterval later.
 // A change heard while a round collects its replies starts the next
@@ -281,6 +285,12 @@ func (e *Engine) awaitRound(ctx context.Context, next time.Time) (time.Time, boo
 			return time.Time{}, false
 		case <-tick:
 			if e.watched() {
+				// A round that fires late, the process having been
+				// suspended, starts now with its whole collection window;
+				// the rounds it missed are not replayed.
+				if now := e.clock.Now(); now.After(next) {
+					next = now
+				}
 				return next, true
 			}
 			// The last page closed while this waited.
