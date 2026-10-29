@@ -6,6 +6,10 @@
 // smb:// services. Name resolution queues nmb_resolve_t requests on a
 // worker, broadcasts NB name queries, and blocks on a cond until a
 // reply or the 3s timeout fires.
+//
+// Go extension: the enumerated servers are reported to a ServerSink,
+// the SMB discovery engine (internal/sd/smbdisc), which merges them
+// with the hosts other sources find; NetBIOS creates no services.
 package smb
 
 import (
@@ -17,16 +21,15 @@ import (
 
 	"github.com/czz/movian-go/internal/asyncio"
 	netcore "github.com/czz/movian-go/internal/networking/core"
-	"github.com/czz/movian-go/internal/service"
 	"github.com/czz/movian-go/internal/task"
 )
 
 // nmbServer — C: nmb_server_t (nmb.c:38-44)
+// Go: no ns_service; the ServerSink owns the entry on Local network.
 type nmbServer struct {
 	workgroup string // ns_workgroup
 	name      string // ns_name
 	mark      int    // ns_mark
-	svc       *service.Service
 }
 
 // nmbResolve — C: nmb_resolve_t (nmb.c:48-55)
@@ -69,11 +72,20 @@ type NMBManager struct {
 	// enumServers — C: smb_enum_servers (fa_nativesmb.c:2862) called
 	// directly. Field so tests can stub the DCE/RPC walk.
 	enumServers func(hostname string) []string
-	ss          *service.ServiceSystem
+	sink        ServerSink // takes the servers found and lost; nil drops them
 
 	// nbnsDest is where name-service queries go; nil means the C
 	// broadcast to 255.255.255.255:137. Field so tests can answer them.
 	nbnsDest *netcore.NetAddr
+}
+
+// ServerSink takes what NetBIOS host discovery finds. NetBIOSFound
+// reports a server once, when a master browser's list first holds it;
+// NetBIOSLost reports it once, when NetBIOS drops it. Both are called
+// with the NMBManager's mutex held.
+type ServerSink interface {
+	NetBIOSFound(name, workgroup string)
+	NetBIOSLost(name, workgroup string)
 }
 
 // NewNMBManager creates a new NMB manager
@@ -94,11 +106,12 @@ func (m *NMBManager) NMBResolverStart(aio *asyncio.AsyncIO, ts *task.TaskSystem)
 // NMBStart — C: nmb_init (nmb.c:372-381, INIT_GROUP_ASYNCIO prio 0).
 // Binds the broadcast UDP socket, arms the MSBROWSE/flush timers, and
 // fires the first master-browser query.
-func (m *NMBManager) NMBStart(ss *service.ServiceSystem) error {
+// Go extension: the servers found are reported to sink.
+func (m *NMBManager) NMBStart(sink ServerSink) error {
 	if m == nil || m.aio == nil {
 		return nil
 	}
-	m.ss = ss
+	m.sink = sink
 
 	if !m.nmbBind() {
 		return fmt.Errorf("nmb: UDPBind failed") // C: NULL from asyncio_udp_bind
@@ -157,6 +170,7 @@ func encodeName(in string, out []byte, nameType byte) {
 }
 
 // nsDestroy — C: ns_destroy (nmb.c:127-134)
+// Go extension: reports the server lost instead of service_destroy.
 func (m *NMBManager) nsDestroy(ns *nmbServer) {
 	for i, s := range m.servers {
 		if s == ns {
@@ -164,8 +178,8 @@ func (m *NMBManager) nsDestroy(ns *nmbServer) {
 			break
 		}
 	}
-	if m.ss != nil && ns.svc != nil {
-		m.ss.ServiceDestroy(ns.svc)
+	if m.sink != nil {
+		m.sink.NetBIOSLost(ns.name, ns.workgroup)
 	}
 }
 
@@ -179,7 +193,13 @@ func (m *NMBManager) removeAllServers() {
 }
 
 // queryMasterBrowser — C: query_master_browser (nmb.c:153-206).
-// Enumerates servers on the master browser and creates smb:// services.
+// Enumerates servers on the master browser. A server new to the list
+// is reported found; one missing from two lists in a row is reported
+// lost.
+// Go extension: C creates an smb://<name> service with id
+// <workgroup>/<name> for each new server and destroys it on the sweep;
+// the sink does both now, merging the server with what other sources
+// see.
 func (m *NMBManager) queryMasterBrowser(ip [4]byte) {
 	if m.enumServers == nil {
 		return
@@ -211,14 +231,8 @@ func (m *NMBManager) queryMasterBrowser(ip [4]byte) {
 			ns = &nmbServer{name: name, workgroup: workgroup}
 			m.servers = slices.Insert(m.servers, 0, ns) // LIST_INSERT_HEAD
 
-			// C: service_create_managed(id, name, url, "server", NULL,
-			//   0, 0, SVC_ORIGIN_DISCOVERED)
-			if m.ss != nil {
-				id := fmt.Sprintf("%s/%s", workgroup, name)
-				url := fmt.Sprintf("smb://%s", name)
-				ns.svc = m.ss.ServiceCreateManaged(id, name, url,
-					"server", "", false, false,
-					service.SvcOriginDiscovered)
+			if m.sink != nil {
+				m.sink.NetBIOSFound(name, workgroup)
 			}
 		} else {
 			ns.mark = 0
@@ -237,8 +251,8 @@ func (m *NMBManager) queryMasterBrowser(ip [4]byte) {
 	}
 	m.servers = keep
 	for _, ns := range dead {
-		if m.ss != nil && ns.svc != nil {
-			m.ss.ServiceDestroy(ns.svc)
+		if m.sink != nil {
+			m.sink.NetBIOSLost(ns.name, ns.workgroup)
 		}
 	}
 }
