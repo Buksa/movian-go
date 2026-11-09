@@ -665,3 +665,19 @@ func TestFirstPartyHoldUsesTheCanonicalRequestURL(t *testing.T) {
 		t.Fatal("refused for a path that canonicalizes into the cookie's")
 	}
 }
+
+// A blocker-only inventory (no eligible cookie, two cookies of one name that
+// are not eligible) is still held, so the ambiguity is reported and the name
+// is withheld rather than imported from the visitor's jar.
+func TestHoldKeepsBlockerOnlyInventoryAsAmbiguity(t *testing.T) {
+	var c popupOwnerContexts
+	holdOf(&c, nil, []WebpopupCookie{
+		{Name: "cf_clearance", Domain: ".site.test", Path: "/", Secure: true, Expires: dtNow.Unix() + 3600},
+		{Name: "cf_clearance", Domain: ".site.test", Path: "/", Secure: true},
+	})
+	hit, amb := c.firstPartyLookup("a@local", "https://site.test/login",
+		cookieURL{"https", "site.test", "/"}, "cf_clearance", dtNow)
+	if hit != nil || !amb {
+		t.Fatalf("hit=%+v ambiguous=%v, want nil, true", hit, amb)
+	}
+}
