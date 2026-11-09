@@ -305,7 +305,7 @@ jobs:
   # coverage but only on manual dispatch; releases still cover macOS.
   macos:
     name: macOS (webpopup+cef)
-    if: github.event_name == 'workflow_dispatch'
+    # Public repo: macOS runners are free, so run on every staging PR.
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
