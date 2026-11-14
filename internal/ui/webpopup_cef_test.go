@@ -912,6 +912,110 @@ func TestUnavailableEndInventoryHoldsNothing(t *testing.T) {
 	}
 }
 
+// assertVisitorCookieWithheld checks that the owner-scoped read at now does not
+// hand over the visitor's unpartitioned cf_clearance of site.test.
+func assertVisitorCookieWithheld(t *testing.T, now time.Time) {
+	t.Helper()
+	u := cookieURL{"https", "site.test", "/"}
+	hit, amb := cefOwnerCtx.firstPartyLookup(dtTestOwner, "https://site.test/", u, "cf_clearance", now)
+	var held string
+	if amb {
+		held = "cf_clearance"
+	}
+	got, _ := mergeFirstParty(visitorHit(), u, hit, held)
+	for _, c := range got {
+		if c.Name == "cf_clearance" {
+			t.Fatalf("delivered %q although the final inventory was unavailable", c.Value)
+		}
+	}
+}
+
+// An unavailable final inventory cannot rule out a first-party Partitioned
+// twin of the visitor's cookie, so the owner-scoped read must withhold the
+// name instead of delivering the unpartitioned cookie alone.
+func TestUnavailableEndInventoryWithholdsTheName(t *testing.T) {
+	answers := map[string]func(s *cefSession, br unsafe.Pointer){
+		"error": func(s *cefSession, br unsafe.Pointer) {
+			cefTestDevToolsDeliver(br, s.dtNextID, false, ``)
+		},
+		"malformed": func(s *cefSession, br unsafe.Pointer) {
+			cefTestDevToolsDeliver(br, s.dtNextID, true, `{"cookies":`)
+		},
+		"timeout": func(s *cefSession, br unsafe.Pointer) { s.endTimeout() },
+	}
+	withheld := func(t *testing.T) { assertVisitorCookieWithheld(t, time.Now()) }
+	for name, answer := range answers {
+		t.Run("wait found a Partitioned cookie/"+name, func(t *testing.T) {
+			f := installDT(t)
+			s, br, done := dtSession(t, f)
+			s.startDevToolsRead(time.Now())
+			cefTestDevToolsDeliver(br, 1, true, dtResult(dtFirstPartyKey))
+			answer(s, br)
+			<-done
+			withheld(t)
+			f.destroyHandlers(dtKey(f))
+		})
+		t.Run("wait read failed/"+name, func(t *testing.T) {
+			f := installDT(t)
+			s, br, done := dtSession(t, f)
+			finishVisitorRead(s, visitorHit())
+			cefTestDevToolsDeliver(br, 1, false, `{"code":-32000}`)
+			answer(s, br)
+			<-done
+			withheld(t)
+			f.destroyHandlers(dtKey(f))
+		})
+	}
+}
+
+// Without a DevTools registration the final inventory cannot run at all.
+func TestMissingDevToolsRegistrationWithholdsTheName(t *testing.T) {
+	f := installDT(t)
+	s, _, done := dtSession(t, f)
+	s.dtReg = nil
+	finishVisitorRead(s, visitorHit())
+	<-done
+	assertVisitorCookieWithheld(t, time.Now())
+	f.destroyHandlers(dtKey(f))
+}
+
+// The unavailable state outlives the hold TTL; only a newer popup of the
+// owner clears it.
+func TestUnavailableEndInventoryOutlivesTheHoldTTLUntilANewerPopup(t *testing.T) {
+	f := installDT(t)
+	s, br, done := dtSession(t, f)
+	finishVisitorRead(s, visitorHit())
+	cefTestDevToolsDeliver(br, 1, false, `{"code":-32000}`)
+	cefTestDevToolsDeliver(br, s.dtNextID, false, ``)
+	<-done
+	assertVisitorCookieWithheld(t, time.Now())
+	assertVisitorCookieWithheld(t, time.Now().Add(firstPartyHoldTTL+time.Minute))
+	assertVisitorCookieWithheld(t, time.Now().Add(24*time.Hour))
+	cefOwnerCtx.begin(dtTestOwner)
+	u := cookieURL{"https", "site.test", "/"}
+	if hit, amb := cefOwnerCtx.firstPartyLookup(dtTestOwner, "https://site.test/", u, "cf_clearance", time.Now()); hit != nil || amb {
+		t.Fatalf("a newer popup kept the state: %+v %v", hit, amb)
+	}
+	f.destroyHandlers(dtKey(f))
+}
+
+// A successful final inventory that lists no Partitioned twin leaves the
+// visitor's cookie deliverable.
+func TestSuccessfulEmptyEndInventoryDeliversTheVisitorCookie(t *testing.T) {
+	f := installDT(t)
+	s, br, done := dtSession(t, f)
+	finishVisitorRead(s, visitorHit())
+	cefTestDevToolsDeliver(br, 1, true, `{"cookies":[]}`)
+	answerEnd(t, s, br)
+	<-done
+	u := cookieURL{"https", "site.test", "/"}
+	hit, amb := cefOwnerCtx.firstPartyLookup(dtTestOwner, "https://site.test/", u, "cf_clearance", time.Now())
+	if hit != nil || amb {
+		t.Fatalf("lookup = %+v, ambiguous %v", hit, amb)
+	}
+	f.destroyHandlers(dtKey(f))
+}
+
 func TestSuccessfulEndInventoryHoldsTheCookieItListsAfterTheWait(t *testing.T) {
 	f := installDT(t)
 	s, br, done := dtSession(t, f)
