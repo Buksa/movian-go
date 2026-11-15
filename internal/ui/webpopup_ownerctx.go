@@ -32,6 +32,9 @@ type firstPartyHold struct {
 	origin string
 	set    firstPartySet
 	at     time.Time
+	// unavailable: the final inventory could not be read, so a first-party
+	// Partitioned twin of any cookie of the origin cannot be ruled out.
+	unavailable bool
 }
 
 // httpsOriginOf is the scheme://host[:port] of an https URL, lowercased and
@@ -83,6 +86,9 @@ func (c *popupOwnerContexts) record(owner string, gen uint64, topURL string) {
 type firstPartySet struct {
 	cookies  []WebpopupCookie
 	blockers []fpBlocker
+	// unavailable marks a set whose inventory failed, timed out or was never
+	// read: nothing is known, so every name of the origin is ambiguous.
+	unavailable bool
 }
 
 // fpBlocker is a twin of a held cookie: a cookie of the origin that is not
@@ -142,6 +148,11 @@ func (c *popupOwnerContexts) recordFirstPartySet(owner string, gen uint64, topUR
 			c.fp = map[string]firstPartyHold{}
 		}
 		c.fp[owner] = firstPartyHold{origin: origin, set: kept, at: now}
+	} else if set.unavailable {
+		if c.fp == nil {
+			c.fp = map[string]firstPartyHold{}
+		}
+		c.fp[owner] = firstPartyHold{origin: origin, at: now, unavailable: true}
 	}
 	c.mu.Unlock()
 }
@@ -176,7 +187,16 @@ func (c *popupOwnerContexts) firstPartyLookup(owner, uri string, req cookieURL, 
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	h, ok := c.fp[owner]
-	if !ok || h.origin != origin || c.byOwner[owner] != origin || now.Sub(h.at) >= firstPartyHoldTTL {
+	if !ok || h.origin != origin || c.byOwner[owner] != origin {
+		return nil, false
+	}
+	if h.unavailable {
+		// Not bound by the hold TTL: no inventory has ruled a Partitioned twin
+		// out, so the name stays ambiguous until a newer popup of the owner
+		// replaces the state.
+		return nil, true
+	}
+	if now.Sub(h.at) >= firstPartyHoldTTL {
 		return nil, false
 	}
 	// Every cookie of the name the request matches counts: more than one,
@@ -226,7 +246,7 @@ func (c *popupOwnerContexts) dropFirstParty(host, path string, names map[string]
 		}
 		h.set.blockers = bl
 		c.fp[owner] = h
-		if len(h.set.cookies) == 0 && len(h.set.blockers) == 0 {
+		if !h.unavailable && len(h.set.cookies) == 0 && len(h.set.blockers) == 0 {
 			delete(c.fp, owner)
 		}
 	}
